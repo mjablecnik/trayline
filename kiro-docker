@@ -4,9 +4,41 @@ set -euo pipefail
 IMAGE_NAME="kiro-sandbox"
 PROXY_NAME="kiro-docker-proxy"
 NETWORK_NAME="kiro-net"
-PROJECT_DIR="${1:?Usage: $0 <project-dir> [prompt...]}"
-shift
-PROMPT="${*:?Usage: $0 <project-dir> <prompt>}"
+
+usage() {
+  cat <<EOF
+Usage: kiro-docker [project-dir] <prompt>
+
+Run Kiro CLI in a sandboxed Docker container with access to host Docker.
+
+Arguments:
+  project-dir  Path to project directory (default: current directory)
+  prompt       Query for Kiro (required)
+
+Examples:
+  kiro-docker "Show me running containers and their logs"
+  kiro-docker ~/my-project "Add a /health endpoint to main.go"
+  kiro-docker ./backend "Fix the failing unit tests"
+EOF
+  exit 0
+}
+
+# No args or help flag → show usage
+if [[ $# -eq 0 ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
+  usage
+fi
+
+# If first arg is a directory → use it as project dir, rest is prompt
+# Otherwise → use current dir, all args are prompt
+if [[ -d "$1" ]]; then
+  PROJECT_DIR="$(cd "$1" && pwd)"
+  shift
+  [[ $# -eq 0 ]] && { echo "Error: prompt is required"; usage; }
+else
+  PROJECT_DIR="$(pwd)"
+fi
+
+PROMPT="$*"
 
 # Build if image doesn't exist
 if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
