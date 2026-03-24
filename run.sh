@@ -17,5 +17,6 @@ exec docker run --rm -it \
   -v "$PROJECT_DIR":/workspace \
   -v "${HOME}/.kiro":/root/.kiro \
   -v "${HOME}/.local/share/kiro-cli":/root/.local/share/kiro-cli \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   "$IMAGE_NAME" \
   chat --no-interactive --trust-all-tools "$PROMPT"

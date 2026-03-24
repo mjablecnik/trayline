@@ -36,6 +36,14 @@ RUN curl --proto '=https' --tlsv1.2 -sSf \
     && install -m 755 /tmp/kirocli/kirocli/bin/* /usr/local/bin/ \
     && rm -rf /tmp/kirocli /tmp/kirocli.zip
 
+# Docker CLI (for controlling host Docker)
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
+    > /etc/apt/sources.list.d/docker.list \
+    && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
 # Workspace – mount point for project files
 RUN mkdir /workspace
 WORKDIR /workspace
