@@ -4,55 +4,48 @@ set -euo pipefail
 IMAGE_NAME="kiro-sandbox"
 PROXY_NAME="kiro-docker-proxy"
 NETWORK_NAME="kiro-net"
-AGENT="kiro"
-
 usage() {
   cat <<EOF
-Usage: agent-docker [--agent=kiro|claude] [-i] [project-dir] <prompt>
-       agent-docker [--agent=kiro|claude] -i [project-dir]
+Usage: agent-docker <kiro|claude> [-p project-dir] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
-Options:
-  --agent=kiro|claude  Choose agent (default: kiro)
-  -i                   Start in interactive mode (no prompt required)
-  -h, --help           Show this help
+Commands:
+  kiro     Run Kiro CLI agent
+  claude   Run Claude Code agent
 
-Arguments:
-  project-dir  Path to project directory (default: current directory)
-  prompt       Query for the agent (required unless -i is used)
+Options:
+  -p DIR   Path to project directory (default: current directory)
+  -i       Start in interactive mode (no prompt required)
+  -h       Show this help
 
 Examples:
-  agent-docker "Show me running containers"                        # kiro, one-shot
-  agent-docker --agent=claude "Show me running containers"         # claude, one-shot
-  agent-docker -i ~/my-project                                     # kiro, interactive
-  agent-docker --agent=claude -i ~/my-project                      # claude, interactive
+  agent-docker kiro "Show me running containers"       # one-shot
+  agent-docker kiro -p ~/my-project "Add /health"      # one-shot with project
+  agent-docker kiro -i                                  # interactive
+  agent-docker claude -p ~/my-project -i                # claude, interactive
 EOF
   exit 0
 }
 
+[[ $# -eq 0 ]] && usage
+
+AGENT="${1}"; shift
+if [[ "$AGENT" == "-h" || "$AGENT" == "--help" ]]; then usage; fi
+if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" ]]; then
+  echo "Error: first argument must be 'kiro' or 'claude'" >&2; exit 1
+fi
+
 INTERACTIVE=false
+PROJECT_DIR="$(pwd)"
 while [[ "${1:-}" == -* ]]; do
   case "$1" in
-    --agent=*) AGENT="${1#--agent=}"; shift ;;
+    -p) PROJECT_DIR="$(cd "$2" && pwd)"; shift 2 ;;
     -i) INTERACTIVE=true; shift ;;
     -h|--help) usage ;;
-    *) echo "Unknown option: $1" >&2; usage ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
-
-if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" ]]; then
-  echo "Error: --agent must be 'kiro' or 'claude'" >&2
-  exit 1
-fi
-
-# Parse optional project dir
-if [[ -n "${1:-}" ]] && [[ -d "$1" ]]; then
-  PROJECT_DIR="$(cd "$1" && pwd)"
-  shift
-else
-  PROJECT_DIR="$(pwd)"
-fi
 
 PROMPT="$*"
 

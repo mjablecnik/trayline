@@ -29,23 +29,23 @@ Builds the Docker image and installs `agent-docker` and `agent-docker-sync` to `
 ### agent-docker
 
 ```
-Usage: agent-docker [--agent=kiro|claude] [-i] [project-dir] <prompt>
-       agent-docker [--agent=kiro|claude] -i [project-dir]
+Usage: agent-docker <kiro|claude> [-p project-dir] [-i] [prompt]
 ```
 
 Options:
-- `--agent=kiro|claude` — choose agent (default: `kiro`)
+- `-p DIR` — path to project directory (default: current directory)
 - `-i` — interactive mode (opens a chat session, no prompt required)
-- `-h, --help` — show help
+- `-h` — show help
 
 Examples:
 
 ```bash
-agent-docker "Show me running containers"                        # kiro, one-shot
-agent-docker --agent=claude "Show me running containers"         # claude, one-shot
-agent-docker ~/my-project "Add a /health endpoint"               # kiro, one-shot, project dir
-agent-docker --agent=claude -i ~/my-project                      # claude, interactive
-agent-docker -i                                                  # kiro, interactive
+agent-docker                                                     # show help
+agent-docker kiro "Show me running containers"                   # one-shot
+agent-docker kiro -p ~/my-project "Add a /health endpoint"       # one-shot with project
+agent-docker kiro -i                                             # interactive
+agent-docker claude -p ~/my-project -i                           # claude, interactive
+agent-docker claude -p ~/my-project "Fix the tests"              # claude, one-shot
 ```
 
 ### agent-docker-sync
