@@ -1,4 +1,4 @@
-# Sandboxed dev container with Go, Node, Bun, Flutter & Kiro CLI
+# Sandboxed dev container with Go, Node, Bun, Flutter, Kiro CLI & Claude Code
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -36,6 +36,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf \
     && install -m 755 /tmp/kirocli/kirocli/bin/* /usr/local/bin/ \
     && rm -rf /tmp/kirocli /tmp/kirocli.zip
 
+# Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
 # Docker CLI (for controlling host Docker)
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
@@ -47,5 +50,3 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # Workspace – mount point for project files
 RUN mkdir /workspace
 WORKDIR /workspace
-
-ENTRYPOINT ["kiro-cli"]

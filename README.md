@@ -1,14 +1,19 @@
-# kiro-docker
+# agent-docker
 
-Sandboxed Docker container for [Kiro CLI](https://kiro.dev) with pre-installed Go, Node.js, Bun and Flutter. Kiro runs in isolation with limited access to the host's Docker daemon via a socket proxy — it can debug and manage other containers but cannot mount the host filesystem or access sensitive Docker APIs.
+Sandboxed Docker container for [Kiro CLI](https://kiro.dev) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with pre-installed Go, Node.js, Bun and Flutter. Agents run in isolation with limited access to the host's Docker daemon via a socket proxy — they can debug and manage other containers but cannot mount the host filesystem or access sensitive Docker APIs.
 
 ## Installation
 
 ### 1. Log in on the host (one-time)
 
 ```bash
+# Kiro
 curl -fsSL https://kiro.dev/install.sh | bash
 kiro-cli login
+
+# Claude Code
+npm install -g @anthropic-ai/claude-code
+claude login
 ```
 
 ### 2. Run the installer
@@ -17,44 +22,46 @@ kiro-cli login
 ./install.sh
 ```
 
-Builds the Docker image and installs `kiro-docker` and `kiro-docker-sync` to `~/bin`.
+Builds the Docker image and installs `agent-docker` and `agent-docker-sync` to `~/bin`.
 
 ## Usage
 
-### kiro-docker
+### agent-docker
 
 ```
-Usage: kiro-docker [-i] [project-dir] <prompt>
-       kiro-docker -i [project-dir]
+Usage: agent-docker [--agent=kiro|claude] [-i] [project-dir] <prompt>
+       agent-docker [--agent=kiro|claude] -i [project-dir]
 ```
 
 Options:
+- `--agent=kiro|claude` — choose agent (default: `kiro`)
 - `-i` — interactive mode (opens a chat session, no prompt required)
 - `-h, --help` — show help
 
 Examples:
 
 ```bash
-kiro-docker "Show me running containers"              # one-shot, cwd
-kiro-docker ~/my-project "Add a /health endpoint"     # one-shot, project dir
-kiro-docker -i                                        # interactive, cwd
-kiro-docker -i ~/my-project                           # interactive, project dir
+agent-docker "Show me running containers"                        # kiro, one-shot
+agent-docker --agent=claude "Show me running containers"         # claude, one-shot
+agent-docker ~/my-project "Add a /health endpoint"               # kiro, one-shot, project dir
+agent-docker --agent=claude -i ~/my-project                      # claude, interactive
+agent-docker -i                                                  # kiro, interactive
 ```
 
-### kiro-docker-sync
+### agent-docker-sync
 
 Syncs the current directory with a remote host via rsync.
 
 ```bash
 cd ~/Projects/my-app
-kiro-docker-sync push            # send local changes to remote
-kiro-docker-sync pull -v         # fetch remote changes (verbose)
+agent-docker-sync push            # send local changes to remote
+agent-docker-sync pull -v         # fetch remote changes (verbose)
 ```
 
 ## How it works
 
 ```
-kiro-docker  →  Kiro container (CLI + tools)
+agent-docker  →  Sandbox container (Kiro CLI / Claude Code + tools)
                     ↓ TCP :2375
                 docker-socket-proxy (filters Docker API)
                     ↓ socket

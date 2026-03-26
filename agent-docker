@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE_NAME="kiro-sandbox"
+PROXY_NAME="kiro-docker-proxy"
+NETWORK_NAME="kiro-net"
+AGENT="kiro"
+
+usage() {
+  cat <<EOF
+Usage: agent-docker [--agent=kiro|claude] [-i] [project-dir] <prompt>
+       agent-docker [--agent=kiro|claude] -i [project-dir]
+
+Run an AI coding agent in a sandboxed Docker container with access to host Docker.
+
+Options:
+  --agent=kiro|claude  Choose agent (default: kiro)
+  -i                   Start in interactive mode (no prompt required)
+  -h, --help           Show this help
+
+Arguments:
+  project-dir  Path to project directory (default: current directory)
+  prompt       Query for the agent (required unless -i is used)
+
+Examples:
+  agent-docker "Show me running containers"                        # kiro, one-shot
+  agent-docker --agent=claude "Show me running containers"         # claude, one-shot
+  agent-docker -i ~/my-project                                     # kiro, interactive
+  agent-docker --agent=claude -i ~/my-project                      # claude, interactive
+EOF
+  exit 0
+}
+
+INTERACTIVE=false
+while [[ "${1:-}" == -* ]]; do
+  case "$1" in
+    --agent=*) AGENT="${1#--agent=}"; shift ;;
+    -i) INTERACTIVE=true; shift ;;
+    -h|--help) usage ;;
+    *) echo "Unknown option: $1" >&2; usage ;;
+  esac
+done
+
+if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" ]]; then
+  echo "Error: --agent must be 'kiro' or 'claude'" >&2
+  exit 1
+fi
+
+# Parse optional project dir
+if [[ -n "${1:-}" ]] && [[ -d "$1" ]]; then
+  PROJECT_DIR="$(cd "$1" && pwd)"
+  shift
+else
+  PROJECT_DIR="$(pwd)"
+fi
+
+PROMPT="$*"
+
+if ! $INTERACTIVE && [[ -z "$PROMPT" ]]; then
+  usage
+fi
+
+# Build if image doesn't exist
+if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
+  echo "Building $IMAGE_NAME image (first run, may take a while)..."
+  docker build -t "$IMAGE_NAME" "$(dirname "$0")"
+fi
+
+# Create network if needed
+docker network inspect "$NETWORK_NAME" &>/dev/null || \
+  docker network create "$NETWORK_NAME"
+
+# Start docker socket proxy if not running
+if ! docker inspect "$PROXY_NAME" &>/dev/null; then
+  docker run -d --name "$PROXY_NAME" \
+    --network "$NETWORK_NAME" \
+    --restart unless-stopped \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    -e CONTAINERS=1 \
+    -e IMAGES=1 \
+    -e NETWORKS=1 \
+    -e LOGS=1 \
+    -e BUILD=1 \
+    -e POST=1 \
+    -e EXEC=1 \
+    -e ALLOW_START=1 \
+    -e ALLOW_STOP=1 \
+    -e ALLOW_RESTARTS=1 \
+    -e VOLUMES=0 \
+    -e NODES=0 \
+    -e SERVICES=0 \
+    -e SWARM=0 \
+    -e SECRETS=0 \
+    -e CONFIGS=0 \
+    -e AUTH=0 \
+    tecnativa/docker-socket-proxy
+fi
+
+# Build agent-specific command and volumes
+VOLUMES=(
+  -v "$PROJECT_DIR":/workspace
+)
+
+if [[ "$AGENT" == "kiro" ]]; then
+  VOLUMES+=(
+    -v "/mnt/c/Users/marti/.kiro":/root/.kiro
+    -v "${HOME}/.local/share/kiro-cli":/root/.local/share/kiro-cli
+  )
+  CMD=(kiro-cli chat --trust-all-tools)
+  if ! $INTERACTIVE; then
+    CMD+=(--no-interactive "$PROMPT")
+  fi
+else
+  VOLUMES+=(
+    -v "${HOME}/.claude":/root/.claude
+    -v "${HOME}/.claude.json":/root/.claude.json
+  )
+  CMD=(claude)
+  if $INTERACTIVE; then
+    CMD+=(--dangerously-skip-permissions)
+  else
+    CMD+=(--dangerously-skip-permissions -p "$PROMPT")
+  fi
+fi
+
+# Run sandbox connected to proxy
+docker run --rm -it \
+  --network "$NETWORK_NAME" \
+  -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
+  "${VOLUMES[@]}" \
+  "$IMAGE_NAME" \
+  "${CMD[@]}"

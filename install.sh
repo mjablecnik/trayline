@@ -8,12 +8,12 @@ echo "Building kiro-sandbox image..."
 docker build -t kiro-sandbox "$SCRIPT_DIR"
 
 mkdir -p "$BIN_DIR"
-cp "$SCRIPT_DIR/kiro-docker" "$BIN_DIR/kiro-docker"
-chmod +x "$BIN_DIR/kiro-docker"
-cp "$SCRIPT_DIR/sync.sh" "$BIN_DIR/kiro-docker-sync"
-chmod +x "$BIN_DIR/kiro-docker-sync"
+cp "$SCRIPT_DIR/agent-docker" "$BIN_DIR/agent-docker"
+chmod +x "$BIN_DIR/agent-docker"
+cp "$SCRIPT_DIR/sync.sh" "$BIN_DIR/agent-docker-sync"
+chmod +x "$BIN_DIR/agent-docker-sync"
 
-echo "Installed kiro-docker and sync to ${BIN_DIR}/"
+echo "Installed agent-docker and sync to ${BIN_DIR}/"
 
 # Check if ~/bin is in PATH
 if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
