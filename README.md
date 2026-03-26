@@ -17,12 +17,38 @@ kiro-cli login
 ./install.sh
 ```
 
-Builds the Docker image and installs `kiro-docker` to `~/bin`.
+Builds the Docker image and installs `kiro-docker` and `kiro-docker-sync` to `~/bin`.
 
-### 3. Usage
+## Usage
+
+### kiro-docker
+
+```
+Usage: kiro-docker [-i] [project-dir] <prompt>
+       kiro-docker -i [project-dir]
+```
+
+Options:
+- `-i` — interactive mode (opens a chat session, no prompt required)
+- `-h, --help` — show help
+
+Examples:
 
 ```bash
-kiro-docker ~/my-project "Add a /health endpoint to main.go"
+kiro-docker "Show me running containers"              # one-shot, cwd
+kiro-docker ~/my-project "Add a /health endpoint"     # one-shot, project dir
+kiro-docker -i                                        # interactive, cwd
+kiro-docker -i ~/my-project                           # interactive, project dir
+```
+
+### kiro-docker-sync
+
+Syncs the current directory with a remote host via rsync.
+
+```bash
+cd ~/Projects/my-app
+kiro-docker-sync push            # send local changes to remote
+kiro-docker-sync pull -v         # fetch remote changes (verbose)
 ```
 
 ## How it works
