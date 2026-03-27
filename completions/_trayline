@@ -1,0 +1,89 @@
+#compdef trayline
+
+# Zsh completion for trayline CLI
+
+_trayline_pipelines() {
+  local pipelines_dir="${TRAYLINE_HOME:-${HOME}/.trayline}/pipelines"
+  if [[ -d "$pipelines_dir" ]]; then
+    local -a pipelines
+    pipelines=( ${pipelines_dir}/*.yaml(N:t:r) )
+    _describe 'pipeline' pipelines
+  fi
+}
+
+_trayline_agent() {
+  local -a agents
+  agents=(
+    'kiro:Run Kiro CLI agent'
+    'claude:Run Claude Code agent'
+  )
+
+  case $CURRENT in
+    2)
+      _describe 'agent' agents
+      ;;
+    *)
+      _arguments \
+        '-p[Project directory]:directory:_directories' \
+        '-i[Interactive mode]' \
+        '-h[Show help]' \
+        '*:prompt:'
+      ;;
+  esac
+}
+
+_trayline_sync() {
+  local -a actions
+  actions=(
+    'push:Send local changes to remote'
+    'pull:Fetch remote changes to local'
+  )
+
+  case $CURRENT in
+    2)
+      _describe 'action' actions
+      ;;
+    *)
+      _arguments \
+        '(-v --verbose)'{-v,--verbose}'[Show detailed output]' \
+        '(-h --help)'{-h,--help}'[Show help]'
+      ;;
+  esac
+}
+
+_trayline_run() {
+  _arguments \
+    '--pipeline[Pipeline name or path]:pipeline:_trayline_pipelines' \
+    '--dry-run[Print steps without executing]' \
+    '--verbose[Stream output in real time]' \
+    '*--var[Set variable key=value]:variable:'
+}
+
+_trayline() {
+  local -a commands
+  commands=(
+    'agent:Run an AI agent in Docker sandbox'
+    'sync:Sync project with remote server'
+    'run:Run a pipeline (orchestrator)'
+    'install:Re-run installation'
+    'version:Print version info'
+    'help:Show help'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+  else
+    local cmd="${words[2]}"
+    (( CURRENT-- ))
+    shift words
+
+    case "$cmd" in
+      agent) _trayline_agent ;;
+      sync)  _trayline_sync ;;
+      run)   _trayline_run ;;
+      *)     _message 'no more arguments' ;;
+    esac
+  fi
+}
+
+_trayline "$@"

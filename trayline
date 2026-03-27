@@ -1,0 +1,98 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+TRAYLINE_HOME="${TRAYLINE_HOME:-${HOME}/.trayline}"
+PIPELINES_DIR="${TRAYLINE_HOME}/pipelines"
+
+usage() {
+  cat <<EOF
+trayline — unified CLI for AI agent pipelines
+
+Usage:
+  trayline <command> [options]
+
+Commands:
+  agent <kiro|claude> [opts] [prompt]   Run an AI agent in Docker sandbox
+  sync <push|pull> [--verbose]          Sync project with remote server
+  run --pipeline <name> [opts]          Run a pipeline (orchestrator)
+  install                               Re-run installation
+  version                               Print version info
+  help                                  Show this help
+
+Pipeline resolution (run command):
+  --pipeline ./path/to/file.yaml        Use local file directly
+  --pipeline my-pipeline                Resolve from ${PIPELINES_DIR}/my-pipeline.yaml
+
+Examples:
+  trayline agent claude "Fix the bug"
+  trayline agent kiro -i
+  trayline sync push --verbose
+  trayline run --pipeline code-review --verbose
+  trayline run --pipeline ./local.yaml --dry-run
+EOF
+  exit 0
+}
+
+[[ $# -eq 0 ]] && usage
+
+COMMAND="$1"; shift
+
+case "$COMMAND" in
+  agent)
+    exec "${TRAYLINE_HOME}/agent-docker" "$@"
+    ;;
+  sync)
+    exec "${TRAYLINE_HOME}/sync.sh" "$@"
+    ;;
+  run)
+    # Resolve pipeline name to path if needed
+    ARGS=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --pipeline)
+          shift
+          PIPELINE_REF="${1:-}"
+          if [[ -z "$PIPELINE_REF" ]]; then
+            echo "error: --pipeline requires a value" >&2
+            exit 1
+          fi
+          # If it contains / or ends with .yaml/.yml, treat as local path
+          if [[ "$PIPELINE_REF" == */* || "$PIPELINE_REF" == *.yaml || "$PIPELINE_REF" == *.yml ]]; then
+            ARGS+=(--pipeline "$PIPELINE_REF")
+          else
+            # Resolve from global pipelines directory
+            RESOLVED="${PIPELINES_DIR}/${PIPELINE_REF}.yaml"
+            if [[ ! -f "$RESOLVED" ]]; then
+              echo "error: pipeline '${PIPELINE_REF}' not found in ${PIPELINES_DIR}/" >&2
+              echo "Available pipelines:" >&2
+              ls -1 "${PIPELINES_DIR}"/*.yaml 2>/dev/null | xargs -I{} basename {} .yaml | sed 's/^/  /' >&2
+              exit 1
+            fi
+            ARGS+=(--pipeline "$RESOLVED")
+          fi
+          shift
+          ;;
+        *)
+          ARGS+=("$1")
+          shift
+          ;;
+      esac
+    done
+    exec "${TRAYLINE_HOME}/trayline-run" "${ARGS[@]}"
+    ;;
+  install)
+    exec "${TRAYLINE_HOME}/../bin/trayline-install"
+    ;;
+  version)
+    echo "trayline wrapper v1.0.0"
+    "${TRAYLINE_HOME}/trayline-run" --version 2>/dev/null || true
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "error: unknown command '${COMMAND}'" >&2
+    echo "Run 'trayline help' for usage." >&2
+    exit 1
+    ;;
+esac
