@@ -48,17 +48,17 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
-RUN useradd -m -s /bin/bash agent \
-    && mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli \
-                /home/agent/.claude /home/agent/go \
-    && chown -R agent:agent /home/agent /opt/flutter
+RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
+RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
+RUN chown -R agent:agent /home/agent /opt/flutter 
 
 ENV PATH="/home/agent/.bun/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
 ENV HOME="/home/agent"
 
-USER agent
-
 # Workspace – mount point for project files
-RUN mkdir /workspace
+RUN mkdir -p /workspace
+RUN chown -R agent:agent /workspace 
 WORKDIR /workspace
+
+USER agent

@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="${HOME}/bin"
 
-echo "Building kiro-sandbox image..."
-docker build -t kiro-sandbox "$SCRIPT_DIR"
+echo "Building agent-sandbox image..."
+docker build -t agent-sandbox "$SCRIPT_DIR"
 
 mkdir -p "$BIN_DIR"
 cp "$SCRIPT_DIR/agent-docker" "$BIN_DIR/agent-docker"

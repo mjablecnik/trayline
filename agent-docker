@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="kiro-sandbox"
-PROXY_NAME="kiro-docker-proxy"
-NETWORK_NAME="kiro-net"
+IMAGE_NAME="agent-sandbox"
+PROXY_NAME="agent-docker-proxy"
+NETWORK_NAME="agent-net"
 usage() {
   cat <<EOF
 Usage: agent-docker <kiro|claude> [-p project-dir] [-i] [prompt]
@@ -53,10 +53,10 @@ if ! $INTERACTIVE && [[ -z "$PROMPT" ]]; then
   usage
 fi
 
-# Build if image doesn't exist
+# Check image exists (must be built via install.sh)
 if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
-  echo "Building $IMAGE_NAME image (first run, may take a while)..."
-  docker build -t "$IMAGE_NAME" "$(dirname "$0")"
+  echo "Error: Docker image '$IMAGE_NAME' not found. Run install.sh first." >&2
+  exit 1
 fi
 
 # Create network if needed
@@ -98,7 +98,7 @@ AGENT_HOME="/home/agent"
 
 if [[ "$AGENT" == "kiro" ]]; then
   VOLUMES+=(
-    -v "/mnt/c/Users/marti/.kiro":"${AGENT_HOME}/.kiro"
+    -v "${HOME}/.kiro":"${AGENT_HOME}/.kiro"
     -v "${HOME}/.local/share/kiro-cli":"${AGENT_HOME}/.local/share/kiro-cli"
   )
   CMD=(kiro-cli chat --trust-all-tools)
