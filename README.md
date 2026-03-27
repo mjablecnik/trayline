@@ -103,14 +103,15 @@ Proxy denies: `volumes`, `secrets`, `swarm`, `auth`, `nodes`, `configs`.
 
 ```
 trayline/
-├── trayline              # Main CLI wrapper (installed to ~/bin/)
-├── trayline-agent        # Docker sandbox runner for AI agents
 ├── install.sh            # Installer script
 ├── Dockerfile            # Sandbox container image
-├── sync.sh               # Rsync wrapper
 ├── orchestrator/         # Go pipeline orchestrator (trayline-run)
 ├── pipelines/            # Default pipeline definitions
-└── completions/          # Zsh completions
+├── completions/          # Zsh completions
+└── scripts/
+    ├── trayline          # Main CLI wrapper (installed to ~/bin/)
+    ├── trayline-agent    # Docker sandbox runner for AI agents
+    └── sync.sh           # Rsync wrapper
 ```
 
 ## Default Pipelines

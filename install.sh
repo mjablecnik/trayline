@@ -14,10 +14,10 @@ mkdir -p "$TRAYLINE_HOME/pipelines"
 
 # Install internal tools to ~/.trayline/ (strip CRLF for WSL compatibility)
 echo "==> Installing tools to ${TRAYLINE_HOME}/"
-sed 's/\r$//' "$SCRIPT_DIR/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
+sed 's/\r$//' "$SCRIPT_DIR/scripts/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
 chmod +x "$TRAYLINE_HOME/trayline-agent"
 
-sed 's/\r$//' "$SCRIPT_DIR/sync.sh" > "$TRAYLINE_HOME/sync.sh"
+sed 's/\r$//' "$SCRIPT_DIR/scripts/sync.sh" > "$TRAYLINE_HOME/sync.sh"
 chmod +x "$TRAYLINE_HOME/sync.sh"
 
 # Build or copy orchestrator binary
@@ -32,7 +32,7 @@ chmod +x "$TRAYLINE_HOME/trayline-run"
 
 # Install main trayline wrapper to ~/bin/
 echo "==> Installing trayline to ${BIN_DIR}/"
-sed 's/\r$//' "$SCRIPT_DIR/trayline" > "$BIN_DIR/trayline"
+sed 's/\r$//' "$SCRIPT_DIR/scripts/trayline" > "$BIN_DIR/trayline"
 chmod +x "$BIN_DIR/trayline"
 
 # Copy default pipelines (don't overwrite user customizations)
