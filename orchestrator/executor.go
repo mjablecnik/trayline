@@ -95,9 +95,24 @@ type Executor struct {
 	ResolvedVars map[string]string // for dry-run display
 }
 // setLLMContext sets context on the LLM logger if logging is enabled.
-func (e *Executor) setLLMContext(context string) {
+// debugLog writes a message to the LLM debug log if logging is enabled.
+func (e *Executor) debugLog(format string, args ...interface{}) {
 	if logger, ok := e.LLM.(*LLMLogger); ok {
-		logger.SetContext(context)
+		logger.Log(format, args...)
+	}
+}
+
+// debugSection writes a section header to the LLM debug log if logging is enabled.
+func (e *Executor) debugSection(title string) {
+	if logger, ok := e.LLM.(*LLMLogger); ok {
+		logger.LogSection(title)
+	}
+}
+
+// debugError writes an error to the LLM debug log if logging is enabled.
+func (e *Executor) debugError(context string, err error) {
+	if logger, ok := e.LLM.(*LLMLogger); ok {
+		logger.LogError(context, err)
 	}
 }
 
@@ -193,6 +208,7 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 		stepType = "agent:" + step.Agent
 	}
 	fmt.Printf("\n%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s\n", colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset)
+	e.debugLog("Executing step %q (%s)", step.Name, stepType)
 	start := time.Now()
 
 	cwd, _ := os.Getwd()
@@ -216,12 +232,15 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
 		fmt.Printf("  %s✗ %q failed after %s: %v%s\n", colorRed, step.Name, elapsed, err, colorReset)
+		e.debugError(fmt.Sprintf("step %q execution", step.Name), err)
 		return output, exitCode, err
 	}
 	if exitCode != 0 {
 		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorReset)
+		e.debugLog("Step %q failed with exit code %d after %s", step.Name, exitCode, elapsed)
 	} else {
 		fmt.Printf("  %s✓ %q (%s) succeeded in %s%s\n", colorGreen, step.Name, stepType, elapsed, colorReset)
+		e.debugLog("Step %q succeeded in %s (output: %d bytes)", step.Name, elapsed, len(output))
 	}
 	return output, exitCode, nil
 }
@@ -229,14 +248,18 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 // evaluateStepCondition evaluates a step's condition and returns the next element index.
 // Returns -1 as nextIdx to signal "stop pipeline".
 func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements []PipelineElement, currentIdx int) (bool, int, error) {
+	e.debugLog("Evaluating condition on step %q (file=%q, goto=%q)", step.Name, step.Condition.File, step.Condition.Goto)
+
 	input, err := e.conditionInput(step.Name, step.Condition, step.ProjectDir, stepOutput)
 	if err != nil {
+		e.debugError(fmt.Sprintf("conditionInput for step %q", step.Name), err)
 		return false, 0, err
 	}
+	e.debugLog("Condition input resolved (%d bytes), calling LLM...", len(input))
 
-	e.setLLMContext(fmt.Sprintf("Step condition: %q", step.Name))
 	decision, err := e.LLM.Evaluate(input, step.Condition.Prompt)
 	if err != nil {
+		e.debugError(fmt.Sprintf("LLM.Evaluate for step %q", step.Name), err)
 		return false, 0, err
 	}
 
@@ -249,23 +272,22 @@ func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements
 
 	if gotoTarget != "" {
 		if decision {
-			// Jump to named step
 			idx := e.findElementIndex(gotoTarget, elements)
 			if idx == -1 {
 				return false, 0, fmt.Errorf("goto target %q not found in top-level elements", gotoTarget)
 			}
+			e.debugLog("Condition true → jumping to %q (index %d)", gotoTarget, idx)
 			return true, idx, nil
 		}
-		// goto + false: continue to next
+		e.debugLog("Condition false → goto not taken, continuing to next step")
 		return false, currentIdx + 1, nil
 	}
 
-	// No goto
 	if decision {
-		// true: continue to next step
+		e.debugLog("Condition true → continuing to next step")
 		return true, currentIdx + 1, nil
 	}
-	// false: stop pipeline
+	e.debugLog("Condition false → stopping pipeline")
 	return false, -1, nil
 }
 
@@ -306,16 +328,15 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 }
 
 // executeLoop runs a loop block with LLM-based iteration control.
-// Returns the exit code and error; exit code is non-zero if a loop step fails.
-// executeLoop runs a loop block with LLM-based iteration control.
-// Returns the exit code and error; exit code is non-zero if a loop step fails.
 // Loop steps may have conditions (without goto). If a step condition evaluates to false,
 // the remaining steps in the current iteration are skipped and the loop exits.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	hasLoopCondition := loop.Condition.Prompt != ""
+	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, steps=%d", loop.MaxIterations, hasLoopCondition, len(loop.Steps)))
 
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
 		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
+		e.debugSection(fmt.Sprintf("Loop iteration %d/%d", iter, loop.MaxIterations))
 
 		var lastOutput string
 		breakLoop := false
@@ -323,10 +344,12 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			step := &loop.Steps[i]
 			output, exitCode, err := e.executeStep(step, i+1, len(loop.Steps))
 			if err != nil {
+				e.debugError(fmt.Sprintf("loop step %q", step.Name), err)
 				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
 			}
 			if exitCode != 0 {
 				fmt.Fprintf(os.Stderr, "  %s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
+				e.debugLog("Step %q failed with exit code %d — aborting loop", step.Name, exitCode)
 				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
 			}
 			lastOutput = output
@@ -334,22 +357,27 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			// Evaluate step condition if present (goto is not allowed inside loops).
 			// true = continue to next step; false = skip remaining steps and exit loop.
 			if step.Condition != nil {
+				e.debugLog("Evaluating step condition on %q (file=%q)", step.Name, step.Condition.File)
 				condDir := step.ProjectDir
 				if condDir == "" {
 					condDir, _ = os.Getwd()
 				}
 				input, err := e.conditionInput(step.Name, step.Condition, condDir, output)
 				if err != nil {
+					e.debugError(fmt.Sprintf("conditionInput for loop step %q", step.Name), err)
 					return 1, err
 				}
-				e.setLLMContext(fmt.Sprintf("Loop iteration %d/%d — step condition: %q", iter, loop.MaxIterations, step.Name))
+				e.debugLog("Condition input resolved (%d bytes), calling LLM...", len(input))
 				decision, err := e.LLM.Evaluate(input, step.Condition.Prompt)
 				if err != nil {
+					e.debugError(fmt.Sprintf("LLM.Evaluate for loop step %q", step.Name), err)
 					return 1, err
 				}
 				fmt.Printf("  %s⚡ Condition on %q: LLM=%v%s\n", colorMagenta, step.Name, decision, colorReset)
+				e.debugLog("Step condition on %q → decision=%v", step.Name, decision)
 				if !decision {
 					fmt.Printf("  %s⏹ Loop exiting: step %q condition returned false%s\n", colorYellow, step.Name, colorReset)
+					e.debugLog("Loop exiting early — step %q condition returned false", step.Name)
 					breakLoop = true
 					break
 				}
@@ -357,11 +385,13 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 		}
 
 		if breakLoop {
+			e.debugLog("Loop ended (step condition break)")
 			return 0, nil
 		}
 
 		// Evaluate loop-level condition if present.
 		if hasLoopCondition {
+			e.debugLog("Evaluating loop-level condition (file=%q)", loop.Condition.File)
 			condProjectDir := ""
 			for k := len(loop.Steps) - 1; k >= 0; k-- {
 				if loop.Steps[k].ProjectDir != "" {
@@ -374,25 +404,32 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			}
 			input, err := e.conditionInput("loop", &loop.Condition, condProjectDir, lastOutput)
 			if err != nil {
+				e.debugError("conditionInput for loop condition", err)
 				return 1, err
 			}
+			e.debugLog("Loop condition input resolved (%d bytes), calling LLM...", len(input))
 
-			e.setLLMContext(fmt.Sprintf("Loop condition — iteration %d/%d", iter, loop.MaxIterations))
 			decision, err := e.LLM.Evaluate(input, loop.Condition.Prompt)
 			if err != nil {
+				e.debugError("LLM.Evaluate for loop condition", err)
 				return 1, err
 			}
 
 			fmt.Printf("  %s⚡ Loop iteration %d/%d: LLM=%v%s\n", colorMagenta, iter, loop.MaxIterations, decision, colorReset)
+			e.debugLog("Loop condition → decision=%v", decision)
 
 			if !decision {
 				fmt.Printf("  %s⏹ Loop exiting after iteration %d (LLM returned false)%s\n", colorYellow, iter, colorReset)
+				e.debugLog("Loop ended (loop condition returned false)")
 				return 0, nil
 			}
+		} else {
+			e.debugLog("No loop-level condition — continuing to next iteration")
 		}
 
 		if iter == loop.MaxIterations {
 			fmt.Printf("  %s⚠ WARNING: loop reached max_iterations (%d), continuing pipeline%s\n", colorYellow, loop.MaxIterations, colorReset)
+			e.debugLog("Loop reached max_iterations (%d) — exiting", loop.MaxIterations)
 			return 0, nil
 		}
 	}
