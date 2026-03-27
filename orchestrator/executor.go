@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -75,12 +76,13 @@ func runSubprocess(name string, args []string, dir string, env []string, verbose
 
 // Executor runs the pipeline.
 type Executor struct {
-	Config   *Config
-	Pipeline *Pipeline
-	LLM      ConditionEvaluator
-	DryRun   bool
-	Verbose  bool
-	Runner   CommandRunner
+	Config       *Config
+	Pipeline     *Pipeline
+	LLM          ConditionEvaluator
+	DryRun       bool
+	Verbose      bool
+	Runner       CommandRunner
+	ResolvedVars map[string]string // for dry-run display
 }
 
 // Run executes the entire pipeline. Returns the final exit code.
@@ -353,6 +355,18 @@ func printCondition(cond *Condition, indent string) {
 }
 
 func (e *Executor) printDryRun() {
+	if len(e.ResolvedVars) > 0 {
+		fmt.Printf("%s%sVariables:%s\n", colorBold, colorYellow, colorReset)
+		// Sort keys for deterministic output
+		keys := make([]string, 0, len(e.ResolvedVars))
+		for k := range e.ResolvedVars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Printf("  %s%s%s = %s\n", colorYellow, k, colorReset, e.ResolvedVars[k])
+		}
+	}
 	cwd, _ := os.Getwd()
 	stepNum := 0
 	for _, elem := range e.Pipeline.Elements {

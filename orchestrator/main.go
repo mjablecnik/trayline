@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var version = "dev"
@@ -18,12 +19,13 @@ func usageText() string {
 	return fmt.Sprintf(`%s — sequential AI agent pipeline runner
 
 Usage:
-  %s --pipeline <path> [--dry-run] [--verbose]
+  %s --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
   %s --version
   %s --help
 
 Flags:
   --pipeline string   Path to pipeline YAML file (required)
+  --var key=value     Set or override a pipeline variable (repeatable)
   --dry-run           Print pipeline steps without executing
   --verbose           Stream agent-docker output to stdout in real time
   --version           Print version and exit
@@ -33,8 +35,18 @@ Examples:
   %s --pipeline workflow.yaml
   %s --pipeline workflow.yaml --verbose
   %s --pipeline workflow.yaml --dry-run
+  %s --pipeline workflow.yaml --var project-path=/tmp/proj --var spec-name=my-spec
   %s --version
-`, name, name, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name, name)
+}
+
+// varFlags is a repeatable --var flag that accumulates key=value strings.
+type varFlags []string
+
+func (v *varFlags) String() string { return strings.Join(*v, ", ") }
+func (v *varFlags) Set(val string) error {
+	*v = append(*v, val)
+	return nil
 }
 
 func main() {
@@ -53,6 +65,8 @@ func run(args []string) int {
 	dryRunFlag := fs.Bool("dry-run", false, "Print pipeline steps without executing")
 	verboseFlag := fs.Bool("verbose", false, "Stream agent-docker output to stdout in real time")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
+	var vars varFlags
+	fs.Var(&vars, "var", "Set variable key=value (repeatable)")
 
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -69,12 +83,34 @@ func run(args []string) int {
 		return 1
 	}
 
+	// Parse CLI variables first (fail fast on malformed flags)
+	cliVars, err := ParseCLIVars(vars)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+
 	// Load config
 	cfg := LoadConfig()
 
-	// Parse pipeline
-	pipeline, err := ParsePipeline(*pipelineFlag)
+	// Parse pipeline (raw, no validation yet)
+	pipeline, yamlVars, err := ParsePipelineRaw(*pipelineFlag)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+
+	// Merge YAML variables with CLI overrides (CLI takes precedence)
+	resolvedVars := MergeVariables(yamlVars, cliVars)
+
+	// Substitute variables in all templatable fields (fails if any placeholder is undefined)
+	if err := SubstituteVariables(pipeline, resolvedVars); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+
+	// Validate pipeline after substitution so validation sees resolved values
+	if err := ValidatePipeline(pipeline); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
@@ -92,12 +128,13 @@ func run(args []string) int {
 	}
 
 	executor := &Executor{
-		Config:   cfg,
-		Pipeline: pipeline,
-		LLM:      llmClient,
-		DryRun:   *dryRunFlag,
-		Verbose:  *verboseFlag,
-		Runner:   &OSCommandRunner{},
+		Config:       cfg,
+		Pipeline:     pipeline,
+		LLM:          llmClient,
+		DryRun:       *dryRunFlag,
+		Verbose:      *verboseFlag,
+		Runner:       &OSCommandRunner{},
+		ResolvedVars: resolvedVars,
 	}
 
 	return executor.Run()

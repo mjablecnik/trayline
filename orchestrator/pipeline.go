@@ -77,7 +77,8 @@ type Condition struct {
 
 // rawPipeline is used for YAML marshaling and unmarshaling.
 type rawPipeline struct {
-	Steps []PipelineElement `yaml:"steps"`
+	Variables map[string]string `yaml:"variables"`
+	Steps     []PipelineElement `yaml:"steps"`
 }
 
 // MarshalYAML ensures each PipelineElement is serialized correctly:
@@ -93,35 +94,51 @@ func (r rawPipeline) MarshalYAML() (interface{}, error) {
 			steps = append(steps, elem.Step)
 		}
 	}
-	return map[string]interface{}{"steps": steps}, nil
+	out := map[string]interface{}{"steps": steps}
+	if len(r.Variables) > 0 {
+		out["variables"] = r.Variables
+	}
+	return out, nil
 }
 
-// ParsePipeline reads and validates a YAML pipeline file.
-func ParsePipeline(path string) (*Pipeline, error) {
+// ParsePipelineRaw reads a YAML pipeline file and returns the pipeline and its variable map
+// without running validation. Returns an empty (non-nil) map when no variables section is present.
+func ParsePipelineRaw(path string) (*Pipeline, map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("pipeline file not found: %s", path)
+			return nil, nil, fmt.Errorf("pipeline file not found: %s", path)
 		}
-		return nil, fmt.Errorf("reading pipeline file: %w", err)
+		return nil, nil, fmt.Errorf("reading pipeline file: %w", err)
 	}
 
 	var raw rawPipeline
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("invalid YAML in pipeline file: %w", err)
+		return nil, nil, fmt.Errorf("invalid YAML in pipeline file: %w", err)
 	}
 
-	p := &Pipeline{Elements: raw.Steps}
+	vars := raw.Variables
+	if vars == nil {
+		vars = make(map[string]string)
+	}
 
-	if err := validatePipeline(p); err != nil {
+	return &Pipeline{Elements: raw.Steps}, vars, nil
+}
+
+// ParsePipeline reads and validates a YAML pipeline file.
+func ParsePipeline(path string) (*Pipeline, error) {
+	p, _, err := ParsePipelineRaw(path)
+	if err != nil {
 		return nil, err
 	}
-
+	if err := ValidatePipeline(p); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
-// validatePipeline runs all validation checks on the pipeline.
-func validatePipeline(p *Pipeline) error {
+// ValidatePipeline runs all validation checks on the pipeline.
+func ValidatePipeline(p *Pipeline) error {
 	seen := make(map[string]bool)
 	allNames := p.FlattenStepNames()
 	topLevelNames := p.TopLevelStepNames()
