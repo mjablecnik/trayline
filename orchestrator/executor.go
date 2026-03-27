@@ -138,6 +138,9 @@ func (e *Executor) Run() int {
 
 		if elem.Loop != nil {
 			if exitCode, err := e.executeLoop(elem.Loop); err != nil || exitCode != 0 {
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%s✗ error:%s %v\n", colorRed, colorReset, err)
+				}
 				printTotal("Pipeline failed.")
 				return exitCode
 			}

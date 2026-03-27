@@ -14,8 +14,8 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read the CODE_REVIEW.md file and implement the changes and fixes described in it.
-            Follow the tasks exactly and check off each task as you complete it.
+            Also read the CODE_REVIEW.md file from the project root directory (not inside {{path}}) and implement the changes and fixes described in it.
+            Follow the tasks exactly and check off each task in CODE_REVIEW.md as you complete it.
             Implement only up to {{number}} tasks in this run, then stop.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all review tasks
