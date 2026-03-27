@@ -12,12 +12,12 @@ echo "==> Setting up directories..."
 mkdir -p "$BIN_DIR"
 mkdir -p "$TRAYLINE_HOME/pipelines"
 
-# Install internal tools to ~/.trayline/
+# Install internal tools to ~/.trayline/ (strip CRLF for WSL compatibility)
 echo "==> Installing tools to ${TRAYLINE_HOME}/"
-cp "$SCRIPT_DIR/agent-docker" "$TRAYLINE_HOME/agent-docker"
+sed 's/\r$//' "$SCRIPT_DIR/agent-docker" > "$TRAYLINE_HOME/agent-docker"
 chmod +x "$TRAYLINE_HOME/agent-docker"
 
-cp "$SCRIPT_DIR/sync.sh" "$TRAYLINE_HOME/sync.sh"
+sed 's/\r$//' "$SCRIPT_DIR/sync.sh" > "$TRAYLINE_HOME/sync.sh"
 chmod +x "$TRAYLINE_HOME/sync.sh"
 
 # Build or copy orchestrator binary
@@ -32,7 +32,7 @@ chmod +x "$TRAYLINE_HOME/trayline-run"
 
 # Install main trayline wrapper to ~/bin/
 echo "==> Installing trayline to ${BIN_DIR}/"
-cp "$SCRIPT_DIR/trayline" "$BIN_DIR/trayline"
+sed 's/\r$//' "$SCRIPT_DIR/trayline" > "$BIN_DIR/trayline"
 chmod +x "$BIN_DIR/trayline"
 
 # Copy default pipelines (don't overwrite user customizations)
@@ -52,17 +52,27 @@ if command -v zsh &>/dev/null && [[ "$SHELL" == */zsh ]]; then
   echo "==> Installing zsh completions..."
   ZSH_COMP_DIR="${HOME}/.zsh/completions"
   mkdir -p "$ZSH_COMP_DIR"
-  cp "$SCRIPT_DIR/completions/_trayline" "$ZSH_COMP_DIR/_trayline"
+  # Strip Windows line endings (CRLF -> LF) during copy
+  sed 's/\r$//' "$SCRIPT_DIR/completions/_trayline" > "$ZSH_COMP_DIR/_trayline"
 
-  # Ensure completion dir is in fpath
   ZSHRC="${HOME}/.zshrc"
   FPATH_LINE='fpath=(~/.zsh/completions $fpath)'
+
   if ! grep -qF "$FPATH_LINE" "$ZSHRC" 2>/dev/null; then
-    echo "" >> "$ZSHRC"
-    echo "# Trayline completions" >> "$ZSHRC"
-    echo "$FPATH_LINE" >> "$ZSHRC"
-    echo "autoload -Uz compinit && compinit" >> "$ZSHRC"
-    echo "    Added completion setup to ${ZSHRC}"
+    # Insert fpath BEFORE oh-my-zsh source line so compinit picks it up
+    if grep -q 'source.*oh-my-zsh.sh' "$ZSHRC" 2>/dev/null; then
+      sed -i "/source.*oh-my-zsh.sh/i\\
+# Trayline completions\\
+${FPATH_LINE}" "$ZSHRC"
+      echo "    Inserted fpath before oh-my-zsh in ${ZSHRC}"
+    else
+      # No oh-my-zsh — append with compinit
+      echo "" >> "$ZSHRC"
+      echo "# Trayline completions" >> "$ZSHRC"
+      echo "$FPATH_LINE" >> "$ZSHRC"
+      echo "autoload -Uz compinit && compinit" >> "$ZSHRC"
+      echo "    Added completion setup to ${ZSHRC}"
+    fi
   else
     echo "    Completion fpath already configured"
   fi
