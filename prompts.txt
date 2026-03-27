@@ -1,0 +1,8 @@
+agent-docker claude "Přečti si všechny soubory uvnitř složky .kiro/specs/event-workflow-restate/  a vytvoř podle toho kód uvnitř backend/dancee_workflow   postupuj přesně podle tasku a jednotlivé tasky zaškrtávej hned jak je budeš mít.  Vždy po větší změně a otestování vytvoř commit v gitu"
+agent-docker claude "Otestuj zda funguje vytvoření docker buildu pro dancee_workflow projekt ve složce backend, pokud to nefunguje, tak oprav kód tak aby to fungovalo"
+agent-docker claude "Přečti si všechny soubory uvnitř složky .kiro/specs/event-workflow-restate/  a vytvoř podle toho všechny optional testy které ještě nebyly vytvořeny uvnitř backend/dancee_workflow   postupuj přesně podle tasku a jednotlivé tasky zaškrtávej hned jak je budeš mít.  Vždy po větší změně a otestování vytvoř commit v gitu"
+
+agent-docker kiro "Přečti si všechny soubory uvnitř složky .kiro/specs/event-workflow-restate/  Zanalyzuj celý kód a udělej code review. Porovnej také projekt se specifikací a designem projektu a najdi věci na které se zapomělo anebo udělaly jinal/špatně. Svůj výstup ulož do souboru CODE_REVIEW.md spolu s jednotlivými body co je třeba ještě změnit, zlepšit nebo upravit."
+agent-docker claude "Přečti si všechny soubory uvnitř složky .kiro/specs/event-workflow-restate/  přečti si také soubor CODE_REVIEW.md a implementu veškéré změny a úpravy v kódu.  Vždy po větší změně a otestování vytvoř commit v gitu"
+                                                                                                                                                                                                                                        
+
