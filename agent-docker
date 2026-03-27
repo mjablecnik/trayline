@@ -94,10 +94,12 @@ VOLUMES=(
   -v "$PROJECT_DIR":/workspace
 )
 
+AGENT_HOME="/home/agent"
+
 if [[ "$AGENT" == "kiro" ]]; then
   VOLUMES+=(
-    -v "/mnt/c/Users/marti/.kiro":/root/.kiro
-    -v "${HOME}/.local/share/kiro-cli":/root/.local/share/kiro-cli
+    -v "/mnt/c/Users/marti/.kiro":"${AGENT_HOME}/.kiro"
+    -v "${HOME}/.local/share/kiro-cli":"${AGENT_HOME}/.local/share/kiro-cli"
   )
   CMD=(kiro-cli chat --trust-all-tools)
   if ! $INTERACTIVE; then
@@ -105,8 +107,8 @@ if [[ "$AGENT" == "kiro" ]]; then
   fi
 else
   VOLUMES+=(
-    -v "${HOME}/.claude":/root/.claude
-    -v "${HOME}/.claude.json":/root/.claude.json
+    -v "${HOME}/.claude":"${AGENT_HOME}/.claude"
+    -v "${HOME}/.claude.json":"${AGENT_HOME}/.claude.json"
   )
   CMD=(claude)
   if $INTERACTIVE; then
