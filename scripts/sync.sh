@@ -40,7 +40,7 @@ done
 
 [[ -z "$ACTION" ]] && { echo "Error: specify push or pull"; usage; }
 
-RSYNC_OPTS=(-a $VERBOSE --exclude-from="$EXCLUDE_FROM")
+RSYNC_OPTS=(-a --delete $VERBOSE --exclude-from="$EXCLUDE_FROM")
 
 case "$ACTION" in
   push) rsync "${RSYNC_OPTS[@]}" ./ "${REMOTE}:${REMOTE_BASE}/${DIR_NAME}/" ;;
