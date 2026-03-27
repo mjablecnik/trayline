@@ -37,15 +37,15 @@ echo "==> Installing trayline to ${BIN_DIR}/"
 sed 's/\r$//' "$SCRIPT_DIR/scripts/trayline" > "$BIN_DIR/trayline"
 chmod +x "$BIN_DIR/trayline"
 
-# Copy default pipelines (don't overwrite user customizations)
+# Copy default pipelines (overwrite if source is newer)
 echo "==> Syncing default pipelines..."
 for f in "$SCRIPT_DIR"/pipelines/*.yaml(N); do
   dest="$TRAYLINE_HOME/pipelines/$(basename "$f")"
-  if [[ ! -f "$dest" ]]; then
+  if [[ ! -f "$dest" ]] || [[ "$f" -nt "$dest" ]]; then
     cp "$f" "$dest"
-    echo "    Added $(basename "$f")"
+    echo "    Updated $(basename "$f")"
   else
-    echo "    Skipped $(basename "$f") (already exists)"
+    echo "    Skipped $(basename "$f") (up to date)"
   fi
 done
 
