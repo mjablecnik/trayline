@@ -41,5 +41,4 @@ steps:
 
   - name: "code-review"
     command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
-    verbose: true
 
