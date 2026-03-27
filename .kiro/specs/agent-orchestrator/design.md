@@ -152,8 +152,8 @@ func (p *Pipeline) NeedsLLM() bool
 
 Validation rules (all checked at parse time):
 - File exists and is valid YAML
-- Each step has `name`, `agent`, `prompt`
-- `agent` is `kiro` or `claude`
+- Each step has `name` and either (`agent` + `prompt`) or `command`, but not both
+- `agent` is `kiro` or `claude` (for agent steps)
 - All step names are unique across the entire pipeline (including inside loops)
 - Loop objects have `max_iterations` (> 0), `steps`, and `condition`
 - Condition objects have `prompt`
@@ -187,13 +187,14 @@ func (e *Executor) evaluateCondition(cond *Condition, input string) (bool, error
 ```
 
 Step execution details:
-- Builds the `agent-docker` command: `agent-docker <agent> -p <project_dir> <prompt>`
+- For agent steps: builds the `agent-docker` command: `agent-docker <agent> -p <project_dir> <prompt>`
+- For command steps: builds the shell command: `sh -c "<command>"` with working directory set to `project_dir` (or cwd)
 - Uses `os/exec.Command` with output always captured to a buffer for condition input
 - When `--verbose` is set, uses `io.MultiWriter` to stream output to both os.Stdout/os.Stderr and the capture buffer simultaneously
 - When `--verbose` is not set, output is captured to the buffer only (not printed to terminal)
 - Progress log lines (step start, completion, elapsed time) are always printed regardless of verbose mode
 - Waits for completion, extracts exit code
-- Logs step name, agent type, elapsed time, success/failure
+- Logs step name, step type (agent/command), elapsed time, success/failure
 
 Goto implementation:
 - The executor maintains a flat index of all top-level pipeline elements
@@ -234,11 +235,16 @@ Do not include any other text, explanation, or formatting.
 
 ```yaml
 steps:
-  # Simple step
+  # Agent step
   - name: "create-code"
     agent: "claude"
     prompt: "Read the spec and create the code"
     project_dir: "/path/to/project"  # optional, defaults to cwd
+
+  # Command step (shell command)
+  - name: "run-tests"
+    command: "go test ./..."
+    project_dir: "/path/to/project"  # optional, sets cwd for the command
 
   # Step with condition (gate — no goto)
   - name: "test"
@@ -249,6 +255,13 @@ steps:
       # no file → uses step output
       # no goto → true=continue, false=stop pipeline
 
+  # Command step with condition
+  - name: "lint"
+    command: "golangci-lint run"
+    condition:
+      prompt: "Did the linter find any issues?"
+      goto: "fix-lint"
+
   # Step with condition (goto)
   - name: "review"
     agent: "kiro"
@@ -258,7 +271,7 @@ steps:
       file: "CODE_REVIEW.md"
       goto: "fix-code"  # jump to this step if true
 
-  # Loop
+  # Loop (can contain both agent and command steps)
   - loop:
       max_iterations: 3
       condition:
@@ -266,8 +279,7 @@ steps:
         file: "test-results.txt"
       steps:
         - name: "run-tests"
-          agent: "claude"
-          prompt: "Run the test suite and save results to test-results.txt"
+          command: "go test ./... > test-results.txt 2>&1"
         - name: "fix-tests"
           agent: "claude"
           prompt: "Fix the failing tests"
@@ -287,11 +299,12 @@ type PipelineElement struct {
     Loop *Loop
 }
 
-// Step represents a single agent-docker invocation.
+// Step represents a single pipeline step — either an agent-docker invocation or a shell command.
 type Step struct {
     Name       string     `yaml:"name"`
-    Agent      string     `yaml:"agent"`
-    Prompt     string     `yaml:"prompt"`
+    Agent      string     `yaml:"agent"`      // "kiro" or "claude" (agent step)
+    Prompt     string     `yaml:"prompt"`      // prompt for agent step
+    Command    string     `yaml:"command"`     // shell command (command step)
     ProjectDir string     `yaml:"project_dir"`
     Condition  *Condition `yaml:"condition"`
 }
@@ -364,9 +377,9 @@ type LLMResponse struct {
 
 ### Property 3: Command construction correctness
 
-*For any* Step with a given agent type, prompt, and optional project directory, the constructed `agent-docker` command should contain the agent type and prompt as arguments, and should include `-p <project_dir>` when project_dir is specified or `-p <cwd>` when it is not.
+*For any* agent Step with a given agent type, prompt, and optional project directory, the constructed `agent-docker` command should contain the agent type and prompt as arguments, and should include `-p <project_dir>` when project_dir is specified or `-p <cwd>` when it is not. *For any* command Step with a given command string and optional project directory, the constructed shell command should be `sh -c "<command>"` with the working directory set to project_dir or cwd.
 
-**Validates: Requirements 2.2, 2.3, 2.4**
+**Validates: Requirements 2.2, 2.3, 2.4, 2.9, 2.10, 2.11**
 
 ### Property 4: Sequential execution order
 
@@ -431,6 +444,8 @@ type LLMResponse struct {
 | Pipeline file not found | Exit 1, stderr: `error: pipeline file not found: <path>` |
 | Invalid YAML syntax | Exit 1, stderr: `error: invalid YAML in pipeline file: <details>` |
 | Missing required step fields | Exit 1, stderr: `error: step "<name>": missing required field "<field>"` |
+| Step has both agent and command | Exit 1, stderr: `error: step "<name>": must have either "agent"+"prompt" or "command", not both` |
+| Step has neither agent nor command | Exit 1, stderr: `error: step "<name>": must have either "agent"+"prompt" or "command"` |
 | Invalid agent type | Exit 1, stderr: `error: step "<name>": invalid agent type "<type>", must be "kiro" or "claude"` |
 | Duplicate step name | Exit 1, stderr: `error: duplicate step name "<name>"` |
 | Goto references non-existent step | Exit 1, stderr: `error: step "<name>": goto target "<target>" not found` |
@@ -517,7 +532,10 @@ Each property test runs a minimum of 100 iterations using `rapid`. Each test is 
 ```go
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
-    Run(agent string, prompt string, projectDir string, env []string) (output string, exitCode int, err error)
+    // RunAgent executes an agent-docker command.
+    RunAgent(agent string, prompt string, projectDir string, env []string) (output string, exitCode int, err error)
+    // RunCommand executes a shell command via sh -c.
+    RunCommand(command string, projectDir string, env []string) (output string, exitCode int, err error)
 }
 
 // ConditionEvaluator abstracts LLM condition evaluation for testability.

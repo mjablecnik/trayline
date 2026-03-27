@@ -2,18 +2,18 @@
 
 ## Introduction
 
-The Agent Orchestrator is a Go CLI program that automates a multi-step AI agent workflow. It sequentially executes `agent-docker` commands to create code, test it, generate tests, perform code review, and apply fixes. The orchestrator reads a pipeline definition (sequence of named steps with agent type and prompt), executes each step by invoking `agent-docker` as a shell subprocess, checks the output/exit code after each step, and decides whether to proceed or abort. The pipeline supports two flow-control mechanisms: (1) loops — a group of named steps that repeat up to `max_iterations` times, with an LLM-based condition evaluated after each iteration to decide whether to continue or break; (2) step-level conditions — an LLM evaluation after a step that either acts as a continue/break gate (no goto) or jumps to a named target step (with goto). Conditions can read a specified file or use the step's captured output as input to the LLM. This enables arbitrary iterative refinement workflows (e.g., review-fix cycles) and conditional branching without hardcoding any specific use case. LLM requests are sent via the OpenRouter API. The orchestrator compiles into a single static binary and lives in its own `orchestrator/` directory.
+The Agent Orchestrator is a Go CLI program that automates a multi-step AI agent workflow. It sequentially executes `agent-docker` commands and arbitrary shell commands to create code, test it, generate tests, perform code review, and apply fixes. The orchestrator reads a pipeline definition (sequence of named steps — either agent steps or command steps), executes each step as a subprocess, checks the output/exit code after each step, and decides whether to proceed or abort. The pipeline supports two flow-control mechanisms: (1) loops — a group of named steps that repeat up to `max_iterations` times, with an LLM-based condition evaluated after each iteration to decide whether to continue or break; (2) step-level conditions — an LLM evaluation after a step that either acts as a continue/break gate (no goto) or jumps to a named target step (with goto). Conditions can read a specified file or use the step's captured output as input to the LLM. This enables arbitrary iterative refinement workflows (e.g., review-fix cycles) and conditional branching without hardcoding any specific use case. LLM requests are sent via the OpenRouter API. The orchestrator compiles into a single static binary and lives in its own `orchestrator/` directory.
 
 ## Glossary
 
 - **Orchestrator**: The Go CLI binary that manages sequential execution of agent steps
 - **Agent_Docker**: The existing `agent-docker` bash script that runs AI agents inside sandboxed Docker containers
 - **Pipeline**: An ordered sequence of named steps and loops, where each element is either a step or a loop block
-- **Step**: A single unit of work in the pipeline, consisting of a unique name, an agent type (kiro or claude), a prompt string, and execution parameters
+- **Step**: A single unit of work in the pipeline; either an agent step (agent type + prompt, executed via agent-docker) or a command step (shell command, executed via `sh -c`)
 - **Step_Name**: A unique string identifier for a Step, used as a target for Goto jumps and for referencing within the pipeline
-- **Agent_Type**: Either `kiro` or `claude`, selecting which AI agent to run inside the Docker sandbox
+- **Agent_Type**: Either `kiro` or `claude`, selecting which AI agent to run inside the Docker sandbox; required for agent steps, absent for command steps
 - **Exit_Code**: The numeric return code from a completed `agent-docker` process, where 0 indicates success
-- **Step_Output**: The combined stdout and stderr captured from a single `agent-docker` execution
+- **Step_Output**: The combined stdout and stderr captured from a single step execution (agent-docker or shell command)
 - **Pipeline_File**: A YAML file that defines the sequence of named steps and loops for the orchestrator to execute
 - **Loop**: A pipeline element that groups one or more named Steps into a repeatable block, controlled by a Condition and a Max_Iterations safety limit
 - **Condition**: An LLM-based evaluation that sends content (from a file or from the previous step's output) with a custom prompt to the LLM; used in loops (to decide whether to continue iterating) and on individual steps (as a continue/break gate or a one-shot goto jump)
@@ -34,12 +34,14 @@ The Agent Orchestrator is a Go CLI program that automates a multi-step AI agent 
 
 1. THE Orchestrator SHALL accept a `--pipeline` flag specifying the path to a Pipeline_File
 2. THE Orchestrator SHALL parse the Pipeline_File as YAML containing an ordered list of steps
-3. WHEN a Step in the Pipeline_File is parsed, THE Orchestrator SHALL extract the Step_Name, Agent_Type, prompt text, and optional project directory for that Step
+3. WHEN a Step in the Pipeline_File is parsed, THE Orchestrator SHALL extract the Step_Name and either the Agent_Type and prompt text (agent step) or the command string (command step), plus the optional project directory
 4. WHEN the Pipeline_File does not exist or is not valid YAML, THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
-5. THE Orchestrator SHALL validate that each Step specifies an Agent_Type of either `kiro` or `claude`
-6. IF a Step specifies an invalid Agent_Type, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print an error identifying the invalid Step
+5. THE Orchestrator SHALL validate that each agent step specifies an Agent_Type of either `kiro` or `claude`
+6. IF an agent step specifies an invalid Agent_Type, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print an error identifying the invalid Step
 7. THE Orchestrator SHALL validate that each Step has a unique Step_Name within the Pipeline
 8. IF two or more Steps share the same Step_Name, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print an error identifying the duplicate name
+9. THE Orchestrator SHALL validate that each Step is either an agent step (has `agent` and `prompt`) or a command step (has `command`), but not both
+10. IF a Step has both `agent` and `command` fields, or has neither, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
 
 ### Requirement 2: Sequential Step Execution
 
@@ -48,13 +50,16 @@ The Agent Orchestrator is a Go CLI program that automates a multi-step AI agent 
 #### Acceptance Criteria
 
 1. THE Orchestrator SHALL execute Pipeline steps in the order they appear in the Pipeline_File
-2. WHEN executing a Step, THE Orchestrator SHALL invoke Agent_Docker as a shell subprocess with the Step's Agent_Type and prompt as arguments
-3. WHEN a Step specifies a project directory, THE Orchestrator SHALL pass it to Agent_Docker using the `-p` flag
-4. WHEN a Step does not specify a project directory, THE Orchestrator SHALL use the current working directory as the project directory for Agent_Docker
-5. THE Orchestrator SHALL wait for each Agent_Docker subprocess to complete before starting the next Step
+2. WHEN executing an agent step, THE Orchestrator SHALL invoke Agent_Docker as a shell subprocess with the Step's Agent_Type and prompt as arguments
+3. WHEN an agent step specifies a project directory, THE Orchestrator SHALL pass it to Agent_Docker using the `-p` flag
+4. WHEN an agent step does not specify a project directory, THE Orchestrator SHALL use the current working directory as the project directory for Agent_Docker
+5. THE Orchestrator SHALL wait for each subprocess to complete before starting the next Step
 6. WHEN the `--verbose` flag is provided, THE Orchestrator SHALL stream Step_Output to stdout in real time during execution
 7. WHEN the `--verbose` flag is not provided, THE Orchestrator SHALL suppress Step_Output from stdout and only print progress log lines
 8. THE Orchestrator SHALL capture and retain the full Step_Output of each Step for potential use as Condition input, regardless of the `--verbose` flag
+9. WHEN executing a command step, THE Orchestrator SHALL invoke the command string as a shell subprocess via `sh -c`
+10. WHEN a command step specifies a project directory, THE Orchestrator SHALL set the working directory of the subprocess to that project directory
+11. WHEN a command step does not specify a project directory, THE Orchestrator SHALL use the current working directory as the working directory for the subprocess
 
 ### Requirement 3: Output Checking and Error Handling
 
@@ -118,18 +123,20 @@ The Agent Orchestrator is a Go CLI program that automates a multi-step AI agent 
 #### Acceptance Criteria
 
 1. THE Pipeline_File SHALL use the following YAML structure: a top-level `steps` key containing a list of step objects and loop objects
-2. Each step object in the Pipeline_File SHALL contain a `name` field (string: unique Step_Name), an `agent` field (string: `kiro` or `claude`), and a `prompt` field (string)
-3. Each step object in the Pipeline_File SHALL optionally contain a `project_dir` field (string: path to the project directory)
-4. THE Orchestrator SHALL support multi-line prompt strings in the Pipeline_File using YAML block scalar syntax
-5. Each step object in the Pipeline_File SHALL optionally contain a `condition` object with the following fields: `prompt` (string: required, the Condition_Prompt for the LLM), `file` (string: optional, path to the Condition_File), and `goto` (string: optional, the Step_Name to jump to if the LLM returns `true`)
-6. IF a step-level condition object is present but missing `prompt`, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
-7. IF a step-level condition specifies a `goto` field, THE Orchestrator SHALL validate that it references an existing Step_Name in the Pipeline
-8. IF a condition's `goto` references a non-existent Step_Name, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print an error identifying the invalid reference
-9. A loop object in the Pipeline_File SHALL contain a `loop` key with the following nested fields: `max_iterations` (integer), `steps` (list of step objects), and `condition` (condition object)
-10. A loop-level condition object SHALL contain a `prompt` field (string: required, the Condition_Prompt for the LLM, phrased so that `true` means continue the loop and `false` means stop) and an optional `file` field (string: path to the Condition_File)
-11. IF a loop object is missing `max_iterations`, `steps`, or `condition`, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
-12. THE Orchestrator SHALL validate that `max_iterations` is a positive integer greater than zero
-13. Steps inside a loop object SHALL also have unique `name` fields, and these names SHALL be unique across the entire Pipeline
+2. Each step object in the Pipeline_File SHALL be either an agent step or a command step
+3. An agent step SHALL contain a `name` field (string: unique Step_Name), an `agent` field (string: `kiro` or `claude`), and a `prompt` field (string)
+4. A command step SHALL contain a `name` field (string: unique Step_Name) and a `command` field (string: shell command to execute)
+5. Each step object in the Pipeline_File SHALL optionally contain a `project_dir` field (string: path to the project directory)
+6. THE Orchestrator SHALL support multi-line prompt strings in the Pipeline_File using YAML block scalar syntax
+7. Each step object in the Pipeline_File SHALL optionally contain a `condition` object with the following fields: `prompt` (string: required, the Condition_Prompt for the LLM), `file` (string: optional, path to the Condition_File), and `goto` (string: optional, the Step_Name to jump to if the LLM returns `true`)
+8. IF a step-level condition object is present but missing `prompt`, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
+9. IF a step-level condition specifies a `goto` field, THE Orchestrator SHALL validate that it references an existing Step_Name in the Pipeline
+10. IF a condition's `goto` references a non-existent Step_Name, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print an error identifying the invalid reference
+11. A loop object in the Pipeline_File SHALL contain a `loop` key with the following nested fields: `max_iterations` (integer), `steps` (list of step objects — either agent or command steps), and `condition` (condition object)
+12. A loop-level condition object SHALL contain a `prompt` field (string: required, the Condition_Prompt for the LLM, phrased so that `true` means continue the loop and `false` means stop) and an optional `file` field (string: path to the Condition_File)
+13. IF a loop object is missing `max_iterations`, `steps`, or `condition`, THEN THE Orchestrator SHALL exit with a non-zero Exit_Code and print a descriptive error message to stderr
+14. THE Orchestrator SHALL validate that `max_iterations` is a positive integer greater than zero
+15. Steps inside a loop object SHALL also have unique `name` fields, and these names SHALL be unique across the entire Pipeline
 
 
 ### Requirement 9: LLM-Based Loops
