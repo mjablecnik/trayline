@@ -1,0 +1,43 @@
+variables:
+  - number: 5
+  - specs-name: ""
+  - path: "orchestrator"
+
+steps:
+  - loop:
+      max_iterations: 20
+      condition:
+        prompt: "Does the output contain clear evidence that all tasks are completed? Look for a statement like 'All tasks are done' or confirmation that no unchecked tasks remain. Answer true if there is still work to do, false if all tasks are confirmed done."
+      steps:
+        - name: "create-code"
+          agent: "claude"
+          prompt: |
+            Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
+            Follow the tasks exactly and check off each task as you complete it.
+            Implement only up to {{number}} tasks in this run, then stop.
+            After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+            When you are done, print a summary of which tasks you completed. If all tasks
+            in the spec are now checked off, explicitly say "All tasks are done."
+
+  - name: "verify-builds"
+    agent: "claude"
+    prompt: |
+      Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
+
+  - loop:
+      max_iterations: 20
+      condition:
+        prompt: "Does the output contain clear evidence that all test tasks are completed? Look for a statement like 'All tasks are done' or confirmation that no unchecked test tasks remain. Answer true if there is still work to do, false if all tasks are confirmed done."
+      steps:
+        - name: "create-tests"
+          agent: "claude"
+          prompt: |
+            Read all files inside the .kiro/specs/{{specs-name}} folder and create all optional tests that haven't been created yet.
+            Follow the tasks exactly and check off each task as you complete it.
+            Implement only up to {{number}} test tasks in this run, then stop.
+            After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+            When you are done, print a summary of which tasks you completed. If all test tasks
+            in the spec are now checked off, explicitly say "All tasks are done."
+
+  - name: "code-review"
+    command: "trayline --pipeline code-review.yaml --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
