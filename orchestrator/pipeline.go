@@ -124,6 +124,7 @@ func ParsePipeline(path string) (*Pipeline, error) {
 func validatePipeline(p *Pipeline) error {
 	seen := make(map[string]bool)
 	allNames := p.FlattenStepNames()
+	topLevelNames := p.TopLevelStepNames()
 
 	for _, name := range allNames {
 		if seen[name] {
@@ -134,12 +135,12 @@ func validatePipeline(p *Pipeline) error {
 
 	for _, elem := range p.Elements {
 		if elem.Step != nil {
-			if err := validateStep(elem.Step, allNames); err != nil {
+			if err := validateStep(elem.Step, topLevelNames); err != nil {
 				return err
 			}
 		}
 		if elem.Loop != nil {
-			if err := validateLoop(elem.Loop, allNames); err != nil {
+			if err := validateLoop(elem.Loop, topLevelNames); err != nil {
 				return err
 			}
 		}
@@ -148,25 +149,26 @@ func validatePipeline(p *Pipeline) error {
 	return nil
 }
 
-func validateStep(s *Step, allNames []string) error {
+// validateStep validates a single step. topLevelNames is used for goto target validation;
+// pass nil for steps inside loops (which cannot have conditions).
+func validateStep(s *Step, topLevelNames []string) error {
 	if s.Name == "" {
 		return fmt.Errorf("step missing required field \"name\"")
 	}
 
-	hasAgent := s.Agent != "" || s.Prompt != ""
+	isAgentStep := s.Agent != ""
 	hasCommand := s.Command != ""
 
-	if hasAgent && hasCommand {
+	// Reject if both agent-related fields (agent or orphan prompt) AND command are present.
+	if (isAgentStep || s.Prompt != "") && hasCommand {
 		return fmt.Errorf("step %q: must have either \"agent\"+\"prompt\" or \"command\", not both", s.Name)
 	}
-	if !hasAgent && !hasCommand {
+	// Reject if neither agent nor command — also catches "prompt only" (no agent, no command).
+	if !isAgentStep && !hasCommand {
 		return fmt.Errorf("step %q: must have either \"agent\"+\"prompt\" or \"command\"", s.Name)
 	}
 
-	if hasAgent {
-		if s.Agent == "" {
-			return fmt.Errorf("step %q: missing required field \"agent\"", s.Name)
-		}
+	if isAgentStep {
 		if s.Agent != "kiro" && s.Agent != "claude" {
 			return fmt.Errorf("step %q: invalid agent type %q, must be \"kiro\" or \"claude\"", s.Name, s.Agent)
 		}
@@ -176,7 +178,7 @@ func validateStep(s *Step, allNames []string) error {
 	}
 
 	if s.Condition != nil {
-		if err := validateCondition(s.Name, s.Condition, allNames); err != nil {
+		if err := validateCondition(s.Name, s.Condition, topLevelNames); err != nil {
 			return err
 		}
 	}
@@ -184,13 +186,15 @@ func validateStep(s *Step, allNames []string) error {
 	return nil
 }
 
-func validateCondition(stepName string, c *Condition, allNames []string) error {
+// validateCondition validates a condition object. targetNames should be the top-level step names
+// (goto can only target top-level steps, not steps inside loops).
+func validateCondition(stepName string, c *Condition, targetNames []string) error {
 	if c.Prompt == "" {
 		return fmt.Errorf("step %q: condition requires a \"prompt\" field", stepName)
 	}
 	if c.Goto != "" {
 		found := false
-		for _, n := range allNames {
+		for _, n := range targetNames {
 			if n == c.Goto {
 				found = true
 				break
@@ -203,7 +207,9 @@ func validateCondition(stepName string, c *Condition, allNames []string) error {
 	return nil
 }
 
-func validateLoop(l *Loop, allNames []string) error {
+// validateLoop validates a loop block. topLevelNames is used for consistency but loop steps
+// cannot have conditions, so it is not used for goto validation within the loop.
+func validateLoop(l *Loop, topLevelNames []string) error {
 	if l.MaxIterations <= 0 {
 		return fmt.Errorf("loop: max_iterations must be a positive integer")
 	}
@@ -215,12 +221,27 @@ func validateLoop(l *Loop, allNames []string) error {
 	}
 
 	for i := range l.Steps {
-		if err := validateStep(&l.Steps[i], allNames); err != nil {
+		if l.Steps[i].Condition != nil {
+			return fmt.Errorf("loop: step %q: conditions inside loop steps are not supported", l.Steps[i].Name)
+		}
+		if err := validateStep(&l.Steps[i], nil); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// TopLevelStepNames returns only the names of top-level steps (not steps inside loops).
+// Goto targets must reference top-level steps only.
+func (p *Pipeline) TopLevelStepNames() []string {
+	var names []string
+	for _, elem := range p.Elements {
+		if elem.Step != nil {
+			names = append(names, elem.Step.Name)
+		}
+	}
+	return names
 }
 
 // FlattenStepNames returns all step names across the pipeline (top-level + inside loops).

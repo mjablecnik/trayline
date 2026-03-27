@@ -17,8 +17,7 @@ func TestLoadConfig_DefaultModel(t *testing.T) {
 }
 
 func TestLoadConfig_CustomModel(t *testing.T) {
-	os.Setenv("OPENROUTER_MODEL", "openai/gpt-4o")
-	defer os.Unsetenv("OPENROUTER_MODEL")
+	t.Setenv("OPENROUTER_MODEL", "openai/gpt-4o")
 
 	cfg := LoadConfig()
 	if cfg.OpenRouterModel != "openai/gpt-4o" {
@@ -27,8 +26,7 @@ func TestLoadConfig_CustomModel(t *testing.T) {
 }
 
 func TestLoadConfig_APIKey(t *testing.T) {
-	os.Setenv("OPENROUTER_API_KEY", "test-key-123")
-	defer os.Unsetenv("OPENROUTER_API_KEY")
+	t.Setenv("OPENROUTER_API_KEY", "test-key-123")
 
 	cfg := LoadConfig()
 	if cfg.OpenRouterAPIKey != "test-key-123" {

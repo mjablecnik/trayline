@@ -10,6 +10,7 @@ import (
 	"pgregory.net/rapid"
 )
 
+
 // mockRunner is a CommandRunner for testing.
 type mockRunner struct {
 	calls     []runCall
@@ -664,5 +665,83 @@ func TestConditionInputSelection(t *testing.T) {
 			rt.Fatalf("expected %q in input, got: %q", expectedContent, input)
 		}
 	})
+}
+
+// Test for condition file not found at runtime (issue #21 in code review).
+func TestConditionFileNotFound(t *testing.T) {
+	cond := Condition{Prompt: "Done?", File: "/nonexistent/path/missing-file.txt"}
+	e := &Executor{}
+	_, err := e.conditionInput("test-step", &cond, "", "step output")
+	if err == nil {
+		t.Fatal("expected error for missing condition file")
+	}
+	if !strings.Contains(err.Error(), "condition file not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// Test for loop step failure (issue #22 / Requirement 9.10).
+func TestExecutor_LoopStepFailure(t *testing.T) {
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Loop: &Loop{
+				MaxIterations: 3,
+				Steps: []Step{
+					{Name: "run-tests", Command: "go test ./..."},
+				},
+				Condition: Condition{Prompt: "Still failing?"},
+			}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{exitCode: 2}, // step inside loop fails
+		},
+	}
+	e := buildExecutor(pipeline, runner, &mockEvaluator{})
+	code := e.Run()
+	if code == 0 {
+		t.Error("expected non-zero exit code when loop step fails")
+	}
+	if len(runner.calls) != 1 {
+		t.Errorf("expected 1 call (stopped at failure), got %d", len(runner.calls))
+	}
+}
+
+// Test that --verbose mode streams output to stdout (issue #23).
+func TestVerboseMode_StreamsOutput(t *testing.T) {
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Step: &Step{Name: "step1", Command: "echo hello-verbose-test"}},
+		},
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe error: %v", err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+
+	e := &Executor{
+		Config:   &Config{},
+		Pipeline: pipeline,
+		LLM:      &mockEvaluator{},
+		DryRun:   false,
+		Verbose:  true,
+		Runner:   &OSCommandRunner{},
+	}
+	code := e.Run()
+
+	w.Close()
+	out, _ := io.ReadAll(r)
+	os.Stdout = old
+
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	if !strings.Contains(string(out), "hello-verbose-test") {
+		t.Errorf("expected 'hello-verbose-test' in verbose stdout, got: %s", out)
+	}
 }
 

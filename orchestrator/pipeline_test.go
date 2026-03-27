@@ -287,6 +287,75 @@ steps:
 	}
 }
 
+func TestParsePipeline_GotoTargetsLoopStep(t *testing.T) {
+	// goto must only target top-level steps, not steps inside loops
+	content := `
+steps:
+  - name: "review"
+    agent: "claude"
+    prompt: "review"
+    condition:
+      prompt: "Issues found?"
+      goto: "loop-step"
+  - loop:
+      max_iterations: 3
+      condition:
+        prompt: "Continue?"
+      steps:
+        - name: "loop-step"
+          command: "echo hi"
+`
+	p := writeTempPipeline(t, content)
+	_, err := ParsePipeline(p)
+	if err == nil {
+		t.Fatal("expected error when goto targets a loop step")
+	}
+	if !strings.Contains(err.Error(), "goto target") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestParsePipeline_LoopStepWithCondition(t *testing.T) {
+	// conditions inside loop steps are not supported
+	content := `
+steps:
+  - loop:
+      max_iterations: 3
+      condition:
+        prompt: "Continue?"
+      steps:
+        - name: "run-tests"
+          command: "go test ./..."
+          condition:
+            prompt: "Did tests pass?"
+`
+	p := writeTempPipeline(t, content)
+	_, err := ParsePipeline(p)
+	if err == nil {
+		t.Fatal("expected error for condition inside loop step")
+	}
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestParsePipeline_PromptWithoutAgent(t *testing.T) {
+	// step with prompt but no agent and no command should give a clear error
+	content := `
+steps:
+  - name: "step1"
+    prompt: "do something"
+`
+	p := writeTempPipeline(t, content)
+	_, err := ParsePipeline(p)
+	if err == nil {
+		t.Fatal("expected error for step with prompt but no agent or command")
+	}
+	if !strings.Contains(err.Error(), "must have either") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 func TestNeedsLLM(t *testing.T) {
 	// Pipeline without conditions
 	content := `

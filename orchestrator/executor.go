@@ -87,7 +87,7 @@ func (e *Executor) Run() int {
 		elem := allSteps[i]
 
 		if elem.Loop != nil {
-			if exitCode, err := e.executeLoop(elem.Loop); err != nil {
+			if exitCode, err := e.executeLoop(elem.Loop); err != nil || exitCode != 0 {
 				return exitCode
 			}
 			i++
@@ -240,10 +240,14 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 		return stepOutput, nil
 	}
 
-	// Resolve file path relative to project dir
+	// Resolve file path relative to project dir (or cwd if projectDir is empty).
 	path := cond.File
-	if projectDir != "" && !filepath.IsAbs(path) {
-		path = filepath.Join(projectDir, path)
+	if !filepath.IsAbs(path) {
+		dir := projectDir
+		if dir == "" {
+			dir, _ = os.Getwd()
+		}
+		path = filepath.Join(dir, path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -277,9 +281,19 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			lastOutput = output
 		}
 
-		// Evaluate loop condition — resolve file path relative to cwd
-		cwd, _ := os.Getwd()
-		input, err := e.conditionInput("loop", &loop.Condition, cwd, lastOutput)
+		// Evaluate loop condition — resolve file path relative to the last step's project_dir
+		// (fall back to cwd if no loop step specifies a project_dir).
+		condProjectDir := ""
+		for k := len(loop.Steps) - 1; k >= 0; k-- {
+			if loop.Steps[k].ProjectDir != "" {
+				condProjectDir = loop.Steps[k].ProjectDir
+				break
+			}
+		}
+		if condProjectDir == "" {
+			condProjectDir, _ = os.Getwd()
+		}
+		input, err := e.conditionInput("loop", &loop.Condition, condProjectDir, lastOutput)
 		if err != nil {
 			return 1, err
 		}

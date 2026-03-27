@@ -138,5 +138,5 @@ func parseLLMDecision(response string) (bool, error) {
 	if strings.Contains(trimmed, "false") && !strings.Contains(trimmed, "true") {
 		return false, nil
 	}
-	return false, fmt.Errorf("LLM returned unparseable response after retry")
+	return false, fmt.Errorf("LLM returned unparseable response: %q", response)
 }
