@@ -10,6 +10,19 @@ import (
 	"time"
 )
 
+// ANSI color codes for terminal output.
+const (
+	colorReset   = "\033[0m"
+	colorRed     = "\033[31m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorCyan    = "\033[36m"
+	colorBold    = "\033[1m"
+	colorDim     = "\033[2m"
+)
+
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
 	// RunAgent executes an agent-docker command.
@@ -99,11 +112,11 @@ func (e *Executor) Run() int {
 		stepNum++
 		output, exitCode, runErr := e.executeStep(step, stepNum, totalSteps)
 		if runErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", runErr)
+			fmt.Fprintf(os.Stderr, "%s✗ error:%s %v\n", colorRed, colorReset, runErr)
 			return 1
 		}
 		if exitCode != 0 {
-			fmt.Fprintf(os.Stderr, "error: step %q failed with exit code %d\n", step.Name, exitCode)
+			fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
 			return exitCode
 		}
 
@@ -111,12 +124,12 @@ func (e *Executor) Run() int {
 		if step.Condition != nil {
 			_, nextIdx, err := e.evaluateStepCondition(step, output, allSteps, i)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: step %q: %v\n", step.Name, err)
+				fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q: %v\n", colorRed, colorReset, step.Name, err)
 				return 1
 			}
 			if nextIdx == -1 {
 				// Stop pipeline (no-goto + false)
-				fmt.Printf("[orchestrator] Pipeline stopped by condition on step %q (LLM returned false)\n", step.Name)
+				fmt.Printf("%s⏹ Pipeline stopped by condition on step %q (LLM returned false)%s\n", colorYellow, step.Name, colorReset)
 				break
 			}
 			i = nextIdx
@@ -126,7 +139,7 @@ func (e *Executor) Run() int {
 		i++
 	}
 
-	fmt.Printf("[orchestrator] Pipeline complete. Total time: %s\n", time.Since(start).Round(time.Millisecond))
+	fmt.Printf("\n%s%s━━━ Pipeline complete. Total time: %s ━━━%s\n", colorBold, colorGreen, time.Since(start).Round(time.Millisecond), colorReset)
 	return 0
 }
 
@@ -152,7 +165,7 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	if step.Agent != "" {
 		stepType = "agent:" + step.Agent
 	}
-	fmt.Printf("[orchestrator] Step %d/%d: %q (%s)\n", stepNum, totalSteps, step.Name, stepType)
+	fmt.Printf("\n%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s\n", colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset)
 	start := time.Now()
 
 	cwd, _ := os.Getwd()
@@ -175,13 +188,13 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 
 	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
-		fmt.Printf("[orchestrator] Step %q failed after %s: %v\n", step.Name, elapsed, err)
+		fmt.Printf("  %s✗ %q failed after %s: %v%s\n", colorRed, step.Name, elapsed, err, colorReset)
 		return output, exitCode, err
 	}
 	if exitCode != 0 {
-		fmt.Printf("[orchestrator] Step %q failed (exit %d) after %s\n", step.Name, exitCode, elapsed)
+		fmt.Printf("  %s✗ %q failed (exit %d) after %s%s\n", colorRed, step.Name, exitCode, elapsed, colorReset)
 	} else {
-		fmt.Printf("[orchestrator] Step %q succeeded in %s\n", step.Name, elapsed)
+		fmt.Printf("  %s✓ %q succeeded in %s%s\n", colorGreen, step.Name, elapsed, colorReset)
 	}
 	return output, exitCode, nil
 }
@@ -200,7 +213,11 @@ func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements
 	}
 
 	gotoTarget := step.Condition.Goto
-	fmt.Printf("[orchestrator] Condition on step %q: LLM=%v goto=%q\n", step.Name, decision, gotoTarget)
+	fmt.Printf("  %s⚡ Condition on %q: LLM=%v%s", colorMagenta, step.Name, decision, colorReset)
+	if gotoTarget != "" {
+		fmt.Printf(" %s→ goto %q%s", colorMagenta, gotoTarget, colorReset)
+	}
+	fmt.Println()
 
 	if gotoTarget != "" {
 		if decision {
@@ -264,7 +281,7 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 // Returns the exit code and error; exit code is non-zero if a loop step fails.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
-		fmt.Printf("[orchestrator] Loop iteration %d/%d\n", iter, loop.MaxIterations)
+		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
 
 		var lastOutput string
 		for i := range loop.Steps {
@@ -275,7 +292,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
 			}
 			if exitCode != 0 {
-				fmt.Fprintf(os.Stderr, "error: step %q failed with exit code %d\n", step.Name, exitCode)
+				fmt.Fprintf(os.Stderr, "  %s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
 				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
 			}
 			lastOutput = output
@@ -303,15 +320,15 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			return 1, err
 		}
 
-		fmt.Printf("[orchestrator] Loop iteration %d/%d: LLM=%v\n", iter, loop.MaxIterations, decision)
+		fmt.Printf("  %s⚡ Loop iteration %d/%d: LLM=%v%s\n", colorMagenta, iter, loop.MaxIterations, decision, colorReset)
 
 		if !decision {
-			fmt.Printf("[orchestrator] Loop exiting after iteration %d (LLM returned false)\n", iter)
+			fmt.Printf("  %s⏹ Loop exiting after iteration %d (LLM returned false)%s\n", colorYellow, iter, colorReset)
 			return 0, nil
 		}
 
 		if iter == loop.MaxIterations {
-			fmt.Printf("[orchestrator] WARNING: loop reached max_iterations (%d), continuing pipeline\n", loop.MaxIterations)
+			fmt.Printf("  %s⚠ WARNING: loop reached max_iterations (%d), continuing pipeline%s\n", colorYellow, loop.MaxIterations, colorReset)
 			return 0, nil
 		}
 	}
@@ -324,13 +341,14 @@ func printCondition(cond *Condition, indent string) {
 	if cond == nil {
 		return
 	}
-	line := indent + "condition: \"" + cond.Prompt + "\""
+	line := indent + colorMagenta + "condition: \"" + cond.Prompt + "\""
 	if cond.File != "" {
 		line += " [file: " + cond.File + "]"
 	}
 	if cond.Goto != "" {
 		line += " [goto: " + cond.Goto + "]"
 	}
+	line += colorReset
 	fmt.Println(line)
 }
 
@@ -346,15 +364,15 @@ func (e *Executor) printDryRun() {
 				projectDir = cwd
 			}
 			if s.Agent != "" {
-				fmt.Printf("[dry-run] Step %d: %q agent=%s project_dir=%s\n  prompt: %s\n", stepNum, s.Name, s.Agent, projectDir, s.Prompt)
+				fmt.Printf("\n%s▶ Step %d:%s %s%q%s agent=%s project_dir=%s\n  prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, s.Prompt)
 			} else {
-				fmt.Printf("[dry-run] Step %d: %q command=%s project_dir=%s\n", stepNum, s.Name, s.Command, projectDir)
+				fmt.Printf("\n%s▶ Step %d:%s %s%q%s command=%s project_dir=%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir)
 			}
 			printCondition(s.Condition, "  ")
 		}
 		if elem.Loop != nil {
 			lc := &elem.Loop.Condition
-			fmt.Printf("[dry-run] Loop (max_iterations=%d):\n", elem.Loop.MaxIterations)
+			fmt.Printf("\n%s🔁 Loop%s (max_iterations=%d):\n", colorBlue, colorReset, elem.Loop.MaxIterations)
 			printCondition(lc, "  ")
 			for j := range elem.Loop.Steps {
 				stepNum++
@@ -364,12 +382,13 @@ func (e *Executor) printDryRun() {
 					projectDir = cwd
 				}
 				if s.Agent != "" {
-					fmt.Printf("[dry-run]   Step %d: %q agent=%s project_dir=%s\n    prompt: %s\n", stepNum, s.Name, s.Agent, projectDir, s.Prompt)
+					fmt.Printf("  %s▶ Step %d:%s %s%q%s agent=%s project_dir=%s\n    prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, s.Prompt)
 				} else {
-					fmt.Printf("[dry-run]   Step %d: %q command=%s project_dir=%s\n", stepNum, s.Name, s.Command, projectDir)
+					fmt.Printf("  %s▶ Step %d:%s %s%q%s command=%s project_dir=%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir)
 				}
 				printCondition(s.Condition, "    ")
 			}
 		}
 	}
+	fmt.Println()
 }

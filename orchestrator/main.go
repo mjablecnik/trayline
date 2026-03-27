@@ -4,16 +4,23 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 var version = "dev"
 
-const usageText = `Agent Orchestrator — sequential AI agent pipeline runner
+func programName() string {
+	return filepath.Base(os.Args[0])
+}
+
+func usageText() string {
+	name := programName()
+	return fmt.Sprintf(`%s — sequential AI agent pipeline runner
 
 Usage:
-  orchestrator --pipeline <path> [--dry-run] [--verbose]
-  orchestrator --version
-  orchestrator --help
+  %s --pipeline <path> [--dry-run] [--verbose]
+  %s --version
+  %s --help
 
 Flags:
   --pipeline string   Path to pipeline YAML file (required)
@@ -23,21 +30,23 @@ Flags:
   --help, -h          Show this help message
 
 Examples:
-  orchestrator --pipeline workflow.yaml
-  orchestrator --pipeline workflow.yaml --verbose
-  orchestrator --pipeline workflow.yaml --dry-run
-  orchestrator --version
-`
+  %s --pipeline workflow.yaml
+  %s --pipeline workflow.yaml --verbose
+  %s --pipeline workflow.yaml --dry-run
+  %s --version
+`, name, name, name, name, name, name, name, name)
+}
 
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
 
 func run(args []string) int {
-	fs := flag.NewFlagSet("orchestrator", flag.ContinueOnError)
+	name := programName()
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, usageText)
+		fmt.Fprint(os.Stderr, usageText())
 	}
 
 	pipelineFlag := fs.String("pipeline", "", "Path to pipeline YAML file (required)")
@@ -50,13 +59,13 @@ func run(args []string) int {
 	}
 
 	if *versionFlag {
-		fmt.Printf("orchestrator version %s\n", version)
+		fmt.Printf("%s version %s\n", programName(), version)
 		return 0
 	}
 
 	if *pipelineFlag == "" {
 		fmt.Fprint(os.Stderr, "error: --pipeline flag is required\n\n")
-		fmt.Fprint(os.Stderr, usageText)
+		fmt.Fprint(os.Stderr, usageText())
 		return 1
 	}
 

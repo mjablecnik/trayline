@@ -1,0 +1,9 @@
+steps:
+  - name: "hello"
+    command: "echo 'Hello from orchestrator!'"
+
+  - name: "list-files"
+    command: "ls -la"
+
+  - name: "show-date"
+    command: "date"
