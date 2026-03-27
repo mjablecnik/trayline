@@ -63,6 +63,44 @@ steps:
 	}
 }
 
+func TestParsePipeline_VerboseStep(t *testing.T) {
+	content := `
+steps:
+  - name: "run-sub-pipeline"
+    command: "trayline run --pipeline sub.yaml"
+    verbose: true
+`
+	p := writeTempPipeline(t, content)
+	pipeline, err := ParsePipeline(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	step := pipeline.Elements[0].Step
+	if step == nil {
+		t.Fatal("expected step, got nil")
+	}
+	if !step.Verbose {
+		t.Error("expected verbose=true on step")
+	}
+}
+
+func TestParsePipeline_VerboseDefaultFalse(t *testing.T) {
+	content := `
+steps:
+  - name: "run-tests"
+    command: "go test ./..."
+`
+	p := writeTempPipeline(t, content)
+	pipeline, err := ParsePipeline(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	step := pipeline.Elements[0].Step
+	if step.Verbose {
+		t.Error("expected verbose=false by default")
+	}
+}
+
 func TestParsePipeline_MultiLinePrompt(t *testing.T) {
 	content := `
 steps:

@@ -19,11 +19,12 @@ type mockRunner struct {
 }
 
 type runCall struct {
-	kind      string // "agent" or "command"
-	agent     string
-	prompt    string
-	command   string
+	kind       string // "agent" or "command"
+	agent      string
+	prompt     string
+	command    string
 	projectDir string
+	verbose    bool
 }
 
 type runResponse struct {
@@ -33,12 +34,12 @@ type runResponse struct {
 }
 
 func (m *mockRunner) RunAgent(agent, prompt, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
-	m.calls = append(m.calls, runCall{kind: "agent", agent: agent, prompt: prompt, projectDir: projectDir})
+	m.calls = append(m.calls, runCall{kind: "agent", agent: agent, prompt: prompt, projectDir: projectDir, verbose: verbose})
 	return m.nextResponse()
 }
 
 func (m *mockRunner) RunCommand(command, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
-	m.calls = append(m.calls, runCall{kind: "command", command: command, projectDir: projectDir})
+	m.calls = append(m.calls, runCall{kind: "command", command: command, projectDir: projectDir, verbose: verbose})
 	return m.nextResponse()
 }
 
@@ -345,6 +346,73 @@ func TestExecutor_DryRun(t *testing.T) {
 	}
 	if len(runner.calls) != 0 {
 		t.Errorf("expected no subprocess calls in dry-run, got %d", len(runner.calls))
+	}
+}
+
+func TestExecutor_PerStepVerbose(t *testing.T) {
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Step: &Step{Name: "quiet-step", Command: "echo quiet"}},
+			{Step: &Step{Name: "verbose-step", Command: "echo loud", Verbose: true}},
+			{Step: &Step{Name: "quiet-step2", Command: "echo quiet2"}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{exitCode: 0},
+			{exitCode: 0},
+			{exitCode: 0},
+		},
+	}
+	e := buildExecutor(pipeline, runner, &mockEvaluator{})
+	code := e.Run()
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d", len(runner.calls))
+	}
+	if runner.calls[0].verbose {
+		t.Error("expected quiet-step to not be verbose")
+	}
+	if !runner.calls[1].verbose {
+		t.Error("expected verbose-step to be verbose")
+	}
+	if runner.calls[2].verbose {
+		t.Error("expected quiet-step2 to not be verbose")
+	}
+}
+
+func TestExecutor_GlobalVerboseOverridesStep(t *testing.T) {
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Step: &Step{Name: "step1", Command: "echo 1"}},
+			{Step: &Step{Name: "step2", Command: "echo 2", Verbose: true}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{exitCode: 0},
+			{exitCode: 0},
+		},
+	}
+	e := &Executor{
+		Config:   &Config{},
+		Pipeline: pipeline,
+		LLM:      &mockEvaluator{},
+		Verbose:  true, // global verbose
+		Runner:   runner,
+	}
+	code := e.Run()
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	// Both should be verbose when global flag is set
+	if !runner.calls[0].verbose {
+		t.Error("expected step1 to be verbose (global flag)")
+	}
+	if !runner.calls[1].verbose {
+		t.Error("expected step2 to be verbose (global + step flag)")
 	}
 }
 

@@ -26,3 +26,4 @@ steps:
 
         - name: "apply-review-fixes"
           command: "trayline run --pipeline apply-review-fixes --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
+          verbose: true

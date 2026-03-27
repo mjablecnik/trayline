@@ -58,6 +58,7 @@ type Step struct {
 	Prompt     string     `yaml:"prompt"`
 	Command    string     `yaml:"command"`
 	ProjectDir string     `yaml:"project_dir"`
+	Verbose    bool       `yaml:"verbose,omitempty"`
 	Condition  *Condition `yaml:"condition"`
 }
 

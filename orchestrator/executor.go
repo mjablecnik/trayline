@@ -222,14 +222,16 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 
 	env := os.Environ()
 
+	verbose := e.Verbose || step.Verbose
+
 	var output string
 	var exitCode int
 	var err error
 
 	if step.Agent != "" {
-		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, projectDir, env, e.Verbose, os.Stdout, os.Stderr)
+		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, projectDir, env, verbose, os.Stdout, os.Stderr)
 	} else {
-		output, exitCode, err = e.Runner.RunCommand(step.Command, projectDir, env, e.Verbose, os.Stdout, os.Stderr)
+		output, exitCode, err = e.Runner.RunCommand(step.Command, projectDir, env, verbose, os.Stdout, os.Stderr)
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
@@ -479,10 +481,14 @@ func (e *Executor) printDryRun() {
 			if projectDir == "" {
 				projectDir = cwd
 			}
+			verboseTag := ""
+			if s.Verbose {
+				verboseTag = " verbose=true"
+			}
 			if s.Agent != "" {
-				fmt.Printf("\n%s▶ Step %d:%s %s%q%s agent=%s project_dir=%s\n  prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, s.Prompt)
+				fmt.Printf("\n%s▶ Step %d:%s %s%q%s agent=%s project_dir=%s%s\n  prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, verboseTag, s.Prompt)
 			} else {
-				fmt.Printf("\n%s▶ Step %d:%s %s%q%s command=%s project_dir=%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir)
+				fmt.Printf("\n%s▶ Step %d:%s %s%q%s command=%s project_dir=%s%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir, verboseTag)
 			}
 			printCondition(s.Condition, "  ")
 		}
@@ -497,10 +503,14 @@ func (e *Executor) printDryRun() {
 				if projectDir == "" {
 					projectDir = cwd
 				}
+				verboseTag := ""
+				if s.Verbose {
+					verboseTag = " verbose=true"
+				}
 				if s.Agent != "" {
-					fmt.Printf("  %s▶ Step %d:%s %s%q%s agent=%s project_dir=%s\n    prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, s.Prompt)
+					fmt.Printf("  %s▶ Step %d:%s %s%q%s agent=%s project_dir=%s%s\n    prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, verboseTag, s.Prompt)
 				} else {
-					fmt.Printf("  %s▶ Step %d:%s %s%q%s command=%s project_dir=%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir)
+					fmt.Printf("  %s▶ Step %d:%s %s%q%s command=%s project_dir=%s%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir, verboseTag)
 				}
 				printCondition(s.Condition, "    ")
 			}
