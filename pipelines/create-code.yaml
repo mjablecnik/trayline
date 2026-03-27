@@ -40,4 +40,4 @@ steps:
             in the spec are now checked off, explicitly say "All tasks are done."
 
   - name: "code-review"
-    command: "trayline --pipeline code-review.yaml --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
+    command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"

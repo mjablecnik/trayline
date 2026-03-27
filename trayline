@@ -39,7 +39,7 @@ COMMAND="$1"; shift
 
 case "$COMMAND" in
   agent)
-    exec "${TRAYLINE_HOME}/agent-docker" "$@"
+    exec "${TRAYLINE_HOME}/trayline-agent" "$@"
     ;;
   sync)
     exec "${TRAYLINE_HOME}/sync.sh" "$@"

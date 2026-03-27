@@ -1,6 +1,6 @@
 # Force LF line endings for all shell scripts and completions
 *.sh text eol=lf
-agent-docker text eol=lf
+trayline-agent text eol=lf
 trayline text eol=lf
 completions/_trayline text eol=lf
 install.sh text eol=lf

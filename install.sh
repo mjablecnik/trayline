@@ -5,8 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="${HOME}/bin"
 TRAYLINE_HOME="${HOME}/.trayline"
 
-echo "==> Building agent-sandbox Docker image..."
-docker build -t agent-sandbox "$SCRIPT_DIR"
+echo "==> Building trayline-sandbox Docker image..."
+docker build -t trayline-sandbox "$SCRIPT_DIR"
 
 echo "==> Setting up directories..."
 mkdir -p "$BIN_DIR"
@@ -14,8 +14,8 @@ mkdir -p "$TRAYLINE_HOME/pipelines"
 
 # Install internal tools to ~/.trayline/ (strip CRLF for WSL compatibility)
 echo "==> Installing tools to ${TRAYLINE_HOME}/"
-sed 's/\r$//' "$SCRIPT_DIR/agent-docker" > "$TRAYLINE_HOME/agent-docker"
-chmod +x "$TRAYLINE_HOME/agent-docker"
+sed 's/\r$//' "$SCRIPT_DIR/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
+chmod +x "$TRAYLINE_HOME/trayline-agent"
 
 sed 's/\r$//' "$SCRIPT_DIR/sync.sh" > "$TRAYLINE_HOME/sync.sh"
 chmod +x "$TRAYLINE_HOME/sync.sh"
@@ -83,7 +83,7 @@ fi
 echo ""
 echo "Done! Installed:"
 echo "  ~/bin/trayline              (main CLI)"
-echo "  ~/.trayline/agent-docker    (agent runner)"
+echo "  ~/.trayline/trayline-agent  (agent runner)"
 echo "  ~/.trayline/sync.sh         (rsync wrapper)"
 echo "  ~/.trayline/trayline-run    (orchestrator)"
 echo "  ~/.trayline/pipelines/      (global pipelines)"

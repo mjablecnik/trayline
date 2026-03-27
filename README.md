@@ -1,6 +1,6 @@
-# agent-docker
+# Trayline
 
-Sandboxed Docker container for [Kiro CLI](https://kiro.dev) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with pre-installed Go, Node.js, Bun and Flutter. Agents run in isolation with limited access to the host's Docker daemon via a socket proxy — they can debug and manage other containers but cannot mount the host filesystem or access sensitive Docker APIs.
+Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
 
 ## Installation
 
@@ -22,51 +22,102 @@ claude login
 ./install.sh
 ```
 
-Builds the Docker image and installs `agent-docker` and `agent-docker-sync` to `~/bin`.
+Builds the Docker image and installs `trayline` to `~/bin` with all internal tools in `~/.trayline/`.
 
 ## Usage
 
-### agent-docker
-
 ```
-Usage: agent-docker <kiro|claude> [-p project-dir] [-i] [prompt]
+trayline <command> [options]
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `agent` | Run an AI agent in a Docker sandbox |
+| `run`   | Run a YAML pipeline (orchestrator) |
+| `sync`  | Sync project with a remote server via rsync |
+| `install` | Re-run installation |
+| `version` | Print version info |
+| `help`  | Show help |
+
+### agent
+
+Run an AI coding agent in a sandboxed Docker container with filtered access to the host Docker daemon.
+
+```bash
+trayline agent kiro "Show me running containers"
+trayline agent kiro -p ~/my-project "Add a /health endpoint"
+trayline agent kiro -i
+trayline agent claude -p ~/my-project -i
+trayline agent claude -p ~/my-project "Fix the tests"
 ```
 
 Options:
 - `-p DIR` — path to project directory (default: current directory)
-- `-i` — interactive mode (opens a chat session, no prompt required)
-- `-h` — show help
+- `-i` — interactive mode (opens a chat session)
 
-Examples:
+### run
+
+Execute a YAML pipeline that orchestrates multiple agent steps, shell commands, and LLM-driven loops.
 
 ```bash
-agent-docker                                                     # show help
-agent-docker kiro "Show me running containers"                   # one-shot
-agent-docker kiro -p ~/my-project "Add a /health endpoint"       # one-shot with project
-agent-docker kiro -i                                             # interactive
-agent-docker claude -p ~/my-project -i                           # claude, interactive
-agent-docker claude -p ~/my-project "Fix the tests"              # claude, one-shot
+trayline run --pipeline code-review --verbose
+trayline run --pipeline ./local-pipeline.yaml --dry-run
+trayline run --pipeline create-code --var specs-name=my-spec --var path=./src
 ```
 
-### agent-docker-sync
+Pipeline names are resolved from `~/.trayline/pipelines/`. Use a path with `/` or `.yaml` extension for local files.
 
-Syncs the current directory with a remote host via rsync.
+Options:
+- `--pipeline` — pipeline name or path (required)
+- `--var key=value` — set or override a pipeline variable (repeatable)
+- `--dry-run` — print steps without executing
+- `--verbose` — stream agent output in real time
+
+See [orchestrator/README.md](orchestrator/README.md) for the full pipeline YAML format.
+
+### sync
+
+Sync the current directory with a remote host via rsync.
 
 ```bash
-cd ~/Projects/my-app
-agent-docker-sync push            # send local changes to remote
-agent-docker-sync pull -v         # fetch remote changes (verbose)
+trayline sync push
+trayline sync pull --verbose
 ```
 
 ## How it works
 
 ```
-agent-docker  →  Sandbox container (Kiro CLI / Claude Code + tools)
-                    ↓ TCP :2375
-                docker-socket-proxy (filters Docker API)
-                    ↓ socket
-                Host Docker daemon
+trayline agent  →  Sandbox container (Kiro CLI / Claude Code + tools)
+                      ↓ TCP :2375
+                  docker-socket-proxy (filters Docker API)
+                      ↓ socket
+                  Host Docker daemon
 ```
 
 Proxy allows: `ps`, `logs`, `build`, `start/stop/restart`, `exec`, `images`, `networks`.
 Proxy denies: `volumes`, `secrets`, `swarm`, `auth`, `nodes`, `configs`.
+
+## Project Structure
+
+```
+trayline/
+├── trayline              # Main CLI wrapper (installed to ~/bin/)
+├── trayline-agent        # Docker sandbox runner for AI agents
+├── install.sh            # Installer script
+├── Dockerfile            # Sandbox container image
+├── sync.sh               # Rsync wrapper
+├── orchestrator/         # Go pipeline orchestrator (trayline-run)
+├── pipelines/            # Default pipeline definitions
+└── completions/          # Zsh completions
+```
+
+## Default Pipelines
+
+| Pipeline | Description |
+|----------|-------------|
+| `default` | Full workflow: create code → verify build → create tests → code review |
+| `create-code` | Create code + tests + code review loop |
+| `code-review` | Standalone code review with iterative fixes |
+| `quick` | Create code only (no tests or review) |

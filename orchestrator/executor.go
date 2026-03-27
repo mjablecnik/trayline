@@ -26,7 +26,7 @@ const (
 
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
-	// RunAgent executes an agent-docker command.
+	// RunAgent executes a trayline-agent command.
 	RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
 	// RunCommand executes a shell command via sh -c.
 	RunCommand(command string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
@@ -36,11 +36,11 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (r *OSCommandRunner) RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
-	if _, err := exec.LookPath("agent-docker"); err != nil {
-		return "", 1, fmt.Errorf("agent-docker not found on PATH")
+	if _, err := exec.LookPath("trayline-agent"); err != nil {
+		return "", 1, fmt.Errorf("trayline-agent not found on PATH")
 	}
 	args := []string{agent, "-p", projectDir, prompt}
-	return runSubprocess("agent-docker", args, projectDir, env, verbose, stdout, stderr)
+	return runSubprocess("trayline-agent", args, projectDir, env, verbose, stdout, stderr)
 }
 
 func (r *OSCommandRunner) RunCommand(command string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {

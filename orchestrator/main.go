@@ -27,7 +27,7 @@ Flags:
   --pipeline string   Path to pipeline YAML file (required)
   --var key=value     Set or override a pipeline variable (repeatable)
   --dry-run           Print pipeline steps without executing
-  --verbose           Stream agent-docker output to stdout in real time
+  --verbose           Stream trayline-agent output to stdout in real time
   --version           Print version and exit
   --help, -h          Show this help message
 
@@ -63,7 +63,7 @@ func run(args []string) int {
 
 	pipelineFlag := fs.String("pipeline", "", "Path to pipeline YAML file (required)")
 	dryRunFlag := fs.Bool("dry-run", false, "Print pipeline steps without executing")
-	verboseFlag := fs.Bool("verbose", false, "Stream agent-docker output to stdout in real time")
+	verboseFlag := fs.Bool("verbose", false, "Stream trayline-agent output to stdout in real time")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	var vars varFlags
 	fs.Var(&vars, "var", "Set variable key=value (repeatable)")

@@ -1,22 +1,22 @@
-# Agent Orchestrator
+# Trayline Orchestrator
 
-A Go CLI that reads a YAML pipeline definition and sequentially executes `agent-docker` commands and shell commands. Supports LLM-based loops for iterative refinement and step-level conditions with optional goto jumps.
+A Go CLI that reads a YAML pipeline definition and sequentially executes `trayline-agent` commands and shell commands. Supports LLM-based loops for iterative refinement and step-level conditions with optional goto jumps.
 
-Compiles into a single static binary with no runtime dependencies beyond the Go standard library and the `agent-docker` script on PATH.
+Compiles into a single static binary with no runtime dependencies beyond the Go standard library and the `trayline-agent` script on PATH.
 
 ## Build
 
 ```bash
 cd orchestrator
-go build -ldflags "-X main.version=1.0.0" -o orchestrator .
+go build -ldflags "-X main.version=1.0.0" -o trayline-run .
 ```
 
 ## Usage
 
 ```
-orchestrator --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
-orchestrator --version
-orchestrator --help
+trayline-run --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
+trayline-run --version
+trayline-run --help
 ```
 
 Flags:
@@ -24,7 +24,7 @@ Flags:
 - `--pipeline` — Path to pipeline YAML file (required)
 - `--var key=value` — Set or override a pipeline variable (repeatable)
 - `--dry-run` — Print pipeline steps without executing
-- `--verbose` — Stream agent-docker output to stdout in real time
+- `--verbose` — Stream trayline-agent output to stdout in real time
 - `--version` — Print version and exit
 - `--help, -h` — Show help message
 
@@ -71,7 +71,7 @@ steps:
 Override or add variables at runtime with `--var`:
 
 ```bash
-orchestrator --pipeline workflow.yaml --var project-path=/tmp/proj --var spec-name=my-spec
+trayline-run --pipeline workflow.yaml --var project-path=/tmp/proj --var spec-name=my-spec
 ```
 
 Rules:
@@ -82,7 +82,7 @@ Rules:
 
 ### Agent Step
 
-Runs `agent-docker` with the specified agent type and prompt:
+Runs `trayline-agent` with the specified agent type and prompt:
 
 ```yaml
 steps:

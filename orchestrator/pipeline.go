@@ -51,7 +51,7 @@ func (pe *PipelineElement) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// Step represents a single pipeline step — either an agent-docker invocation or a shell command.
+// Step represents a single pipeline step — either a trayline-agent invocation or a shell command.
 type Step struct {
 	Name       string     `yaml:"name"`
 	Agent      string     `yaml:"agent"`

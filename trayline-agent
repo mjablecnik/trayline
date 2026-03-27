@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="agent-sandbox"
-PROXY_NAME="agent-docker-proxy"
-NETWORK_NAME="agent-net"
+IMAGE_NAME="trayline-sandbox"
+PROXY_NAME="trayline-proxy"
+NETWORK_NAME="trayline-net"
 usage() {
   cat <<EOF
-Usage: agent-docker <kiro|claude> [-p project-dir] [-i] [prompt]
+Usage: trayline-agent <kiro|claude> [-p project-dir] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
@@ -20,10 +20,10 @@ Options:
   -h       Show this help
 
 Examples:
-  agent-docker kiro "Show me running containers"       # one-shot
-  agent-docker kiro -p ~/my-project "Add /health"      # one-shot with project
-  agent-docker kiro -i                                  # interactive
-  agent-docker claude -p ~/my-project -i                # claude, interactive
+  trayline-agent kiro "Show me running containers"       # one-shot
+  trayline-agent kiro -p ~/my-project "Add /health"      # one-shot with project
+  trayline-agent kiro -i                                  # interactive
+  trayline-agent claude -p ~/my-project -i                # claude, interactive
 EOF
   exit 0
 }
@@ -55,7 +55,7 @@ fi
 
 # Check image exists (must be built via install.sh)
 if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
-  echo "Error: Docker image '$IMAGE_NAME' not found. Run install.sh first." >&2
+  echo "Error: Docker image '$IMAGE_NAME' not found. Run 'trayline install' first." >&2
   exit 1
 fi
 
