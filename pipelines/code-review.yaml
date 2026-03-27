@@ -6,9 +6,6 @@ variables:
 steps:
   - loop:
       max_iterations: 3
-      condition:
-        file: "CODE_REVIEW.md"
-        prompt: "Are there still unchecked tasks in CODE_REVIEW.md (items marked with '- [ ]')? Answer true if there are unchecked items or if CODE_REVIEW.md does not exist yet, false if all are checked off or there are no remaining issues."
       steps:
         - name: "code-review"
           agent: "kiro"
@@ -22,6 +19,9 @@ steps:
             - [ ] 2. Description of the second issue to fix
             Each task should be a single, actionable fix item that can be completed independently.
             If everything looks good, write that there are no remaining issues.
+          condition:
+            file: "CODE_REVIEW.md"
+            prompt: "Are there unchecked tasks in CODE_REVIEW.md (items marked with '- [ ]')? Answer true if there are issues to fix, false if everything looks good or there are no remaining issues."
 
         - name: "apply-review-fixes"
           command: "trayline run --pipeline apply-review-fixes --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
