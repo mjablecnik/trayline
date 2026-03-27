@@ -19,7 +19,7 @@ func usageText() string {
 	return fmt.Sprintf(`%s — sequential AI agent pipeline runner
 
 Usage:
-  %s --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
+  %s --pipeline <path> [--dry-run] [--verbose] [--log-llm] [--var key=value ...]
   %s --version
   %s --help
 
@@ -28,6 +28,7 @@ Flags:
   --var key=value     Set or override a pipeline variable (repeatable)
   --dry-run           Print pipeline steps without executing
   --verbose           Stream trayline-agent output to stdout in real time
+  --log-llm           Log all LLM requests and responses to llm-debug.log
   --version           Print version and exit
   --help, -h          Show this help message
 
@@ -65,6 +66,7 @@ func run(args []string) int {
 	dryRunFlag := fs.Bool("dry-run", false, "Print pipeline steps without executing")
 	verboseFlag := fs.Bool("verbose", false, "Stream trayline-agent output to stdout in real time")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
+	logLLMFlag := fs.Bool("log-llm", false, "Log all LLM requests and responses to llm-debug.log")
 	var vars varFlags
 	fs.Var(&vars, "var", "Set variable key=value (repeatable)")
 
@@ -125,13 +127,17 @@ func run(args []string) int {
 	var llmClient ConditionEvaluator
 	if pipeline.NeedsLLM() {
 		raw := NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
-		logger, err := NewLLMLogger(raw)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not create LLM log: %v\n", err)
-			llmClient = raw
+		if *logLLMFlag {
+			logger, err := NewLLMLogger(raw)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not create LLM log: %v\n", err)
+				llmClient = raw
+			} else {
+				defer logger.Close()
+				llmClient = logger
+			}
 		} else {
-			defer logger.Close()
-			llmClient = logger
+			llmClient = raw
 		}
 	}
 
