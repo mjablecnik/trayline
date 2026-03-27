@@ -94,6 +94,12 @@ type Executor struct {
 	Runner       CommandRunner
 	ResolvedVars map[string]string // for dry-run display
 }
+// setLLMContext sets context on the LLM logger if logging is enabled.
+func (e *Executor) setLLMContext(context string) {
+	if logger, ok := e.LLM.(*LLMLogger); ok {
+		logger.SetContext(context)
+	}
+}
 
 // Run executes the entire pipeline. Returns the final exit code.
 func (e *Executor) Run() int {
@@ -228,6 +234,7 @@ func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements
 		return false, 0, err
 	}
 
+	e.setLLMContext(fmt.Sprintf("Step condition: %q", step.Name))
 	decision, err := e.LLM.Evaluate(input, step.Condition.Prompt)
 	if err != nil {
 		return false, 0, err
@@ -334,6 +341,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 				if err != nil {
 					return 1, err
 				}
+				e.setLLMContext(fmt.Sprintf("Loop iteration %d/%d — step condition: %q", iter, loop.MaxIterations, step.Name))
 				decision, err := e.LLM.Evaluate(input, step.Condition.Prompt)
 				if err != nil {
 					return 1, err
@@ -368,6 +376,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			return 1, err
 		}
 
+		e.setLLMContext(fmt.Sprintf("Loop condition — iteration %d/%d", iter, loop.MaxIterations))
 		decision, err := e.LLM.Evaluate(input, loop.Condition.Prompt)
 		if err != nil {
 			return 1, err

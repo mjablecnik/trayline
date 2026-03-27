@@ -124,7 +124,15 @@ func run(args []string) int {
 	// Build executor
 	var llmClient ConditionEvaluator
 	if pipeline.NeedsLLM() {
-		llmClient = NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		raw := NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		logger, err := NewLLMLogger(raw)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not create LLM log: %v\n", err)
+			llmClient = raw
+		} else {
+			defer logger.Close()
+			llmClient = logger
+		}
 	}
 
 	executor := &Executor{

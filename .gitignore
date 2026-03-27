@@ -1,2 +1,3 @@
 testdata/
 .env
+llm-debug.log
