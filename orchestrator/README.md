@@ -14,7 +14,7 @@ go build -ldflags "-X main.version=1.0.0" -o orchestrator .
 ## Usage
 
 ```
-orchestrator --pipeline <path> [--dry-run] [--verbose]
+orchestrator --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
 orchestrator --version
 orchestrator --help
 ```
@@ -22,6 +22,7 @@ orchestrator --help
 Flags:
 
 - `--pipeline` — Path to pipeline YAML file (required)
+- `--var key=value` — Set or override a pipeline variable (repeatable)
 - `--dry-run` — Print pipeline steps without executing
 - `--verbose` — Stream agent-docker output to stdout in real time
 - `--version` — Print version and exit
@@ -47,6 +48,37 @@ The orchestrator loads `.env` from the current working directory automatically. 
 ## Pipeline YAML Format
 
 A pipeline is a YAML file with a top-level `steps` key containing an ordered list of steps and loops.
+
+### Variables
+
+Define a flat `variables` map at the top of the pipeline file and reference values with `{{variable-name}}` placeholders in templatable fields (`prompt`, `command`, `project_dir`, `condition.prompt`, `condition.file`):
+
+```yaml
+variables:
+  project-path: "/home/user/myproject"
+  spec-name: "agent-orchestrator"
+
+steps:
+  - name: "create-code"
+    agent: "claude"
+    prompt: "Read specs from .kiro/specs/{{spec-name}} and implement in {{project-path}}"
+    project_dir: "{{project-path}}"
+
+  - name: "run-tests"
+    command: "cd {{project-path}} && go test ./..."
+```
+
+Override or add variables at runtime with `--var`:
+
+```bash
+orchestrator --pipeline workflow.yaml --var project-path=/tmp/proj --var spec-name=my-spec
+```
+
+Rules:
+- Variable keys must contain lowercase letters, digits, and hyphens only
+- CLI `--var` values override YAML-defined values; last occurrence wins for duplicate keys
+- Placeholders referencing undefined variables cause an immediate error before execution
+- Use `--dry-run` to preview resolved variable values before running
 
 ### Agent Step
 

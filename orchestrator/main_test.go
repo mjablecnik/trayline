@@ -89,6 +89,62 @@ steps:
 	}
 }
 
+func TestMain_VarFlagSubstitution(t *testing.T) {
+	content := `
+variables:
+  target: ""
+steps:
+  - name: "step1"
+    command: "echo {{target}}"
+`
+	f := writeTempPipeline(t, content)
+	code := run([]string{"--pipeline", f, "--dry-run", "--var", "target=hello"})
+	if code != 0 {
+		t.Errorf("expected exit code 0 with --var substitution, got %d", code)
+	}
+}
+
+func TestMain_VarFlagOverridesYAML(t *testing.T) {
+	content := `
+variables:
+  target: "original"
+steps:
+  - name: "step1"
+    command: "echo {{target}}"
+`
+	f := writeTempPipeline(t, content)
+	code := run([]string{"--pipeline", f, "--dry-run", "--var", "target=overridden"})
+	if code != 0 {
+		t.Errorf("expected exit code 0 with --var override, got %d", code)
+	}
+}
+
+func TestMain_VarFlagMissingEquals(t *testing.T) {
+	content := `
+steps:
+  - name: "step1"
+    command: "echo hi"
+`
+	f := writeTempPipeline(t, content)
+	code := run([]string{"--pipeline", f, "--var", "noequals"})
+	if code == 0 {
+		t.Error("expected non-zero exit code for --var flag missing '='")
+	}
+}
+
+func TestMain_VarFlagUndefinedPlaceholder(t *testing.T) {
+	content := `
+steps:
+  - name: "step1"
+    command: "echo {{undefined-var}}"
+`
+	f := writeTempPipeline(t, content)
+	code := run([]string{"--pipeline", f})
+	if code == 0 {
+		t.Error("expected non-zero exit code for undefined variable placeholder")
+	}
+}
+
 // Property 10: Dry run no execution
 func TestDryRunNoExecution(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {

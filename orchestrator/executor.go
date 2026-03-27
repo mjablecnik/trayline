@@ -96,6 +96,10 @@ func (e *Executor) Run() int {
 	allSteps := e.flattenTopLevelElements()
 	totalSteps := e.countTopLevelSteps()
 
+	printTotal := func(label string) {
+		fmt.Printf("\n%s%s━━━ %s Total time: %s ━━━%s\n", colorBold, colorGreen, label, time.Since(start).Round(time.Millisecond), colorReset)
+	}
+
 	i := 0
 	stepNum := 0
 	for i < len(allSteps) {
@@ -103,6 +107,7 @@ func (e *Executor) Run() int {
 
 		if elem.Loop != nil {
 			if exitCode, err := e.executeLoop(elem.Loop); err != nil || exitCode != 0 {
+				printTotal("Pipeline failed.")
 				return exitCode
 			}
 			i++
@@ -115,10 +120,12 @@ func (e *Executor) Run() int {
 		output, exitCode, runErr := e.executeStep(step, stepNum, totalSteps)
 		if runErr != nil {
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s %v\n", colorRed, colorReset, runErr)
+			printTotal("Pipeline failed.")
 			return 1
 		}
 		if exitCode != 0 {
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
+			printTotal("Pipeline failed.")
 			return exitCode
 		}
 
@@ -127,12 +134,14 @@ func (e *Executor) Run() int {
 			_, nextIdx, err := e.evaluateStepCondition(step, output, allSteps, i)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q: %v\n", colorRed, colorReset, step.Name, err)
+				printTotal("Pipeline failed.")
 				return 1
 			}
 			if nextIdx == -1 {
 				// Stop pipeline (no-goto + false)
 				fmt.Printf("%s⏹ Pipeline stopped by condition on step %q (LLM returned false)%s\n", colorYellow, step.Name, colorReset)
-				break
+				printTotal("Pipeline complete.")
+				return 0
 			}
 			i = nextIdx
 			continue
@@ -141,7 +150,7 @@ func (e *Executor) Run() int {
 		i++
 	}
 
-	fmt.Printf("\n%s%s━━━ Pipeline complete. Total time: %s ━━━%s\n", colorBold, colorGreen, time.Since(start).Round(time.Millisecond), colorReset)
+	printTotal("Pipeline complete.")
 	return 0
 }
 
@@ -194,9 +203,9 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 		return output, exitCode, err
 	}
 	if exitCode != 0 {
-		fmt.Printf("  %s✗ %q failed (exit %d) after %s%s\n", colorRed, step.Name, exitCode, elapsed, colorReset)
+		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorReset)
 	} else {
-		fmt.Printf("  %s✓ %q succeeded in %s%s\n", colorGreen, step.Name, elapsed, colorReset)
+		fmt.Printf("  %s✓ %q (%s) succeeded in %s%s\n", colorGreen, step.Name, stepType, elapsed, colorReset)
 	}
 	return output, exitCode, nil
 }

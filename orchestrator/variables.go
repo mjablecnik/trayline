@@ -10,8 +10,12 @@ import (
 // placeholderRegex matches {{variable-name}} placeholders in templatable fields.
 var placeholderRegex = regexp.MustCompile(`\{\{([a-z0-9-]+)\}\}`)
 
+// validKeyRegex matches valid variable key names: lowercase letters, digits, and hyphens.
+var validKeyRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
+
 // ParseCLIVars parses --var flag values (each in "key=value" format) into a map.
-// Last occurrence of a key wins. Returns an error if any value lacks an '=' separator.
+// Last occurrence of a key wins. Returns an error if any value lacks an '=' separator
+// or if any key does not match [a-z0-9-]+.
 func ParseCLIVars(flags []string) (map[string]string, error) {
 	result := make(map[string]string)
 	for _, flag := range flags {
@@ -21,6 +25,9 @@ func ParseCLIVars(flags []string) (map[string]string, error) {
 		}
 		key := flag[:idx]
 		val := flag[idx+1:]
+		if !validKeyRegex.MatchString(key) {
+			return nil, fmt.Errorf("invalid --var key %q: must contain only lowercase letters, digits, and hyphens", key)
+		}
 		result[key] = val
 	}
 	return result, nil
