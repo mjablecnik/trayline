@@ -1,3 +1,8 @@
+variables:
+  - number: 5
+  - specs-name: ""
+  - path: "this"
+
 steps:
   - loop:
       max_iterations: 20
@@ -7,9 +12,9 @@ steps:
         - name: "create-code"
           agent: "claude"
           prompt: |
-            Read all files inside the .kiro/specs/ folder and create the code according to the spec.
+            Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
             Follow the tasks exactly and check off each task as you complete it.
-            Implement only up to 5 tasks in this run, then stop.
+            Implement only up to {{number}} tasks in this run, then stop.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all tasks
             in the spec are now checked off, explicitly say "All tasks are done."
@@ -27,9 +32,9 @@ steps:
         - name: "create-tests"
           agent: "claude"
           prompt: |
-            Read all files inside the .kiro/specs/ folder and create all optional tests that haven't been created yet.
+            Read all files inside the .kiro/specs/{{specs-name}} folder and create all optional tests that haven't been created yet.
             Follow the tasks exactly and check off each task as you complete it.
-            Implement only up to 5 test tasks in this run, then stop.
+            Implement only up to {{number}} test tasks in this run, then stop.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all test tasks
             in the spec are now checked off, explicitly say "All tasks are done."
@@ -43,17 +48,16 @@ steps:
         - name: "code-review"
           agent: "kiro"
           prompt: |
-            Read all files inside the .kiro/specs/ folder.
-            Analyze the entire codebase and perform a code review. Compare the project
-            against the specification and design documents. Identify anything that was
-            forgotten, implemented differently, or done incorrectly.
+            Read all files inside the .kiro/specs/{{specs-name}} folder.
+            Analyze the entire codebase in {{path}} folder and perform a code review. 
+            Compare the project against the specification and design documents. 
+            Identify anything that was forgotten, implemented differently, or done incorrectly.
             Save your output to CODE_REVIEW.md with individual action items that need
-            to be changed, improved, or fixed. If everything looks good, write that
-            there are no remaining issues.
+            to be changed, improved, or fixed. If everything looks good, write that there are no remaining issues.
 
         - name: "apply-review-fixes"
           agent: "claude"
           prompt: |
-            Read all files inside the .kiro/specs/ folder.
+            Read all files inside the .kiro/specs/{{specs-name}} folder.
             Also read the CODE_REVIEW.md file and implement all the changes and fixes described in it.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
