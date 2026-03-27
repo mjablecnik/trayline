@@ -2,7 +2,7 @@
 
 REMOTE="martin@sandbox"
 REMOTE_BASE="/home/martin/Projects"
-EXCLUDE_FROM="/home/martin/.rsyncignore"
+EXCLUDE_FROM="${HOME}/.trayline/.rsyncignore"
 DIR_NAME="${PWD##*/}"
 
 usage() {

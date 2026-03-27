@@ -20,6 +20,8 @@ chmod +x "$TRAYLINE_HOME/trayline-agent"
 sed 's/\r$//' "$SCRIPT_DIR/scripts/sync.sh" > "$TRAYLINE_HOME/sync.sh"
 chmod +x "$TRAYLINE_HOME/sync.sh"
 
+sed 's/\r$//' "$SCRIPT_DIR/.rsyncignore" > "$TRAYLINE_HOME/.rsyncignore"
+
 # Build or copy orchestrator binary
 if command -v go &>/dev/null; then
   echo "==> Building orchestrator (trayline-run)..."
@@ -85,6 +87,7 @@ echo "Done! Installed:"
 echo "  ~/bin/trayline              (main CLI)"
 echo "  ~/.trayline/trayline-agent  (agent runner)"
 echo "  ~/.trayline/sync.sh         (rsync wrapper)"
+echo "  ~/.trayline/.rsyncignore    (rsync exclude list)"
 echo "  ~/.trayline/trayline-run    (orchestrator)"
 echo "  ~/.trayline/pipelines/      (global pipelines)"
 echo "  ~/.zsh/completions/_trayline (zsh autocomplete)"
