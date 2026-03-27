@@ -36,11 +36,21 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (r *OSCommandRunner) RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
-	if _, err := exec.LookPath("trayline-agent"); err != nil {
-		return "", 1, fmt.Errorf("trayline-agent not found on PATH")
-	}
+	agentBin := resolveAgentBinary()
 	args := []string{agent, "-p", projectDir, prompt}
-	return runSubprocess("trayline-agent", args, projectDir, env, verbose, stdout, stderr)
+	return runSubprocess(agentBin, args, projectDir, env, verbose, stdout, stderr)
+}
+
+// resolveAgentBinary finds trayline-agent next to the current executable first,
+// then falls back to PATH lookup.
+func resolveAgentBinary() string {
+	if exe, err := os.Executable(); err == nil {
+		sibling := filepath.Join(filepath.Dir(exe), "trayline-agent")
+		if _, err := os.Stat(sibling); err == nil {
+			return sibling
+		}
+	}
+	return "trayline-agent"
 }
 
 func (r *OSCommandRunner) RunCommand(command string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
