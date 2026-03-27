@@ -7,7 +7,7 @@ steps:
   - loop:
       max_iterations: 20
       condition:
-        prompt: "Does the output contain clear evidence that all tasks are completed? Look for a statement like 'All tasks are done' or confirmation that no unchecked tasks remain. Answer true if there is still work to do, false if all tasks are confirmed done."
+        prompt: "Does the output contain the EXACT phrase 'All tasks are done'? Answer false if the phrase 'All tasks are done' appears in the output (meaning work is complete). Answer true if the phrase is NOT present (meaning there is still work to do)."
       steps:
         - name: "create-code"
           agent: "claude"
