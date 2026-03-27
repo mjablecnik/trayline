@@ -773,6 +773,40 @@ func TestExecutor_LoopStepCondition_True(t *testing.T) {
 		t.Errorf("expected 3 calls (review+fix iter1, review iter2), got %d", len(runner.calls))
 	}
 }
+func TestExecutor_LoopWithoutLoopCondition(t *testing.T) {
+	// Loop with only step conditions, no loop-level condition.
+	// Should iterate until step condition returns false or max_iterations.
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Loop: &Loop{
+				MaxIterations: 5,
+				Steps: []Step{
+					{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}},
+					{Name: "fix", Command: "trayline run --pipeline fix"},
+				},
+			}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{output: "issues", exitCode: 0},  // review iter 1
+			{output: "fixed", exitCode: 0},    // fix iter 1
+			{output: "clean", exitCode: 0},    // review iter 2
+		},
+	}
+	// iter 1: step condition true → run fix; no loop condition → iterate
+	// iter 2: step condition false → exit loop
+	eval := &mockEvaluator{decisions: []bool{true, false}}
+	e := buildExecutor(pipeline, runner, eval)
+	code := e.Run()
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	if len(runner.calls) != 3 {
+		t.Errorf("expected 3 calls (review+fix iter1, review iter2), got %d", len(runner.calls))
+	}
+}
 
 // Test that --verbose mode streams output to stdout (issue #23).
 func TestVerboseMode_StreamsOutput(t *testing.T) {

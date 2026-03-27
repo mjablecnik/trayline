@@ -367,6 +367,38 @@ steps:
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
+func TestParsePipeline_LoopWithOnlyStepConditions(t *testing.T) {
+	// Loop without loop-level condition is valid when steps have conditions
+	content := `
+steps:
+  - loop:
+      max_iterations: 3
+      steps:
+        - name: "review"
+          agent: "kiro"
+          prompt: "do review"
+          condition:
+            file: "REVIEW.md"
+            prompt: "Are there issues?"
+        - name: "fix"
+          command: "echo fix"
+`
+	p := writeTempPipeline(t, content)
+	pipeline, err := ParsePipeline(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	loop := pipeline.Elements[0].Loop
+	if loop == nil {
+		t.Fatal("expected loop element")
+	}
+	if loop.Condition.Prompt != "" {
+		t.Errorf("expected empty loop condition, got %q", loop.Condition.Prompt)
+	}
+	if loop.Steps[0].Condition == nil {
+		t.Fatal("expected condition on first loop step")
+	}
+}
 
 func TestParsePipeline_PromptWithoutAgent(t *testing.T) {
 	// step with prompt but no agent and no command should give a clear error

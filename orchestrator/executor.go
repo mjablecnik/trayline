@@ -312,6 +312,8 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 // Loop steps may have conditions (without goto). If a step condition evaluates to false,
 // the remaining steps in the current iteration are skipped and the loop exits.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
+	hasLoopCondition := loop.Condition.Prompt != ""
+
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
 		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
 
@@ -319,7 +321,6 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 		breakLoop := false
 		for i := range loop.Steps {
 			step := &loop.Steps[i]
-			// Use a simple numbering for loop steps
 			output, exitCode, err := e.executeStep(step, i+1, len(loop.Steps))
 			if err != nil {
 				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
@@ -359,34 +360,35 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			return 0, nil
 		}
 
-		// Evaluate loop condition — resolve file path relative to the last step's project_dir
-		// (fall back to cwd if no loop step specifies a project_dir).
-		condProjectDir := ""
-		for k := len(loop.Steps) - 1; k >= 0; k-- {
-			if loop.Steps[k].ProjectDir != "" {
-				condProjectDir = loop.Steps[k].ProjectDir
-				break
+		// Evaluate loop-level condition if present.
+		if hasLoopCondition {
+			condProjectDir := ""
+			for k := len(loop.Steps) - 1; k >= 0; k-- {
+				if loop.Steps[k].ProjectDir != "" {
+					condProjectDir = loop.Steps[k].ProjectDir
+					break
+				}
 			}
-		}
-		if condProjectDir == "" {
-			condProjectDir, _ = os.Getwd()
-		}
-		input, err := e.conditionInput("loop", &loop.Condition, condProjectDir, lastOutput)
-		if err != nil {
-			return 1, err
-		}
+			if condProjectDir == "" {
+				condProjectDir, _ = os.Getwd()
+			}
+			input, err := e.conditionInput("loop", &loop.Condition, condProjectDir, lastOutput)
+			if err != nil {
+				return 1, err
+			}
 
-		e.setLLMContext(fmt.Sprintf("Loop condition — iteration %d/%d", iter, loop.MaxIterations))
-		decision, err := e.LLM.Evaluate(input, loop.Condition.Prompt)
-		if err != nil {
-			return 1, err
-		}
+			e.setLLMContext(fmt.Sprintf("Loop condition — iteration %d/%d", iter, loop.MaxIterations))
+			decision, err := e.LLM.Evaluate(input, loop.Condition.Prompt)
+			if err != nil {
+				return 1, err
+			}
 
-		fmt.Printf("  %s⚡ Loop iteration %d/%d: LLM=%v%s\n", colorMagenta, iter, loop.MaxIterations, decision, colorReset)
+			fmt.Printf("  %s⚡ Loop iteration %d/%d: LLM=%v%s\n", colorMagenta, iter, loop.MaxIterations, decision, colorReset)
 
-		if !decision {
-			fmt.Printf("  %s⏹ Loop exiting after iteration %d (LLM returned false)%s\n", colorYellow, iter, colorReset)
-			return 0, nil
+			if !decision {
+				fmt.Printf("  %s⏹ Loop exiting after iteration %d (LLM returned false)%s\n", colorYellow, iter, colorReset)
+				return 0, nil
+			}
 		}
 
 		if iter == loop.MaxIterations {

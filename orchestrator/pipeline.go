@@ -224,10 +224,9 @@ func validateCondition(stepName string, c *Condition, targetNames []string) erro
 	return nil
 }
 
-// validateLoop validates a loop block. topLevelNames is used for consistency but loop steps
-// cannot have conditions, so it is not used for goto validation within the loop.
-// validateLoop validates a loop block. topLevelNames is used for consistency but loop steps
-// cannot use goto in conditions (only simple continue/stop conditions are supported).
+// validateLoop validates a loop block. Loop-level condition is optional when
+// at least one step inside the loop has a condition. Goto inside loop step
+// conditions is not supported.
 func validateLoop(l *Loop, topLevelNames []string) error {
 	if l.MaxIterations <= 0 {
 		return fmt.Errorf("loop: max_iterations must be a positive integer")
@@ -235,17 +234,23 @@ func validateLoop(l *Loop, topLevelNames []string) error {
 	if len(l.Steps) == 0 {
 		return fmt.Errorf("loop: missing required field \"steps\"")
 	}
-	if l.Condition.Prompt == "" {
-		return fmt.Errorf("loop: missing required field \"condition\"")
-	}
 
+	hasStepCondition := false
 	for i := range l.Steps {
-		if l.Steps[i].Condition != nil && l.Steps[i].Condition.Goto != "" {
-			return fmt.Errorf("loop: step %q: goto inside loop step conditions is not supported", l.Steps[i].Name)
+		if l.Steps[i].Condition != nil {
+			hasStepCondition = true
+			if l.Steps[i].Condition.Goto != "" {
+				return fmt.Errorf("loop: step %q: goto inside loop step conditions is not supported", l.Steps[i].Name)
+			}
 		}
 		if err := validateStep(&l.Steps[i], nil); err != nil {
 			return err
 		}
+	}
+
+	// Loop-level condition is required unless at least one step has a condition.
+	if l.Condition.Prompt == "" && !hasStepCondition {
+		return fmt.Errorf("loop: missing required field \"condition\"")
 	}
 
 	return nil
