@@ -1,7 +1,7 @@
 variables:
-  - number: 5
-  - specs-name: ""
-  - path: "orchestrator"
+  number: "5"
+  specs-name: ""
+  path: "orchestrator"
 
 steps:
   - loop:
