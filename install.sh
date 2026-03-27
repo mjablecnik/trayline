@@ -15,6 +15,11 @@ chmod +x "$BIN_DIR/agent-docker-sync"
 
 echo "Installed agent-docker and sync to ${BIN_DIR}/"
 
+echo "Building orchestrator (trayline)..."
+(cd "$SCRIPT_DIR/orchestrator" && go build -ldflags "-X main.version=1.0.0" -o "$BIN_DIR/trayline" .)
+chmod +x "$BIN_DIR/trayline"
+echo "Installed trayline to ${BIN_DIR}/"
+
 # Check if ~/bin is in PATH
 if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
   echo "⚠️  ${BIN_DIR} is not in your PATH. Add this to your shell profile:"
