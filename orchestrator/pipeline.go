@@ -75,9 +75,25 @@ type Condition struct {
 	Goto   string `yaml:"goto"`
 }
 
-// rawPipeline is used for initial YAML unmarshaling.
+// rawPipeline is used for YAML marshaling and unmarshaling.
 type rawPipeline struct {
 	Steps []PipelineElement `yaml:"steps"`
+}
+
+// MarshalYAML ensures each PipelineElement is serialized correctly:
+// steps as flat objects (no wrapper), loops as {loop: ...} objects.
+// This is needed because yaml.v3 does not reliably call MarshalYAML
+// on concrete struct values inside slices.
+func (r rawPipeline) MarshalYAML() (interface{}, error) {
+	steps := make([]interface{}, 0, len(r.Steps))
+	for _, elem := range r.Steps {
+		if elem.Loop != nil {
+			steps = append(steps, map[string]interface{}{"loop": elem.Loop})
+		} else {
+			steps = append(steps, elem.Step)
+		}
+	}
+	return map[string]interface{}{"steps": steps}, nil
 }
 
 // ParsePipeline reads and validates a YAML pipeline file.

@@ -47,12 +47,7 @@ steps:
       prompt: "Done?"
 `
 	f := writeTempPipeline(t, content)
-	os.Unsetenv("OPENROUTER_API_KEY")
-	// Also clear any .env file by working from a fresh dir
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	t.Setenv("OPENROUTER_API_KEY", "")
 
 	code := run([]string{"--pipeline", f})
 	if code == 0 {
@@ -127,6 +122,9 @@ func TestDryRunNoExecution(t *testing.T) {
 
 // Property 11: API key required when pipeline needs LLM
 func TestAPIKeyRequired(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("OPENROUTER_MODEL", "")
+
 	rapid.Check(t, func(rt *rapid.T) {
 		// Pipeline with a condition
 		content := `
@@ -143,15 +141,6 @@ steps:
 		f.WriteString(content)
 		f.Close()
 		defer os.Remove(f.Name())
-
-		os.Unsetenv("OPENROUTER_API_KEY")
-		os.Unsetenv("OPENROUTER_MODEL")
-
-		tmpDir, _ := os.MkdirTemp("", "orchestrator-test-*")
-		defer os.RemoveAll(tmpDir)
-		origDir, _ := os.Getwd()
-		os.Chdir(tmpDir)
-		defer os.Chdir(origDir)
 
 		code := run([]string{"--pipeline", f.Name()})
 		if code == 0 {

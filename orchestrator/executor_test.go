@@ -476,6 +476,130 @@ func TestFailureStopsPipeline(t *testing.T) {
 	})
 }
 
+// Property 7: Loop iteration control
+func TestLoopIterationControl(t *testing.T) {
+	rapid.Check(t, func(rt *rapid.T) {
+		maxIter := rapid.IntRange(1, 5).Draw(rt, "maxIter")
+		// stopAt = number of "continue" (true) decisions before the stop (false) decision.
+		// stopAt == maxIter means LLM always returns true (hits max_iterations).
+		stopAt := rapid.IntRange(0, maxIter).Draw(rt, "stopAt")
+
+		// Build LLM decisions: stopAt trues, then false (if stopAt < maxIter)
+		decisions := make([]bool, maxIter)
+		for i := 0; i < maxIter; i++ {
+			decisions[i] = i < stopAt
+		}
+
+		// Build runner responses: one per expected iteration (up to maxIter)
+		responses := make([]runResponse, maxIter)
+		for i := range responses {
+			responses[i] = runResponse{exitCode: 0}
+		}
+
+		pipeline := &Pipeline{
+			Elements: []PipelineElement{
+				{Loop: &Loop{
+					MaxIterations: maxIter,
+					Steps:         []Step{{Name: "s1", Command: "echo test"}},
+					Condition:     Condition{Prompt: "Continue?"},
+				}},
+			},
+		}
+
+		runner := &mockRunner{responses: responses}
+		eval := &mockEvaluator{decisions: decisions}
+		e := buildExecutor(pipeline, runner, eval)
+		code := e.Run()
+
+		if code != 0 {
+			rt.Fatalf("expected exit code 0, got %d", code)
+		}
+
+		// Expected iterations: stopAt+1 if stopAt < maxIter, else maxIter (max hit)
+		expectedIter := stopAt + 1
+		if stopAt >= maxIter {
+			expectedIter = maxIter
+		}
+
+		if len(runner.calls) != expectedIter {
+			rt.Fatalf("expected %d iterations, got %d (maxIter=%d, stopAt=%d)",
+				expectedIter, len(runner.calls), maxIter, stopAt)
+		}
+	})
+}
+
+// Property 8: Step condition routing
+func TestStepConditionRouting(t *testing.T) {
+	rapid.Check(t, func(rt *rapid.T) {
+		hasGoto := rapid.Bool().Draw(rt, "hasGoto")
+		llmDecision := rapid.Bool().Draw(rt, "llmDecision")
+
+		// Pipeline: step1 (with condition optionally targeting step3), step2, step3
+		var cond Condition
+		if hasGoto {
+			cond = Condition{Prompt: "Route?", Goto: "step3"}
+		} else {
+			cond = Condition{Prompt: "Continue?"}
+		}
+
+		pipeline := &Pipeline{
+			Elements: []PipelineElement{
+				{Step: &Step{Name: "step1", Command: "echo 1", Condition: &cond}},
+				{Step: &Step{Name: "step2", Command: "echo 2"}},
+				{Step: &Step{Name: "step3", Command: "echo 3"}},
+			},
+		}
+
+		runner := &mockRunner{
+			responses: []runResponse{
+				{exitCode: 0},
+				{exitCode: 0},
+				{exitCode: 0},
+			},
+		}
+		eval := &mockEvaluator{decisions: []bool{llmDecision}}
+		e := buildExecutor(pipeline, runner, eval)
+		code := e.Run()
+
+		if hasGoto && llmDecision {
+			// (a) goto fires: step1 → step3 (skip step2)
+			if code != 0 {
+				rt.Fatalf("expected exit code 0, got %d", code)
+			}
+			if len(runner.calls) != 2 {
+				rt.Fatalf("(goto+true) expected 2 calls (step1+step3), got %d", len(runner.calls))
+			}
+			if runner.calls[1].command != "echo 3" {
+				rt.Fatalf("(goto+true) expected step3 as second call, got %+v", runner.calls[1])
+			}
+		} else if hasGoto && !llmDecision {
+			// (b) goto doesn't fire: step1 → step2 → step3
+			if code != 0 {
+				rt.Fatalf("expected exit code 0, got %d", code)
+			}
+			if len(runner.calls) != 3 {
+				rt.Fatalf("(goto+false) expected 3 calls (all steps), got %d", len(runner.calls))
+			}
+		} else if !hasGoto && llmDecision {
+			// (c) no goto, true: continue to step2, then step3
+			if code != 0 {
+				rt.Fatalf("expected exit code 0, got %d", code)
+			}
+			if len(runner.calls) != 3 {
+				rt.Fatalf("(no-goto+true) expected 3 calls, got %d", len(runner.calls))
+			}
+		} else {
+			// (d) no goto, false: stop pipeline after step1
+			if code != 0 {
+				rt.Fatalf("expected exit code 0, got %d", code)
+			}
+			if len(runner.calls) != 1 {
+				rt.Fatalf("(no-goto+false) expected 1 call (stopped after step1), got %d", len(runner.calls))
+			}
+		}
+	})
+}
+
 // Property 6: Condition input selection
 func TestConditionInputSelection(t *testing.T) {
 	t.Run("uses step output when no file", func(t *testing.T) {
@@ -542,10 +666,3 @@ func TestConditionInputSelection(t *testing.T) {
 	})
 }
 
-type captureEvaluator struct {
-	fn func(content, prompt string) (bool, error)
-}
-
-func (c *captureEvaluator) Evaluate(content, prompt string) (bool, error) {
-	return c.fn(content, prompt)
-}

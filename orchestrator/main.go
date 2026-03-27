@@ -26,6 +26,7 @@ Examples:
   orchestrator --pipeline workflow.yaml
   orchestrator --pipeline workflow.yaml --verbose
   orchestrator --pipeline workflow.yaml --dry-run
+  orchestrator --version
 `
 
 func main() {

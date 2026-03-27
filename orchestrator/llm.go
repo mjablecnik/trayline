@@ -116,7 +116,7 @@ func (c *LLMClient) doEvaluate(content string, conditionPrompt string) (bool, er
 	}
 
 	if len(llmResp.Choices) == 0 {
-		return false, fmt.Errorf("LLM returned unparseable response after retry")
+		return false, fmt.Errorf("LLM returned empty response")
 	}
 
 	return parseLLMDecision(llmResp.Choices[0].Message.Content)

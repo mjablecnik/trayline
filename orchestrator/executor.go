@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -21,6 +22,9 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (r *OSCommandRunner) RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+	if _, err := exec.LookPath("agent-docker"); err != nil {
+		return "", 1, fmt.Errorf("agent-docker not found on PATH")
+	}
 	args := []string{agent, "-p", projectDir, prompt}
 	return runSubprocess("agent-docker", args, projectDir, env, verbose, stdout, stderr)
 }
@@ -83,8 +87,8 @@ func (e *Executor) Run() int {
 		elem := allSteps[i]
 
 		if elem.Loop != nil {
-			if err := e.executeLoop(elem.Loop); err != nil {
-				return 1
+			if exitCode, err := e.executeLoop(elem.Loop); err != nil {
+				return exitCode
 			}
 			i++
 			continue
@@ -238,8 +242,8 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 
 	// Resolve file path relative to project dir
 	path := cond.File
-	if projectDir != "" && !isAbsPath(path) {
-		path = projectDir + "/" + path
+	if projectDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(projectDir, path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -252,12 +256,9 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 	return string(data), nil
 }
 
-func isAbsPath(p string) bool {
-	return len(p) > 0 && p[0] == '/'
-}
-
 // executeLoop runs a loop block with LLM-based iteration control.
-func (e *Executor) executeLoop(loop *Loop) error {
+// Returns the exit code and error; exit code is non-zero if a loop step fails.
+func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
 		fmt.Printf("[orchestrator] Loop iteration %d/%d\n", iter, loop.MaxIterations)
 
@@ -267,48 +268,65 @@ func (e *Executor) executeLoop(loop *Loop) error {
 			// Use a simple numbering for loop steps
 			output, exitCode, err := e.executeStep(step, i+1, len(loop.Steps))
 			if err != nil {
-				return fmt.Errorf("loop step %q: %v", step.Name, err)
+				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
 			}
 			if exitCode != 0 {
-				return fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
+				fmt.Fprintf(os.Stderr, "error: step %q failed with exit code %d\n", step.Name, exitCode)
+				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
 			}
 			lastOutput = output
 		}
 
-		// Evaluate loop condition
-		input, err := e.conditionInput("loop", &loop.Condition, "", lastOutput)
+		// Evaluate loop condition — resolve file path relative to cwd
+		cwd, _ := os.Getwd()
+		input, err := e.conditionInput("loop", &loop.Condition, cwd, lastOutput)
 		if err != nil {
-			return err
+			return 1, err
 		}
 
 		decision, err := e.LLM.Evaluate(input, loop.Condition.Prompt)
 		if err != nil {
-			return err
+			return 1, err
 		}
 
 		fmt.Printf("[orchestrator] Loop iteration %d/%d: LLM=%v\n", iter, loop.MaxIterations, decision)
 
 		if !decision {
 			fmt.Printf("[orchestrator] Loop exiting after iteration %d (LLM returned false)\n", iter)
-			return nil
+			return 0, nil
 		}
 
 		if iter == loop.MaxIterations {
 			fmt.Printf("[orchestrator] WARNING: loop reached max_iterations (%d), continuing pipeline\n", loop.MaxIterations)
-			return nil
+			return 0, nil
 		}
 	}
-	return nil
+	return 0, nil
 }
 
 // printDryRun prints all steps without executing them.
+// printCondition prints condition details for dry-run output.
+func printCondition(cond *Condition, indent string) {
+	if cond == nil {
+		return
+	}
+	line := indent + "condition: \"" + cond.Prompt + "\""
+	if cond.File != "" {
+		line += " [file: " + cond.File + "]"
+	}
+	if cond.Goto != "" {
+		line += " [goto: " + cond.Goto + "]"
+	}
+	fmt.Println(line)
+}
+
 func (e *Executor) printDryRun() {
+	cwd, _ := os.Getwd()
 	stepNum := 0
 	for _, elem := range e.Pipeline.Elements {
 		if elem.Step != nil {
 			stepNum++
 			s := elem.Step
-			cwd, _ := os.Getwd()
 			projectDir := s.ProjectDir
 			if projectDir == "" {
 				projectDir = cwd
@@ -318,13 +336,15 @@ func (e *Executor) printDryRun() {
 			} else {
 				fmt.Printf("[dry-run] Step %d: %q command=%s project_dir=%s\n", stepNum, s.Name, s.Command, projectDir)
 			}
+			printCondition(s.Condition, "  ")
 		}
 		if elem.Loop != nil {
+			lc := &elem.Loop.Condition
 			fmt.Printf("[dry-run] Loop (max_iterations=%d):\n", elem.Loop.MaxIterations)
+			printCondition(lc, "  ")
 			for j := range elem.Loop.Steps {
 				stepNum++
 				s := &elem.Loop.Steps[j]
-				cwd, _ := os.Getwd()
 				projectDir := s.ProjectDir
 				if projectDir == "" {
 					projectDir = cwd
@@ -334,6 +354,7 @@ func (e *Executor) printDryRun() {
 				} else {
 					fmt.Printf("[dry-run]   Step %d: %q command=%s project_dir=%s\n", stepNum, s.Name, s.Command, projectDir)
 				}
+				printCondition(s.Condition, "    ")
 			}
 		}
 	}
