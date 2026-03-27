@@ -1,0 +1,21 @@
+# 2026/03/27 11:00:56.536090 [TestPipelineRoundTrip] [rapid] draw numElements: 1
+# 2026/03/27 11:00:56.536103 [TestPipelineRoundTrip] [rapid] draw isLoop-0: false
+# 2026/03/27 11:00:56.536109 [TestPipelineRoundTrip] [rapid] draw step-0-isCommand: true
+# 2026/03/27 11:00:56.536484 [TestPipelineRoundTrip] parse error after round-trip: loop: missing required field "max_iterations"
+# YAML:
+# steps:
+#     - step:
+#         name: step-1
+#         agent: ""
+#         prompt: ""
+#         command: echo hello
+#         project_dir: ""
+#         condition: null
+#       loop: null
+# 
+v0.4.8#10867695298591187849
+0x0
+0x0
+0x0
+0x0
+0x1
