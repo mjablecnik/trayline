@@ -119,7 +119,14 @@ else
 fi
 
 # Run sandbox connected to proxy
-docker run --rm -it \
+# Use -it only when stdin is a TTY (interactive terminal);
+# pipelines and other non-interactive callers get no TTY flags.
+DOCKER_FLAGS=(--rm)
+if [ -t 0 ]; then
+  DOCKER_FLAGS+=(-it)
+fi
+
+docker run "${DOCKER_FLAGS[@]}" \
   --network "$NETWORK_NAME" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   "${VOLUMES[@]}" \
