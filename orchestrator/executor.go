@@ -300,11 +300,16 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 
 // executeLoop runs a loop block with LLM-based iteration control.
 // Returns the exit code and error; exit code is non-zero if a loop step fails.
+// executeLoop runs a loop block with LLM-based iteration control.
+// Returns the exit code and error; exit code is non-zero if a loop step fails.
+// Loop steps may have conditions (without goto). If a step condition evaluates to false,
+// the remaining steps in the current iteration are skipped and the loop exits.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
 		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
 
 		var lastOutput string
+		breakLoop := false
 		for i := range loop.Steps {
 			step := &loop.Steps[i]
 			// Use a simple numbering for loop steps
@@ -317,6 +322,33 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
 			}
 			lastOutput = output
+
+			// Evaluate step condition if present (goto is not allowed inside loops).
+			// true = continue to next step; false = skip remaining steps and exit loop.
+			if step.Condition != nil {
+				condDir := step.ProjectDir
+				if condDir == "" {
+					condDir, _ = os.Getwd()
+				}
+				input, err := e.conditionInput(step.Name, step.Condition, condDir, output)
+				if err != nil {
+					return 1, err
+				}
+				decision, err := e.LLM.Evaluate(input, step.Condition.Prompt)
+				if err != nil {
+					return 1, err
+				}
+				fmt.Printf("  %s⚡ Condition on %q: LLM=%v%s\n", colorMagenta, step.Name, decision, colorReset)
+				if !decision {
+					fmt.Printf("  %s⏹ Loop exiting: step %q condition returned false%s\n", colorYellow, step.Name, colorReset)
+					breakLoop = true
+					break
+				}
+			}
+		}
+
+		if breakLoop {
+			return 0, nil
 		}
 
 		// Evaluate loop condition — resolve file path relative to the last step's project_dir

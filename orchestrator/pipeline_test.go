@@ -316,7 +316,7 @@ steps:
 }
 
 func TestParsePipeline_LoopStepWithCondition(t *testing.T) {
-	// conditions inside loop steps are not supported
+	// conditions inside loop steps are allowed (without goto)
 	content := `
 steps:
   - loop:
@@ -330,11 +330,40 @@ steps:
             prompt: "Did tests pass?"
 `
 	p := writeTempPipeline(t, content)
+	pipeline, err := ParsePipeline(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	step := pipeline.Elements[0].Loop.Steps[0]
+	if step.Condition == nil {
+		t.Fatal("expected condition on loop step")
+	}
+	if step.Condition.Prompt != "Did tests pass?" {
+		t.Errorf("unexpected condition prompt: %q", step.Condition.Prompt)
+	}
+}
+
+func TestParsePipeline_LoopStepWithGotoCondition(t *testing.T) {
+	// goto inside loop step conditions is not supported
+	content := `
+steps:
+  - loop:
+      max_iterations: 3
+      condition:
+        prompt: "Continue?"
+      steps:
+        - name: "run-tests"
+          command: "go test ./..."
+          condition:
+            prompt: "Did tests pass?"
+            goto: "some-step"
+`
+	p := writeTempPipeline(t, content)
 	_, err := ParsePipeline(p)
 	if err == nil {
-		t.Fatal("expected error for condition inside loop step")
+		t.Fatal("expected error for goto inside loop step condition")
 	}
-	if !strings.Contains(err.Error(), "not supported") {
+	if !strings.Contains(err.Error(), "goto inside loop step") {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -529,7 +558,7 @@ func genSimpleStep(t *rapid.T, name string, drawPrefix string) Step {
 
 // genInvalidPipelineYAML generates YAML with at least one validation violation.
 func genInvalidPipelineYAML(t *rapid.T) string { //nolint
-	violation := rapid.IntRange(0, 7).Draw(t, "violation")
+	violation := rapid.IntRange(0, 8).Draw(t, "violation")
 	switch violation {
 	case 0: // invalid agent type
 		return `
@@ -598,6 +627,20 @@ steps:
       steps:
         - name: "loop-s1"
           command: "echo hi"
+`
+	case 8: // goto inside loop step condition
+		return `
+steps:
+  - loop:
+      max_iterations: 3
+      condition:
+        prompt: "Continue?"
+      steps:
+        - name: "loop-s1"
+          command: "echo hi"
+          condition:
+            prompt: "Done?"
+            goto: "loop-s1"
 `
 	}
 	return `steps: []`

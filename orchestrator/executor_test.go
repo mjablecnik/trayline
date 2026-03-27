@@ -707,6 +707,72 @@ func TestExecutor_LoopStepFailure(t *testing.T) {
 		t.Errorf("expected 1 call (stopped at failure), got %d", len(runner.calls))
 	}
 }
+func TestExecutor_LoopStepCondition_False(t *testing.T) {
+	// Step condition false inside loop → skip remaining steps and exit loop
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Loop: &Loop{
+				MaxIterations: 3,
+				Steps: []Step{
+					{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}},
+					{Name: "fix", Command: "trayline run --pipeline fix"},
+				},
+				Condition: Condition{Prompt: "Continue?"},
+			}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{output: "no issues", exitCode: 0}, // review step
+		},
+	}
+	// Step condition returns false → loop exits, fix step is skipped
+	eval := &mockEvaluator{decisions: []bool{false}}
+	e := buildExecutor(pipeline, runner, eval)
+	code := e.Run()
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	if len(runner.calls) != 1 {
+		t.Errorf("expected 1 call (only review, fix skipped), got %d", len(runner.calls))
+	}
+}
+
+func TestExecutor_LoopStepCondition_True(t *testing.T) {
+	// Step condition true inside loop → continue to next step
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Loop: &Loop{
+				MaxIterations: 3,
+				Steps: []Step{
+					{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}},
+					{Name: "fix", Command: "trayline run --pipeline fix"},
+				},
+				Condition: Condition{Prompt: "Continue?"},
+			}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{output: "issues found", exitCode: 0}, // review step iter 1
+			{output: "fixed", exitCode: 0},         // fix step iter 1
+			{output: "no issues", exitCode: 0},     // review step iter 2
+		},
+	}
+	// iter 1: step condition true → continue to fix; loop condition true → iterate
+	// iter 2: step condition false → exit loop
+	eval := &mockEvaluator{decisions: []bool{true, true, false}}
+	e := buildExecutor(pipeline, runner, eval)
+	code := e.Run()
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+	if len(runner.calls) != 3 {
+		t.Errorf("expected 3 calls (review+fix iter1, review iter2), got %d", len(runner.calls))
+	}
+}
 
 // Test that --verbose mode streams output to stdout (issue #23).
 func TestVerboseMode_StreamsOutput(t *testing.T) {

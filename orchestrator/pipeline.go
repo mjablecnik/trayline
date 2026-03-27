@@ -226,6 +226,8 @@ func validateCondition(stepName string, c *Condition, targetNames []string) erro
 
 // validateLoop validates a loop block. topLevelNames is used for consistency but loop steps
 // cannot have conditions, so it is not used for goto validation within the loop.
+// validateLoop validates a loop block. topLevelNames is used for consistency but loop steps
+// cannot use goto in conditions (only simple continue/stop conditions are supported).
 func validateLoop(l *Loop, topLevelNames []string) error {
 	if l.MaxIterations <= 0 {
 		return fmt.Errorf("loop: max_iterations must be a positive integer")
@@ -238,8 +240,8 @@ func validateLoop(l *Loop, topLevelNames []string) error {
 	}
 
 	for i := range l.Steps {
-		if l.Steps[i].Condition != nil {
-			return fmt.Errorf("loop: step %q: conditions inside loop steps are not supported", l.Steps[i].Name)
+		if l.Steps[i].Condition != nil && l.Steps[i].Condition.Goto != "" {
+			return fmt.Errorf("loop: step %q: goto inside loop step conditions is not supported", l.Steps[i].Name)
 		}
 		if err := validateStep(&l.Steps[i], nil); err != nil {
 			return err
