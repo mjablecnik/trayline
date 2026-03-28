@@ -6,7 +6,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const defaultModel = "openai/gpt-4.1-nano"
+const defaultModel = "openai/gpt-4.1-mini"
 
 // Config holds runtime configuration for the orchestrator.
 type Config struct {

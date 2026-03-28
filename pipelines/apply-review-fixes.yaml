@@ -8,7 +8,7 @@ steps:
       max_iterations: 20
       condition:
         file: "CODE_REVIEW.md"
-        prompt: "Look ONLY for lines starting with '- [ ]' (unchecked checkbox). If there is at least one line matching '- [ ]' anywhere in the content, answer true. If every checkbox line shows '- [x]' (checked) or there are no checkbox lines at all, answer false."
+        prompt: "Does the output contain the EXACT phrase 'All tasks are done'? Answer false if the phrase 'All tasks are done' appears in the output (meaning work is complete). Answer true if the phrase is NOT present (meaning there is still work to do)."
       steps:
         - name: "apply-review-fixes"
           agent: "claude"
