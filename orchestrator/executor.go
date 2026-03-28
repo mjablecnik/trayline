@@ -242,10 +242,21 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	}
 	if exitCode != 0 {
 		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorReset)
+		if output != "" {
+			fmt.Printf("  %s  output: %s%s\n", colorRed, output, colorReset)
+		}
 		e.debugLog("Step %q failed with exit code %d after %s", step.Name, exitCode, elapsed)
+		e.debugLog("Step %q failed output (%d bytes):\n%s", step.Name, len(output), output)
 	} else {
 		fmt.Printf("  %s✓ %q (%s) succeeded in %s%s\n", colorGreen, step.Name, stepType, elapsed, colorReset)
 		e.debugLog("Step %q succeeded in %s (output: %d bytes)", step.Name, elapsed, len(output))
+		if len(output) > 0 {
+			preview := output
+			if len(preview) > 1000 {
+				preview = preview[:1000] + fmt.Sprintf("\n... [truncated, total %d bytes]", len(output))
+			}
+			e.debugLog("Step %q output:\n%s", step.Name, preview)
+		}
 	}
 	return output, exitCode, nil
 }
