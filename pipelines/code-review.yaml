@@ -20,6 +20,7 @@ steps:
             - [ ] 2. Description of the second issue to fix
             Each task should be a single, actionable fix item that can be completed independently.
             If everything looks good, write that there are no remaining issues.
+          verbose: false
           condition:
             file: "CODE_REVIEW.md"
             prompt: "Are there unchecked tasks in CODE_REVIEW.md (items marked with '- [ ]')? Answer true if there are issues to fix, false if everything looks good or there are no remaining issues."
