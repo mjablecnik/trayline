@@ -23,7 +23,7 @@ steps:
           verbose: false
           condition:
             file: "CODE_REVIEW.md"
-            prompt: "Are there unchecked tasks in CODE_REVIEW.md (items marked with '- [ ]')? Answer true if there are issues to fix, false if everything looks good or there are no remaining issues."
+            prompt: "Look ONLY for lines starting with '- [ ]' (unchecked checkbox). If there is at least one line matching '- [ ]' anywhere in the content, answer true. If every checkbox line shows '- [x]' (checked) or there are no checkbox lines at all, answer false."
 
         - name: "apply-review-fixes"
           command: "trayline run --pipeline apply-review-fixes --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
