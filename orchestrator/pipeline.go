@@ -69,11 +69,14 @@ type Loop struct {
 	Condition     Condition `yaml:"condition"`
 }
 
-// Condition represents an LLM-based evaluation.
+// Condition represents an evaluation — either LLM-based (prompt), string match (contains),
+// or negated string match (not_contains).
 type Condition struct {
-	Prompt string `yaml:"prompt"`
-	File   string `yaml:"file"`
-	Goto   string `yaml:"goto"`
+	Prompt      string `yaml:"prompt"`
+	File        string `yaml:"file"`
+	Goto        string `yaml:"goto"`
+	Contains    string `yaml:"contains"`
+	NotContains string `yaml:"not_contains"`
 }
 
 // rawPipeline is used for YAML marshaling and unmarshaling.
@@ -207,8 +210,21 @@ func validateStep(s *Step, topLevelNames []string) error {
 // validateCondition validates a condition object. targetNames should be the top-level step names
 // (goto can only target top-level steps, not steps inside loops).
 func validateCondition(stepName string, c *Condition, targetNames []string) error {
-	if c.Prompt == "" {
-		return fmt.Errorf("step %q: condition requires a \"prompt\" field", stepName)
+	modes := 0
+	if c.Prompt != "" {
+		modes++
+	}
+	if c.Contains != "" {
+		modes++
+	}
+	if c.NotContains != "" {
+		modes++
+	}
+	if modes == 0 {
+		return fmt.Errorf("step %q: condition requires one of \"prompt\", \"contains\", or \"not_contains\"", stepName)
+	}
+	if modes > 1 {
+		return fmt.Errorf("step %q: condition must have exactly one of \"prompt\", \"contains\", or \"not_contains\"", stepName)
 	}
 	if c.Goto != "" {
 		found := false
@@ -250,7 +266,7 @@ func validateLoop(l *Loop, topLevelNames []string) error {
 	}
 
 	// Loop-level condition is required unless at least one step has a condition.
-	if l.Condition.Prompt == "" && !hasStepCondition {
+	if l.Condition.Prompt == "" && l.Condition.Contains == "" && l.Condition.NotContains == "" && !hasStepCondition {
 		return fmt.Errorf("loop: missing required field \"condition\"")
 	}
 
@@ -285,14 +301,21 @@ func (p *Pipeline) FlattenStepNames() []string {
 	return names
 }
 
-// NeedsLLM returns true if any element in the pipeline has a condition.
+// NeedsLLM returns true if any element in the pipeline uses an LLM-based condition (prompt).
 func (p *Pipeline) NeedsLLM() bool {
 	for _, elem := range p.Elements {
-		if elem.Step != nil && elem.Step.Condition != nil {
+		if elem.Step != nil && elem.Step.Condition != nil && elem.Step.Condition.Prompt != "" {
 			return true
 		}
 		if elem.Loop != nil {
-			return true
+			if elem.Loop.Condition.Prompt != "" {
+				return true
+			}
+			for _, s := range elem.Loop.Steps {
+				if s.Condition != nil && s.Condition.Prompt != "" {
+					return true
+				}
+			}
 		}
 	}
 	return false

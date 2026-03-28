@@ -7,7 +7,7 @@ steps:
   - loop:
       max_iterations: 20
       condition:
-        prompt: "Does the output contain the EXACT phrase 'All tasks are done'? Answer false if the phrase 'All tasks are done' appears in the output (meaning work is complete). Answer true if the phrase is NOT present (meaning there is still work to do)."
+        not_contains: "All tasks are done"
       steps:
         - name: "create-code"
           agent: "claude"
@@ -27,7 +27,7 @@ steps:
   - loop:
       max_iterations: 20
       condition:
-        prompt: "Does the output contain the EXACT phrase 'All tasks are done'? Answer false if the phrase 'All tasks are done' appears in the output (meaning work is complete). Answer true if the phrase is NOT present (meaning there is still work to do)."
+        not_contains: "All tasks are done"
       steps:
         - name: "create-tests"
           agent: "claude"
@@ -42,4 +42,3 @@ steps:
   - name: "code-review"
     command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
     verbose: true
-
