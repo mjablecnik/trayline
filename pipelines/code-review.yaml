@@ -23,7 +23,7 @@ steps:
           verbose: false
           condition:
             file: "CODE_REVIEW.md"
-            prompt: "Does the output contain the EXACT phrase 'All tasks are done'? Answer false if the phrase 'All tasks are done' appears in the output (meaning work is complete). Answer true if the phrase is NOT present (meaning there is still work to do)."
+            prompt: "Does the content contain any unchecked checkbox lines matching EXACT the pattern '- [ ]'? Answer true if there is at least one '- [ ]' line (meaning there are issues to fix). Answer false if there are no '- [ ]' lines (meaning no issues found or all are checked off)."
 
         - name: "apply-review-fixes"
           command: "trayline run --pipeline apply-review-fixes --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
