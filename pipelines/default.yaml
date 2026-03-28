@@ -40,7 +40,7 @@ steps:
             in the spec are now checked off, explicitly say "All tasks are done."
 
   - loop:
-      max_iterations: 3
+      max_iterations: 1
       steps:
         - name: "code-review"
           agent: "kiro"
