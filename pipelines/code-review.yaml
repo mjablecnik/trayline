@@ -15,9 +15,12 @@ steps:
             Compare the project against the specification and design documents. 
             Identify anything that was forgotten, implemented differently, or done incorrectly.
             Save your output to CODE_REVIEW.md in the project root directory (not inside {{path}}).
+            Sort issues by importance and add a severity label to each one.
             Use this format for the task list with checkboxes:
-            - [ ] 1. Description of the first issue to fix
-            - [ ] 2. Description of the second issue to fix
+            - [ ] 1. [CRITICAL] Description of the first issue to fix
+            - [ ] 2. [HIGH] Description of the second issue to fix
+            - [ ] 3. [MEDIUM] Description of the third issue to fix
+            - [ ] 4. [LOW] Description of the fourth issue to fix
             Each task should be a single, actionable fix item that can be completed independently.
             If everything looks good, write that there are no remaining issues.
           verbose: false
