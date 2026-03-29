@@ -1,0 +1,65 @@
+variables:
+  number: "10"
+  specs-name: ""
+  path: "this"
+
+steps:
+  - loop:
+      max_iterations: 3
+      steps:
+        - name: "find-improvements"
+          agent: "kiro"
+          prompt: |
+            Read all files inside the .kiro/specs/{{specs-name}} folder.
+            Analyze the entire codebase in {{path}} folder and look for improvement opportunities.
+            Focus exclusively on these three areas:
+            1. Validation — missing or weak input validation, error handling gaps, edge cases not covered
+            2. Developer Experience — unclear error messages, missing or misleading logs, confusing APIs, inconsistent patterns, poor naming
+            3. Tests — missing test coverage, weak assertions, untested edge cases, fragile tests
+
+            Important rules:
+            - Only suggest improvements to existing code. Do NOT propose new features or new functionality.
+            - Do NOT suggest creating documentation files, README updates, or code comments.
+            - All suggestions must remain compliant with the specification and design documents.
+            - Each suggestion must be a concrete, actionable task.
+
+            Save your output to IMPROVEMENTS.md in the project root directory (not inside {{path}}).
+            Sort issues by importance and add a priority label to each one.
+            Use this format for the task list with checkboxes:
+            - [ ] 1. [CRITICAL] Description of the improvement
+            - [ ] 2. [HIGH] Description of the improvement
+            - [ ] 3. [MEDIUM] Description of the improvement
+            - [ ] 4. [LOW] Description of the improvement
+            Each task should be a single, actionable improvement that can be completed independently.
+            If everything looks good, write that there are no remaining improvements.
+          verbose: false
+          condition:
+            file: "IMPROVEMENTS.md"
+            contains: "- [ ]"
+
+        - name: "apply-critical-and-high-improvements"
+          agent: "claude"
+          prompt: |
+            Read all files inside the .kiro/specs/{{specs-name}} folder.
+            Also read the IMPROVEMENTS.md file from the project root directory (not inside {{path}}).
+            Apply all improvements marked as [CRITICAL] and [HIGH] in IMPROVEMENTS.md.
+            Follow the tasks exactly and check off each task in IMPROVEMENTS.md as you complete it.
+            Important: Do NOT create any new features or documentation. Only improve existing code.
+            All changes must remain compliant with the specification and design documents.
+            After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+            When you are done, print a summary of which tasks you completed.
+          verbose: true
+
+        - name: "apply-medium-improvements"
+          agent: "claude"
+          prompt: |
+            Read all files inside the .kiro/specs/{{specs-name}} folder.
+            Also read the IMPROVEMENTS.md file from the project root directory (not inside {{path}}).
+            Apply all improvements marked as [MEDIUM] in IMPROVEMENTS.md.
+            Follow the tasks exactly and check off each task in IMPROVEMENTS.md as you complete it.
+            Important: Do NOT create any new features or documentation. Only improve existing code.
+            All changes must remain compliant with the specification and design documents.
+            After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+            When you are done, print a summary of which tasks you completed. If all improvement tasks
+            in IMPROVEMENTS.md are now checked off, explicitly say "All tasks are done."
+          verbose: true
