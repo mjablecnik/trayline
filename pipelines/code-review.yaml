@@ -11,30 +11,41 @@ steps:
           agent: "kiro"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Analyze the entire codebase in {{path}} folder and perform a code review. 
-            Compare the project against the specification and design documents. 
+            Analyze the entire codebase in {{path}} folder and perform a code review.
+            Compare the project against the specification and design documents.
             Identify anything that was forgotten, implemented differently, or done incorrectly.
-            Save your output to CODE_REVIEW.md in the project root directory (not inside {{path}}).
-            Sort issues by importance and add a severity label to each one.
-            Use this format for the task list with checkboxes:
-            - [ ] 1. [CRITICAL] Description of the first issue to fix
-            - [ ] 2. [HIGH] Description of the second issue to fix
-            - [ ] 3. [MEDIUM] Description of the third issue to fix
-            - [ ] 4. [LOW] Description of the fourth issue to fix
-            Each task should be a single, actionable fix item that can be completed independently.
-            If everything looks good, write that there are no remaining issues.
+
+            Create two files in the project root directory (not inside {{path}}):
+
+            1. CODE_REVIEW.md — A detailed analysis document. For each found issue include:
+               - A clear description of the problem
+               - Why it is a problem (impact, risk)
+               - A suggested solution or approach to fix it
+               - Severity label: [CRITICAL], [HIGH], [MEDIUM], or [LOW]
+               Sort issues by severity (critical first).
+
+            2. TASKS.md — A concise task list derived from CODE_REVIEW.md. Use this format:
+               - [ ] 1. [CRITICAL] Short actionable description of what to fix
+               - [ ] 2. [HIGH] Short actionable description of what to fix
+               - [ ] 3. [MEDIUM] Short actionable description of what to fix
+               - [ ] 4. [LOW] Short actionable description of what to fix
+               Each task should be a single, actionable fix item that can be completed independently.
+               Sort tasks by severity (critical first).
+
+            If everything looks good, write that there are no remaining issues in both files.
           verbose: false
           condition:
-            file: "CODE_REVIEW.md"
+            file: "TASKS.md"
             contains: "- [ ]"
 
         - name: "fix-critical-and-high-tasks"
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read the CODE_REVIEW.md file from the project root directory (not inside {{path}}).
-            Fix all tasks marked as [CRITICAL] and [HIGH] in CODE_REVIEW.md.
-            Follow the tasks exactly and check off each task in CODE_REVIEW.md as you complete it.
+            Also read CODE_REVIEW.md and TASKS.md from the project root directory (not inside {{path}}).
+            Use CODE_REVIEW.md to understand the context, problem details, and suggested solutions.
+            Fix all tasks marked as [CRITICAL] and [HIGH] in TASKS.md.
+            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed.
           verbose: true
@@ -43,10 +54,11 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read the CODE_REVIEW.md file from the project root directory (not inside {{path}}).
-            Fix all tasks marked as [MEDIUM] in CODE_REVIEW.md.
-            Follow the tasks exactly and check off each task in CODE_REVIEW.md as you complete it.
+            Also read CODE_REVIEW.md and TASKS.md from the project root directory (not inside {{path}}).
+            Use CODE_REVIEW.md to understand the context, problem details, and suggested solutions.
+            Fix all tasks marked as [MEDIUM] in TASKS.md.
+            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
-            When you are done, print a summary of which tasks you completed. If all review tasks
-            in CODE_REVIEW.md are now checked off, explicitly say "All tasks are done."
+            When you are done, print a summary of which tasks you completed. If all tasks
+            in TASKS.md are now checked off, explicitly say "All tasks are done."
           verbose: true

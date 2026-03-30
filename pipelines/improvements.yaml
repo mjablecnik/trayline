@@ -21,29 +21,38 @@ steps:
             - Only suggest improvements to existing code. Do NOT propose new features or new functionality.
             - Do NOT suggest creating documentation files, README updates, or code comments.
             - All suggestions must remain compliant with the specification and design documents.
-            - Each suggestion must be a concrete, actionable task.
 
-            Save your output to IMPROVEMENTS.md in the project root directory (not inside {{path}}).
-            Sort issues by importance and add a priority label to each one.
-            Use this format for the task list with checkboxes:
-            - [ ] 1. [CRITICAL] Description of the improvement
-            - [ ] 2. [HIGH] Description of the improvement
-            - [ ] 3. [MEDIUM] Description of the improvement
-            - [ ] 4. [LOW] Description of the improvement
-            Each task should be a single, actionable improvement that can be completed independently.
-            If everything looks good, write that there are no remaining improvements.
+            Create two files in the project root directory (not inside {{path}}):
+
+            1. IMPROVEMENTS.md — A detailed analysis document. For each improvement include:
+               - A clear description of what can be improved
+               - Why it matters (impact on reliability, DX, or test confidence)
+               - A suggested approach or solution
+               - Priority label: [CRITICAL], [HIGH], [MEDIUM], or [LOW]
+               Sort improvements by priority (critical first).
+
+            2. TASKS.md — A concise task list derived from IMPROVEMENTS.md. Use this format:
+               - [ ] 1. [CRITICAL] Short actionable description of the improvement
+               - [ ] 2. [HIGH] Short actionable description of the improvement
+               - [ ] 3. [MEDIUM] Short actionable description of the improvement
+               - [ ] 4. [LOW] Short actionable description of the improvement
+               Each task should be a single, actionable improvement that can be completed independently.
+               Sort tasks by priority (critical first).
+
+            If everything looks good, write that there are no remaining improvements in both files.
           verbose: false
           condition:
-            file: "IMPROVEMENTS.md"
+            file: "TASKS.md"
             contains: "- [ ]"
 
         - name: "apply-critical-and-high-improvements"
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read the IMPROVEMENTS.md file from the project root directory (not inside {{path}}).
-            Apply all improvements marked as [CRITICAL] and [HIGH] in IMPROVEMENTS.md.
-            Follow the tasks exactly and check off each task in IMPROVEMENTS.md as you complete it.
+            Also read IMPROVEMENTS.md and TASKS.md from the project root directory (not inside {{path}}).
+            Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
+            Apply all improvements marked as [CRITICAL] and [HIGH] in TASKS.md.
+            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
@@ -54,12 +63,13 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read the IMPROVEMENTS.md file from the project root directory (not inside {{path}}).
-            Apply all improvements marked as [MEDIUM] in IMPROVEMENTS.md.
-            Follow the tasks exactly and check off each task in IMPROVEMENTS.md as you complete it.
+            Also read IMPROVEMENTS.md and TASKS.md from the project root directory (not inside {{path}}).
+            Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
+            Apply all improvements marked as [MEDIUM] in TASKS.md.
+            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all improvement tasks
-            in IMPROVEMENTS.md are now checked off, explicitly say "All tasks are done."
+            in TASKS.md are now checked off, explicitly say "All tasks are done."
           verbose: true
