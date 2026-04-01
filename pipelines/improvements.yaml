@@ -53,6 +53,7 @@ steps:
             Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
             Apply all improvements marked as [CRITICAL] and [HIGH] in TASKS.md.
             Follow the tasks exactly and check off each task in TASKS.md as you complete it.
+            After each change, also update the relevant tests to reflect the change and make sure all tests pass.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
@@ -67,6 +68,7 @@ steps:
             Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
             Apply all improvements marked as [MEDIUM] in TASKS.md.
             Follow the tasks exactly and check off each task in TASKS.md as you complete it.
+            After each change, also update the relevant tests to reflect the change and make sure all tests pass.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
