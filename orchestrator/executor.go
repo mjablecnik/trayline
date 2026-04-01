@@ -362,12 +362,12 @@ func (e *Executor) evaluateCondition(context string, cond *Condition, input stri
 	return decision, nil
 }
 
-// executeLoop runs a loop block with LLM-based iteration control.
-// Loop steps may have conditions (without goto). If a step condition evaluates to false,
-// the remaining steps in the current iteration are skipped and the loop exits.
+// executeLoop runs a loop block with iteration control.
+// Loop elements may be steps or nested loops. If a step condition evaluates to false,
+// the remaining elements in the current iteration are skipped and the loop exits.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	hasLoopCondition := loop.Condition.Prompt != "" || loop.Condition.Contains != "" || loop.Condition.NotContains != ""
-	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, steps=%d", loop.MaxIterations, hasLoopCondition, len(loop.Steps)))
+	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, elements=%d", loop.MaxIterations, hasLoopCondition, len(loop.Elements)))
 
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
 		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
@@ -375,9 +375,22 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 
 		var lastOutput string
 		breakLoop := false
-		for i := range loop.Steps {
-			step := &loop.Steps[i]
-			output, exitCode, err := e.executeStep(step, i+1, len(loop.Steps))
+		stepCount := countStepsInElements(loop.Elements)
+		stepNum := 0
+		for i := range loop.Elements {
+			elem := &loop.Elements[i]
+
+			if elem.Loop != nil {
+				exitCode, err := e.executeLoop(elem.Loop)
+				if err != nil || exitCode != 0 {
+					return exitCode, err
+				}
+				continue
+			}
+
+			step := elem.Step
+			stepNum++
+			output, exitCode, err := e.executeStep(step, stepNum, stepCount)
 			if err != nil {
 				e.debugError(fmt.Sprintf("loop step %q", step.Name), err)
 				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
@@ -390,7 +403,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			lastOutput = output
 
 			// Evaluate step condition if present (goto is not allowed inside loops).
-			// true = continue to next step; false = skip remaining steps and exit loop.
+			// true = continue to next element; false = skip remaining elements and exit loop.
 			if step.Condition != nil {
 				e.debugLog("Evaluating step condition on %q (file=%q, contains=%q)", step.Name, step.Condition.File, step.Condition.Contains)
 				condDir := step.ProjectDir
@@ -425,9 +438,9 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 		if hasLoopCondition {
 			e.debugLog("Evaluating loop-level condition (file=%q, contains=%q)", loop.Condition.File, loop.Condition.Contains)
 			condProjectDir := ""
-			for k := len(loop.Steps) - 1; k >= 0; k-- {
-				if loop.Steps[k].ProjectDir != "" {
-					condProjectDir = loop.Steps[k].ProjectDir
+			for k := len(loop.Elements) - 1; k >= 0; k-- {
+				if loop.Elements[k].Step != nil && loop.Elements[k].Step.ProjectDir != "" {
+					condProjectDir = loop.Elements[k].Step.ProjectDir
 					break
 				}
 			}
@@ -464,6 +477,17 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	return 0, nil
 }
 
+// countStepsInElements counts only direct Step elements (not nested loops).
+func countStepsInElements(elements []PipelineElement) int {
+	count := 0
+	for _, elem := range elements {
+		if elem.Step != nil {
+			count++
+		}
+	}
+	return count
+}
+
 // printDryRun prints all steps without executing them.
 // printCondition prints condition details for dry-run output.
 func printCondition(cond *Condition, indent string) {
@@ -496,9 +520,15 @@ func (e *Executor) printDryRun() {
 	}
 	cwd, _ := os.Getwd()
 	stepNum := 0
-	for _, elem := range e.Pipeline.Elements {
+	printElements(e.Pipeline.Elements, cwd, &stepNum, "")
+	fmt.Println()
+}
+
+// printElements recursively prints pipeline elements for dry-run output.
+func printElements(elements []PipelineElement, cwd string, stepNum *int, indent string) {
+	for _, elem := range elements {
 		if elem.Step != nil {
-			stepNum++
+			*stepNum++
 			s := elem.Step
 			projectDir := s.ProjectDir
 			if projectDir == "" {
@@ -509,35 +539,17 @@ func (e *Executor) printDryRun() {
 				verboseTag = " verbose=true"
 			}
 			if s.Agent != "" {
-				fmt.Printf("\n%s▶ Step %d:%s %s%q%s agent=%s project_dir=%s%s\n  prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, verboseTag, s.Prompt)
+				fmt.Printf("\n%s%s▶ Step %d:%s %s%q%s agent=%s project_dir=%s%s\n%s  prompt: %s\n", indent, colorCyan, *stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, verboseTag, indent, s.Prompt)
 			} else {
-				fmt.Printf("\n%s▶ Step %d:%s %s%q%s command=%s project_dir=%s%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir, verboseTag)
+				fmt.Printf("\n%s%s▶ Step %d:%s %s%q%s command=%s project_dir=%s%s\n", indent, colorCyan, *stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir, verboseTag)
 			}
-			printCondition(s.Condition, "  ")
+			printCondition(s.Condition, indent+"  ")
 		}
 		if elem.Loop != nil {
 			lc := &elem.Loop.Condition
-			fmt.Printf("\n%s🔁 Loop%s (max_iterations=%d):\n", colorBlue, colorReset, elem.Loop.MaxIterations)
-			printCondition(lc, "  ")
-			for j := range elem.Loop.Steps {
-				stepNum++
-				s := &elem.Loop.Steps[j]
-				projectDir := s.ProjectDir
-				if projectDir == "" {
-					projectDir = cwd
-				}
-				verboseTag := ""
-				if s.Verbose {
-					verboseTag = " verbose=true"
-				}
-				if s.Agent != "" {
-					fmt.Printf("  %s▶ Step %d:%s %s%q%s agent=%s project_dir=%s%s\n    prompt: %s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Agent, projectDir, verboseTag, s.Prompt)
-				} else {
-					fmt.Printf("  %s▶ Step %d:%s %s%q%s command=%s project_dir=%s%s\n", colorCyan, stepNum, colorReset, colorBold, s.Name, colorReset, s.Command, projectDir, verboseTag)
-				}
-				printCondition(s.Condition, "    ")
-			}
+			fmt.Printf("\n%s%s🔁 Loop%s (max_iterations=%d):\n", indent, colorBlue, colorReset, elem.Loop.MaxIterations)
+			printCondition(lc, indent+"  ")
+			printElements(elem.Loop.Elements, cwd, stepNum, indent+"  ")
 		}
 	}
-	fmt.Println()
 }

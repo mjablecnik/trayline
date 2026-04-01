@@ -279,8 +279,8 @@ steps:
 	if loop.MaxIterations != 3 {
 		t.Errorf("expected max_iterations=3, got %d", loop.MaxIterations)
 	}
-	if len(loop.Steps) != 2 {
-		t.Errorf("expected 2 loop steps, got %d", len(loop.Steps))
+	if len(loop.Elements) != 2 {
+		t.Errorf("expected 2 loop elements, got %d", len(loop.Elements))
 	}
 }
 
@@ -372,7 +372,7 @@ steps:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	step := pipeline.Elements[0].Loop.Steps[0]
+	step := pipeline.Elements[0].Loop.Elements[0].Step
 	if step.Condition == nil {
 		t.Fatal("expected condition on loop step")
 	}
@@ -433,7 +433,7 @@ steps:
 	if loop.Condition.Prompt != "" {
 		t.Errorf("expected empty loop condition, got %q", loop.Condition.Prompt)
 	}
-	if loop.Steps[0].Condition == nil {
+	if loop.Elements[0].Step.Condition == nil {
 		t.Fatal("expected condition on first loop step")
 	}
 }
@@ -583,37 +583,38 @@ func writeTempPipelineRaw(t testing.TB, content string) string {
 // genValidPipeline generates a random valid Pipeline for property testing.
 func genValidPipeline(t *rapid.T) *Pipeline {
 	numElements := rapid.IntRange(1, 4).Draw(t, "numElements")
-	usedNames := map[string]bool{}
 	nameCounter := 0
 
 	uniqueName := func() string {
 		nameCounter++
-		name := fmt.Sprintf("step-%d", nameCounter)
-		usedNames[name] = true
-		return name
+		return fmt.Sprintf("step-%d", nameCounter)
 	}
 
-	elements := make([]PipelineElement, numElements)
-	for i := 0; i < numElements; i++ {
-		isLoop := rapid.Bool().Draw(t, fmt.Sprintf("isLoop-%d", i))
-		if isLoop {
-			numLoopSteps := rapid.IntRange(1, 3).Draw(t, fmt.Sprintf("numLoopSteps-%d", i))
-			loopSteps := make([]Step, numLoopSteps)
-			for j := 0; j < numLoopSteps; j++ {
-				loopSteps[j] = genSimpleStep(t, uniqueName(), fmt.Sprintf("loop-%d-step-%d", i, j))
+	var genElements func(prefix string, depth int) []PipelineElement
+	genElements = func(prefix string, depth int) []PipelineElement {
+		n := rapid.IntRange(1, 3).Draw(t, prefix+"-numElements")
+		elements := make([]PipelineElement, n)
+		for i := 0; i < n; i++ {
+			isLoop := depth < 2 && rapid.Bool().Draw(t, fmt.Sprintf("%s-isLoop-%d", prefix, i))
+			if isLoop {
+				loopElements := genElements(fmt.Sprintf("%s-loop-%d", prefix, i), depth+1)
+				elements[i] = PipelineElement{
+					Loop: &Loop{
+						MaxIterations: rapid.IntRange(1, 10).Draw(t, fmt.Sprintf("%s-maxIter-%d", prefix, i)),
+						Elements:      loopElements,
+						Condition:     Condition{Prompt: "Should we continue?"},
+					},
+				}
+			} else {
+				step := genSimpleStep(t, uniqueName(), fmt.Sprintf("%s-step-%d", prefix, i))
+				elements[i] = PipelineElement{Step: &step}
 			}
-			elements[i] = PipelineElement{
-				Loop: &Loop{
-					MaxIterations: rapid.IntRange(1, 10).Draw(t, fmt.Sprintf("maxIter-%d", i)),
-					Steps:         loopSteps,
-					Condition:     Condition{Prompt: "Should we continue?"},
-				},
-			}
-		} else {
-			step := genSimpleStep(t, uniqueName(), fmt.Sprintf("step-%d", i))
-			elements[i] = PipelineElement{Step: &step}
 		}
+		return elements
 	}
+
+	_ = numElements // use the top-level draw for seed stability
+	elements := genElements("top", 0)
 	return &Pipeline{Elements: elements}
 }
 

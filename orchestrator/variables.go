@@ -76,7 +76,7 @@ func ResolveString(s string, vars map[string]string) string {
 // SubstituteVariables replaces all {{variable-name}} placeholders in the
 // templatable fields of the pipeline with values from vars. Templatable fields
 // are: step Prompt, Command, ProjectDir, condition Prompt, condition File —
-// applied to both top-level steps and steps/conditions inside loop blocks.
+// applied to both top-level steps and steps/conditions inside loop blocks (recursively).
 //
 // Returns an error listing all undefined variable names if any placeholder
 // references a key not present in vars. Returns nil if all placeholders resolved.
@@ -100,24 +100,12 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 		*s = ResolveString(*s, vars)
 	}
 
-	for i := range p.Elements {
-		elem := &p.Elements[i]
-		if elem.Step != nil {
-			s := elem.Step
-			resolveField(&s.Prompt)
-			resolveField(&s.Command)
-			resolveField(&s.ProjectDir)
-			if s.Condition != nil {
-				resolveField(&s.Condition.Prompt)
-				resolveField(&s.Condition.File)
-			}
-		}
-		if elem.Loop != nil {
-			l := elem.Loop
-			resolveField(&l.Condition.Prompt)
-			resolveField(&l.Condition.File)
-			for j := range l.Steps {
-				s := &l.Steps[j]
+	var substituteElements func(elements []PipelineElement)
+	substituteElements = func(elements []PipelineElement) {
+		for i := range elements {
+			elem := &elements[i]
+			if elem.Step != nil {
+				s := elem.Step
 				resolveField(&s.Prompt)
 				resolveField(&s.Command)
 				resolveField(&s.ProjectDir)
@@ -126,8 +114,16 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 					resolveField(&s.Condition.File)
 				}
 			}
+			if elem.Loop != nil {
+				l := elem.Loop
+				resolveField(&l.Condition.Prompt)
+				resolveField(&l.Condition.File)
+				substituteElements(l.Elements)
+			}
 		}
 	}
+
+	substituteElements(p.Elements)
 
 	if len(undefined) > 0 {
 		sort.Strings(undefined)

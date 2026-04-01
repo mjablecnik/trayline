@@ -200,8 +200,8 @@ func TestSubstituteVariables_LoopFields(t *testing.T) {
 				Prompt: "Continue {{spec}}?",
 				File:   "{{path}}/results.txt",
 			},
-			Steps: []Step{
-				{Name: "fix", Agent: "claude", Prompt: "Fix in {{path}}"},
+			Elements: []PipelineElement{
+				{Step: &Step{Name: "fix", Agent: "claude", Prompt: "Fix in {{path}}"}},
 			},
 		}},
 	}}
@@ -216,8 +216,8 @@ func TestSubstituteVariables_LoopFields(t *testing.T) {
 	if l.Condition.File != "/tmp/results.txt" {
 		t.Errorf("Loop condition.File not resolved: %q", l.Condition.File)
 	}
-	if l.Steps[0].Prompt != "Fix in /tmp" {
-		t.Errorf("Loop step Prompt not resolved: %q", l.Steps[0].Prompt)
+	if l.Elements[0].Step.Prompt != "Fix in /tmp" {
+		t.Errorf("Loop step Prompt not resolved: %q", l.Elements[0].Step.Prompt)
 	}
 }
 

@@ -62,11 +62,11 @@ type Step struct {
 	Condition  *Condition `yaml:"condition"`
 }
 
-// Loop represents a repeatable block of steps with an LLM condition.
+// Loop represents a repeatable block of steps (and nested loops) with an optional condition.
 type Loop struct {
-	MaxIterations int       `yaml:"max_iterations"`
-	Steps         []Step    `yaml:"steps"`
-	Condition     Condition `yaml:"condition"`
+	MaxIterations int              `yaml:"max_iterations"`
+	Elements      []PipelineElement `yaml:"steps"`
+	Condition     Condition         `yaml:"condition"`
 }
 
 // Condition represents an evaluation — either LLM-based (prompt), string match (contains),
@@ -243,25 +243,33 @@ func validateCondition(stepName string, c *Condition, targetNames []string) erro
 
 // validateLoop validates a loop block. Loop-level condition is optional when
 // at least one step inside the loop has a condition. Goto inside loop step
-// conditions is not supported.
+// conditions is not supported. Nested loops are allowed.
 func validateLoop(l *Loop, topLevelNames []string) error {
 	if l.MaxIterations <= 0 {
 		return fmt.Errorf("loop: max_iterations must be a positive integer")
 	}
-	if len(l.Steps) == 0 {
+	if len(l.Elements) == 0 {
 		return fmt.Errorf("loop: missing required field \"steps\"")
 	}
 
 	hasStepCondition := false
-	for i := range l.Steps {
-		if l.Steps[i].Condition != nil {
-			hasStepCondition = true
-			if l.Steps[i].Condition.Goto != "" {
-				return fmt.Errorf("loop: step %q: goto inside loop step conditions is not supported", l.Steps[i].Name)
+	for i := range l.Elements {
+		elem := &l.Elements[i]
+		if elem.Step != nil {
+			if elem.Step.Condition != nil {
+				hasStepCondition = true
+				if elem.Step.Condition.Goto != "" {
+					return fmt.Errorf("loop: step %q: goto inside loop step conditions is not supported", elem.Step.Name)
+				}
+			}
+			if err := validateStep(elem.Step, nil); err != nil {
+				return err
 			}
 		}
-		if err := validateStep(&l.Steps[i], nil); err != nil {
-			return err
+		if elem.Loop != nil {
+			if err := validateLoop(elem.Loop, topLevelNames); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -285,25 +293,33 @@ func (p *Pipeline) TopLevelStepNames() []string {
 	return names
 }
 
-// FlattenStepNames returns all step names across the pipeline (top-level + inside loops).
+// FlattenStepNames returns all step names across the pipeline (top-level + inside loops, recursively).
 func (p *Pipeline) FlattenStepNames() []string {
 	var names []string
-	for _, elem := range p.Elements {
+	flattenElements(p.Elements, &names)
+	return names
+}
+
+// flattenElements recursively collects step names from a slice of PipelineElements.
+func flattenElements(elements []PipelineElement, names *[]string) {
+	for _, elem := range elements {
 		if elem.Step != nil {
-			names = append(names, elem.Step.Name)
+			*names = append(*names, elem.Step.Name)
 		}
 		if elem.Loop != nil {
-			for _, s := range elem.Loop.Steps {
-				names = append(names, s.Name)
-			}
+			flattenElements(elem.Loop.Elements, names)
 		}
 	}
-	return names
 }
 
 // NeedsLLM returns true if any element in the pipeline uses an LLM-based condition (prompt).
 func (p *Pipeline) NeedsLLM() bool {
-	for _, elem := range p.Elements {
+	return elementsNeedLLM(p.Elements)
+}
+
+// elementsNeedLLM recursively checks if any element uses an LLM-based condition.
+func elementsNeedLLM(elements []PipelineElement) bool {
+	for _, elem := range elements {
 		if elem.Step != nil && elem.Step.Condition != nil && elem.Step.Condition.Prompt != "" {
 			return true
 		}
@@ -311,10 +327,8 @@ func (p *Pipeline) NeedsLLM() bool {
 			if elem.Loop.Condition.Prompt != "" {
 				return true
 			}
-			for _, s := range elem.Loop.Steps {
-				if s.Condition != nil && s.Condition.Prompt != "" {
-					return true
-				}
+			if elementsNeedLLM(elem.Loop.Elements) {
+				return true
 			}
 		}
 	}

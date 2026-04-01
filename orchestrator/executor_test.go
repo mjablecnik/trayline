@@ -268,8 +268,8 @@ func TestExecutor_Loop(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 3,
-				Steps: []Step{
-					{Name: "run-tests", Command: "go test ./..."},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "run-tests", Command: "go test ./..."}},
 				},
 				Condition: Condition{Prompt: "Still failing?"},
 			}},
@@ -299,8 +299,8 @@ func TestExecutor_Loop_MaxIterations(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 2,
-				Steps: []Step{
-					{Name: "s1", Command: "echo hi"},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "s1", Command: "echo hi"}},
 				},
 				Condition: Condition{Prompt: "Continue?"},
 			}},
@@ -569,7 +569,7 @@ func TestLoopIterationControl(t *testing.T) {
 			Elements: []PipelineElement{
 				{Loop: &Loop{
 					MaxIterations: maxIter,
-					Steps:         []Step{{Name: "s1", Command: "echo test"}},
+					Elements:      []PipelineElement{{Step: &Step{Name: "s1", Command: "echo test"}}},
 					Condition:     Condition{Prompt: "Continue?"},
 				}},
 			},
@@ -754,8 +754,8 @@ func TestExecutor_LoopStepFailure(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 3,
-				Steps: []Step{
-					{Name: "run-tests", Command: "go test ./..."},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "run-tests", Command: "go test ./..."}},
 				},
 				Condition: Condition{Prompt: "Still failing?"},
 			}},
@@ -781,10 +781,10 @@ func TestExecutor_LoopStepCondition_False(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 3,
-				Steps: []Step{
-					{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}},
-					{Name: "fix", Command: "trayline run --pipeline fix"},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}}},
+					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
 				Condition: Condition{Prompt: "Continue?"},
 			}},
@@ -813,10 +813,10 @@ func TestExecutor_LoopStepCondition_True(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 3,
-				Steps: []Step{
-					{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}},
-					{Name: "fix", Command: "trayline run --pipeline fix"},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}}},
+					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
 				Condition: Condition{Prompt: "Continue?"},
 			}},
@@ -848,10 +848,10 @@ func TestExecutor_LoopWithoutLoopCondition(t *testing.T) {
 		Elements: []PipelineElement{
 			{Loop: &Loop{
 				MaxIterations: 5,
-				Steps: []Step{
-					{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}},
-					{Name: "fix", Command: "trayline run --pipeline fix"},
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &Condition{Prompt: "Issues found?"}}},
+					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
 			}},
 		},
