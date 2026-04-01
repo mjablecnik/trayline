@@ -42,7 +42,7 @@ steps:
             contains: "- [ ]"
 
         - loop:
-            max_iterations: 3
+            max_iterations: 30
             steps:
               - name: "implement-tests"
                 agent: "claude"
