@@ -1,0 +1,65 @@
+variables:
+  number: "10"
+  specs-name: ""
+  path: "this"
+
+steps:
+  - loop:
+      max_iterations: 3
+      steps:
+        - name: "analyze-and-create-test-spec"
+          agent: "claude"
+          prompt: |
+            Analyze the entire codebase in {{path}} folder.
+            If a .kiro/specs/{{specs-name}} folder exists, read all files inside it for additional context.
+
+            Perform a thorough analysis of the project and identify all missing tests.
+            Consider:
+            - Unit tests for individual functions and methods
+            - Edge cases and error handling paths not covered
+            - Integration tests for component interactions
+            - Boundary conditions and input validation
+            - Mocking of external dependencies
+
+            Create two files in the project root directory (not inside {{path}}):
+
+            1. TEST_SPEC.md — A detailed test specification document. For each missing test include:
+               - Which file/function/method needs testing
+               - What specific behavior or scenario should be tested
+               - Expected inputs and outputs
+               - Priority label: [HIGH], [MEDIUM], or [LOW]
+               Sort by priority (high first).
+
+            2. TASKS.md — A concise task list derived from TEST_SPEC.md. Use this format:
+               - [ ] 1. [HIGH] Short actionable description of the test to create
+               - [ ] 2. [MEDIUM] Short actionable description of the test to create
+               - [ ] 3. [LOW] Short actionable description of the test to create
+               Each task should be a single test or small group of closely related tests.
+               Sort tasks by priority (high first).
+          verbose: true
+          condition:
+            file: "TASKS.md"
+            contains: "- [ ]"
+
+        - loop:
+            max_iterations: 3
+            steps:
+              - name: "implement-tests"
+                agent: "claude"
+                prompt: |
+                  Read TEST_SPEC.md and TASKS.md from the project root directory (not inside {{path}}).
+                  If a .kiro/specs/{{specs-name}} folder exists, read all files inside it for additional context.
+
+                  Use TEST_SPEC.md to understand what tests need to be created and how.
+                  Implement up to {{number}} unchecked tests from TASKS.md.
+                  Follow the test specification exactly.
+                  Make sure all new tests pass before marking them as done.
+                  Check off each completed task in TASKS.md as you finish it.
+                  After every batch of passing tests, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+                  When you are done, print a summary of which tasks you completed.
+                  If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
+                verbose: true
+                condition:
+                  file: "TASKS.md"
+                  contains: "- [ ]"
