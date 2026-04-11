@@ -1,0 +1,70 @@
+variables:
+  number: "10"
+  path: "this"
+
+steps:
+  - name: "analyze-design"
+    agent: "kiro"
+    prompt: |
+      Open the .design folder in the {{path}} project directory and read every file inside it.
+      Each file represents one web page design.
+
+      Analyze all design files thoroughly — understand the purpose, layout, content,
+      navigation, visual structure, fonts, colors, images, videos, and every detail of each page.
+
+      Create two files in the project root directory (not inside {{path}}):
+
+      1. PAGES.md — A summary document describing each page:
+         - Page name (derived from the file name)
+         - Purpose and what the page is for
+         - Key sections and content blocks
+         - Navigation links to other pages
+         - Notable visual elements (images, videos, icons, animations)
+         - Color scheme, typography, and layout notes
+         List all pages with enough detail so another developer can understand
+         the full scope of the website without looking at the design files.
+
+      2. TASKS.md — A task list where each task is creating one page. Use this format:
+         - [ ] 1. Create the [page name] page — [brief description of what the page contains]
+         - [ ] 2. Create the [page name] page — [brief description of what the page contains]
+         Order tasks logically (main/home page first, then secondary pages).
+         Each task must reference the corresponding design file in .design folder.
+         Include a final task:
+         - [ ] N. Wire up navigation — ensure all pages link to each other correctly and all links work
+
+      Important:
+      - Be extremely detailed about visual aspects — colors, spacing, fonts, sizes, layout.
+      - Note every text, image, video, and interactive element visible in the design.
+      - The goal is pixel-perfect reproduction, so capture every detail.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "create-pages"
+          agent: "claude"
+          prompt: |
+            Read PAGES.md and TASKS.md from the project root directory (not inside {{path}}).
+            Also open the .design folder and examine the design files for reference.
+
+            Your job is to implement the web pages in the {{path}} project, reproducing the designs
+            from .design folder with pixel-perfect accuracy.
+
+            Rules:
+            - Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
+              and create pages using the conventions and patterns of that framework.
+            - Match the design exactly: same layout, colors, fonts, spacing, text content, images, videos.
+            - All text must be hardcoded exactly as shown in the design — no lorem ipsum, no placeholders.
+            - All images and videos referenced in the design must be included (use the same assets or placeholders with correct dimensions).
+            - No business logic, no API calls, no backend integration — pure static UI pages.
+            - All navigation links between pages must work. Pages must be interconnected.
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Use responsive design patterns consistent with the project.
+
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each page, check off the task in TASKS.md.
+            After every completed page, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
