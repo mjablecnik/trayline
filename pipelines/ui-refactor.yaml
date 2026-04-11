@@ -18,11 +18,28 @@ steps:
       - For each section, identify reusable UI components (buttons, cards, forms, navigation items, etc.)
       - Identify components and sections that appear on multiple pages — these must be shared, not duplicated
 
-      Propose a folder structure following the conventions of the detected framework:
-      - Sections go into a sections/ (or equivalent) folder
-      - Components go into a components/ (or equivalent) folder
+      Propose a folder structure following the conventions of the detected framework.
+      The structure must be organized logically per page with a shared layer:
+
+      - Each page gets its own folder containing its page-specific sections/ and components/
+        Example (React-style): pages/home/sections/, pages/home/components/
+        Example (SvelteKit-style): routes/(home)/sections/, routes/(home)/components/
+      - Sections and components that belong only to one page live inside that page's folder
+      - Sections and components used across multiple pages go into a shared/ folder
+      - The smallest, most universal UI building blocks (buttons, inputs, badges, icons, etc.)
+        that are used everywhere go into shared/elements/
+      - If there are many elements, organize them into subfolders by function
+        (e.g., shared/elements/buttons/, shared/elements/forms/, shared/elements/icons/, etc.)
+        If only a few elements exist, a flat shared/elements/ folder is fine.
       - Use naming conventions idiomatic to the framework (e.g., PascalCase for React, kebab-case for Vue, etc.)
       - Pages should become short and readable — they import and compose sections, sections compose components
+
+      Hierarchy:
+        shared/elements/  → smallest reusable UI atoms (used everywhere), grouped into subfolders by function if many (buttons/, forms/, icons/, labels/, etc.)
+        shared/components/ → components shared across multiple pages
+        shared/sections/   → sections shared across multiple pages
+        [page]/components/ → components specific to one page
+        [page]/sections/   → sections specific to one page
 
       Create two files in the project root directory (not inside {{path}}):
 
@@ -36,11 +53,15 @@ steps:
          - Sort by impact (most reused and largest sections first)
 
       2. TASKS.md — A task list derived from REFACTORING.md. Order tasks so dependencies are created first:
-         Phase 1 — Create shared components:
-         - [ ] 1. [HIGH] Create [component name] component in components/ — [purpose, used by which sections]
-         Phase 2 — Create sections:
-         - [ ] N. [HIGH] Create [section name] section in sections/ — [purpose, composed of which components, used by which pages]
-         Phase 3 — Refactor pages:
+         Phase 1 — Create shared elements (smallest universal UI atoms):
+         - [ ] 1. [HIGH] Create [element name] element in shared/elements/ — [purpose, used everywhere]
+         Phase 2 — Create shared components and sections (used across multiple pages):
+         - [ ] N. [HIGH] Create [component name] component in shared/components/ — [purpose, used by which pages]
+         - [ ] N. [HIGH] Create [section name] section in shared/sections/ — [purpose, used by which pages]
+         Phase 3 — Create page-specific components and sections:
+         - [ ] N. [HIGH] Create [component name] component in [page]/components/ — [purpose]
+         - [ ] N. [HIGH] Create [section name] section in [page]/sections/ — [purpose, composed of which components]
+         Phase 4 — Refactor pages:
          - [ ] N. [MEDIUM] Refactor [page name] page to compose sections instead of inline code
          Final:
          - [ ] N. Verify all pages render correctly — no visual regressions, no duplicated code
@@ -54,7 +75,9 @@ steps:
       - Zero duplicated UI code — if a section or component appears on multiple pages, it must be shared.
       - The final code must be clean, well-structured, and easily readable by a human developer.
       - Use clear, descriptive names following the framework's naming conventions.
-      - Folder names (sections/, components/) should follow the framework's idiomatic structure.
+      - Folder names (sections/, components/, elements/, shared/) should follow the framework's idiomatic structure.
+      - If a component or section is only used by one page, it belongs in that page's folder, not in shared/.
+      - Only truly shared parts go into shared/. Don't over-share — keep page-specific code with its page.
 
   - loop:
       max_iterations: 50
@@ -72,11 +95,14 @@ steps:
             Rules:
             - Detect the project framework and follow its conventions for file naming,
               folder structure, imports, and component creation.
-            - Create components in the components/ folder (or framework equivalent).
-            - Create sections in the sections/ folder (or framework equivalent).
+            - Organize code logically per page with a shared layer:
+              - Each page has its own folder with page-specific sections/ and components/
+              - Sections and components used across multiple pages go into shared/
+              - The smallest universal UI atoms (buttons, inputs, badges, icons) go into shared/elements/
+            - If a section or component is only used by one page, keep it in that page's folder.
+            - Only truly shared parts go into shared/ — don't over-share.
             - Refactor pages to be short — they only import and compose sections.
-            - Sections import and compose components.
-            - Components are the smallest reusable UI building blocks.
+            - Sections import and compose components. Components may use shared elements.
             - If a section or component is used on multiple pages, it must be a single shared file — no duplication.
             - The visual appearance of every page must remain exactly the same after refactoring.
             - Ensure all imports, routes, and navigation still work correctly after changes.
@@ -84,7 +110,7 @@ steps:
             - Do NOT add new features, pages, or functionality — only refactor existing code.
             - The result must contain zero duplicated UI code.
             - The result must be clean, well-structured, and easily readable by a human developer.
-            - Use clear, descriptive names for components, sections, props, variables, and files.
+            - Use clear, descriptive names for components, sections, elements, props, variables, and files.
 
             Implement only up to {{number}} tasks in this run, then stop.
             After completing each task, check it off in TASKS.md.
