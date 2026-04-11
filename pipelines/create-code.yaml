@@ -5,7 +5,7 @@ variables:
 
 steps:
   - loop:
-      max_iterations: 20
+      max_iterations: 50
       condition:
         not_contains: "All tasks are done"
       steps:
@@ -25,7 +25,7 @@ steps:
       Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
 
   - loop:
-      max_iterations: 20
+      max_iterations: 50
       condition:
         not_contains: "All tasks are done"
       steps:
