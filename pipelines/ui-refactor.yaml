@@ -1,0 +1,80 @@
+variables:
+  number: "10"
+  path: "this"
+
+steps:
+  - name: "analyze-ui-duplicates"
+    agent: "kiro"
+    prompt: |
+      Analyze the entire UI codebase in the {{path}} project directory.
+      Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
+      and examine all UI-related files — pages, components, layouts, sections, widgets.
+
+      Look for:
+      - Duplicated UI components or near-identical components with minor differences
+      - Repeated layout patterns and sections across multiple pages
+      - Copy-pasted markup, styles, or widget trees
+      - Similar styling blocks that could be unified
+      - Repeated navigation, header, footer, or sidebar patterns
+      - Any UI code that appears in more than one place
+
+      Create two files in the project root directory (not inside {{path}}):
+
+      1. REFACTORING.md — A detailed analysis document containing:
+         - Overview of the current UI structure (pages, components, layouts)
+         - List of all identified duplications with file paths and line references
+         - For each duplication: what is duplicated, where it appears, and how often
+         - Proposed refactoring plan: which shared components and sections to create
+         - For each proposed component: name, purpose, which pages will use it, and what props/parameters it needs
+         - The goal is zero duplicated UI code — every repeated pattern becomes a reusable component
+         - Sort proposals by impact (most duplicated patterns first)
+
+      2. TASKS.md — A task list derived from REFACTORING.md. Use this format:
+         - [ ] 1. [HIGH] Create shared [component name] component — [what it replaces and where]
+         - [ ] 2. [HIGH] Refactor [page/file] to use [component name] instead of inline code
+         - [ ] 3. [MEDIUM] Extract [section name] section into reusable component
+         Order tasks so that shared components are created first, then pages are refactored to use them.
+         Each task must be a single, actionable change that can be completed independently.
+         Include a final task:
+         - [ ] N. Verify all pages render correctly after refactoring — no visual regressions
+
+      Important:
+      - The refactoring must NOT change the visual appearance of any page.
+      - Only structural changes — extracting components and replacing duplicates.
+      - Follow the conventions of the detected framework for component creation.
+      - The final code must contain zero duplicated UI code.
+      - The final code must be clean, well-structured, and easily readable by a human developer.
+      - Use clear, descriptive names for components, props, and files.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "refactor-ui"
+          agent: "claude"
+          prompt: |
+            Read REFACTORING.md and TASKS.md from the project root directory (not inside {{path}}).
+
+            Your job is to refactor the UI code in the {{path}} project to eliminate all duplicated code
+            by extracting shared components and reusable sections.
+
+            Rules:
+            - Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
+              and follow its conventions for creating and organizing components.
+            - The visual appearance of every page must remain exactly the same after refactoring.
+            - Extract duplicated UI patterns into shared, reusable components with proper props/parameters.
+            - Replace all instances of duplicated code with the new shared components.
+            - Ensure all imports, routes, and navigation still work correctly after changes.
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Do NOT add new features, pages, or functionality — only refactor existing code.
+            - The result must contain zero duplicated UI code.
+            - The result must be clean, well-structured, and easily readable by a human developer.
+            - Use clear, descriptive names for components, props, variables, and files.
+
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each task, check it off in TASKS.md.
+            After every major change, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
