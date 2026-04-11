@@ -3,48 +3,58 @@ variables:
   path: "this"
 
 steps:
-  - name: "analyze-ui-duplicates"
+  - name: "analyze-ui-structure"
     agent: "kiro"
     prompt: |
       Analyze the entire UI codebase in the {{path}} project directory.
       Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
       and examine all UI-related files — pages, components, layouts, sections, widgets.
 
-      Look for:
-      - Duplicated UI components or near-identical components with minor differences
-      - Repeated layout patterns and sections across multiple pages
-      - Copy-pasted markup, styles, or widget trees
-      - Similar styling blocks that could be unified
-      - Repeated navigation, header, footer, or sidebar patterns
-      - Any UI code that appears in more than one place
+      Your goal is to decompose every page into a clear hierarchy:
+        Page → Sections → Components
+
+      For each page:
+      - Identify all distinct visual sections (hero, features, pricing, footer, etc.)
+      - For each section, identify reusable UI components (buttons, cards, forms, navigation items, etc.)
+      - Identify components and sections that appear on multiple pages — these must be shared, not duplicated
+
+      Propose a folder structure following the conventions of the detected framework:
+      - Sections go into a sections/ (or equivalent) folder
+      - Components go into a components/ (or equivalent) folder
+      - Use naming conventions idiomatic to the framework (e.g., PascalCase for React, kebab-case for Vue, etc.)
+      - Pages should become short and readable — they import and compose sections, sections compose components
 
       Create two files in the project root directory (not inside {{path}}):
 
       1. REFACTORING.md — A detailed analysis document containing:
-         - Overview of the current UI structure (pages, components, layouts)
-         - List of all identified duplications with file paths and line references
-         - For each duplication: what is duplicated, where it appears, and how often
-         - Proposed refactoring plan: which shared components and sections to create
-         - For each proposed component: name, purpose, which pages will use it, and what props/parameters it needs
-         - The goal is zero duplicated UI code — every repeated pattern becomes a reusable component
-         - Sort proposals by impact (most duplicated patterns first)
+         - Overview of the current UI structure and detected framework
+         - For each page: list of sections it should be split into
+         - For each section: list of components it should contain
+         - Which sections and components are shared across multiple pages
+         - Proposed folder structure with file paths for every new section and component
+         - For each proposed section/component: name, purpose, which pages use it, and what props/parameters it needs
+         - Sort by impact (most reused and largest sections first)
 
-      2. TASKS.md — A task list derived from REFACTORING.md. Use this format:
-         - [ ] 1. [HIGH] Create shared [component name] component — [what it replaces and where]
-         - [ ] 2. [HIGH] Refactor [page/file] to use [component name] instead of inline code
-         - [ ] 3. [MEDIUM] Extract [section name] section into reusable component
-         Order tasks so that shared components are created first, then pages are refactored to use them.
-         Each task must be a single, actionable change that can be completed independently.
-         Include a final task:
-         - [ ] N. Verify all pages render correctly after refactoring — no visual regressions
+      2. TASKS.md — A task list derived from REFACTORING.md. Order tasks so dependencies are created first:
+         Phase 1 — Create shared components:
+         - [ ] 1. [HIGH] Create [component name] component in components/ — [purpose, used by which sections]
+         Phase 2 — Create sections:
+         - [ ] N. [HIGH] Create [section name] section in sections/ — [purpose, composed of which components, used by which pages]
+         Phase 3 — Refactor pages:
+         - [ ] N. [MEDIUM] Refactor [page name] page to compose sections instead of inline code
+         Final:
+         - [ ] N. Verify all pages render correctly — no visual regressions, no duplicated code
+
+         Each task must be a single, actionable change.
 
       Important:
       - The refactoring must NOT change the visual appearance of any page.
-      - Only structural changes — extracting components and replacing duplicates.
-      - Follow the conventions of the detected framework for component creation.
-      - The final code must contain zero duplicated UI code.
+      - Pages must become short — they only import and compose sections.
+      - Sections compose components. Components are the smallest reusable UI building blocks.
+      - Zero duplicated UI code — if a section or component appears on multiple pages, it must be shared.
       - The final code must be clean, well-structured, and easily readable by a human developer.
-      - Use clear, descriptive names for components, props, and files.
+      - Use clear, descriptive names following the framework's naming conventions.
+      - Folder names (sections/, components/) should follow the framework's idiomatic structure.
 
   - loop:
       max_iterations: 50
@@ -56,21 +66,25 @@ steps:
           prompt: |
             Read REFACTORING.md and TASKS.md from the project root directory (not inside {{path}}).
 
-            Your job is to refactor the UI code in the {{path}} project to eliminate all duplicated code
-            by extracting shared components and reusable sections.
+            Your job is to refactor the UI code in the {{path}} project by decomposing pages
+            into sections and components, eliminating all duplicated code.
 
             Rules:
-            - Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
-              and follow its conventions for creating and organizing components.
+            - Detect the project framework and follow its conventions for file naming,
+              folder structure, imports, and component creation.
+            - Create components in the components/ folder (or framework equivalent).
+            - Create sections in the sections/ folder (or framework equivalent).
+            - Refactor pages to be short — they only import and compose sections.
+            - Sections import and compose components.
+            - Components are the smallest reusable UI building blocks.
+            - If a section or component is used on multiple pages, it must be a single shared file — no duplication.
             - The visual appearance of every page must remain exactly the same after refactoring.
-            - Extract duplicated UI patterns into shared, reusable components with proper props/parameters.
-            - Replace all instances of duplicated code with the new shared components.
             - Ensure all imports, routes, and navigation still work correctly after changes.
             - Follow the project's existing code style, linting rules, and conventions.
             - Do NOT add new features, pages, or functionality — only refactor existing code.
             - The result must contain zero duplicated UI code.
             - The result must be clean, well-structured, and easily readable by a human developer.
-            - Use clear, descriptive names for components, props, variables, and files.
+            - Use clear, descriptive names for components, sections, props, variables, and files.
 
             Implement only up to {{number}} tasks in this run, then stop.
             After completing each task, check it off in TASKS.md.
