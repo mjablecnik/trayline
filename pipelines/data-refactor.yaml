@@ -1,0 +1,112 @@
+variables:
+  number: "10"
+  path: "this"
+
+steps:
+  - name: "analyze-data"
+    agent: "kiro"
+    prompt: |
+      Analyze the entire codebase in the {{path}} project directory.
+      Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
+      and examine all files containing user-facing text — pages, components, layouts, widgets, services.
+
+      Your goal is to identify every hardcoded string in the project and classify it into two categories:
+
+      1. Static UI strings — text that lives directly in the application code:
+         - Labels, titles, headings, descriptions, placeholders, button text
+         - Error messages, validation messages, tooltips, hints
+         - Navigation items, menu labels, footer text
+         - Any other user-visible text hardcoded in templates or components
+         These must be extracted into i18n translation files and replaced with translation keys.
+
+      2. API/data strings — text that comes from or should come from an API or data source:
+         - Mock data currently hardcoded (product names, user names, prices, dates, etc.)
+         - Content that would typically be fetched from a backend (blog posts, listings, descriptions)
+         - Dynamic data that is currently hardcoded but should be served by a repository/data layer
+         These must be extracted into repository files that return the data (mocked for now).
+
+      Propose an i18n setup appropriate for the detected framework:
+      - Choose the idiomatic i18n library for the framework (e.g., react-i18next, svelte-i18n, vue-i18n, flutter_localizations, next-intl, etc.)
+      - Define the translation file structure (e.g., locales/en.json, locales/cs.json)
+      - Define at least two languages: English (en) as default and Czech (cs) as secondary
+      - Propose a consistent key naming convention (e.g., page.section.element)
+
+      Propose a repository/data layer for API data:
+      - Create repository files that return mocked data (following the project's patterns)
+      - Repository files should be easy to replace with real API calls later
+      - Group repositories by domain (e.g., productRepository, userRepository)
+
+      Create two files in the project root directory (not inside {{path}}):
+
+      1. DATA_SPEC.md — A detailed specification document containing:
+         - Overview of the current state (how many hardcoded strings, which files)
+         - Detected framework and chosen i18n library with setup instructions
+         - Translation file structure and key naming convention
+         - For each file: list of hardcoded strings found, their classification (UI vs API data),
+           and the proposed translation key or repository method
+         - Repository layer design: which repositories to create, what data they return
+         - Language switching mechanism (how the user will switch between en/cs)
+         - Sort by file, then by string location within the file
+
+      2. TASKS.md — A task list derived from DATA_SPEC.md. Order tasks so dependencies are created first:
+         Phase 1 — Setup i18n infrastructure:
+         - [ ] 1. [HIGH] Install and configure i18n library for the project
+         - [ ] 2. [HIGH] Create translation file structure (locales/en.json, locales/cs.json)
+         - [ ] 3. [HIGH] Set up i18n provider/initialization in the app entry point
+         Phase 2 — Create repository/data layer:
+         - [ ] N. [HIGH] Create [repository name] repository with mocked data — [what data it provides]
+         Phase 3 — Extract static UI strings to i18n:
+         - [ ] N. [MEDIUM] Extract hardcoded strings from [file name] to translation keys — [count] strings
+         Phase 4 — Replace API data with repository calls:
+         - [ ] N. [MEDIUM] Replace hardcoded data in [file name] with [repository name] repository calls
+         Phase 5 — Language switching:
+         - [ ] N. [MEDIUM] Add language switcher component (en/cs toggle)
+         Final:
+         - [ ] N. [LOW] Verify all strings are translated, no hardcoded text remains, language switching works
+
+         Each task must be a single, actionable change.
+
+      Important:
+      - Do NOT change the visual appearance or functionality of any page.
+      - Every user-visible string must be either in a translation file or served by a repository.
+      - Zero hardcoded user-facing text should remain in components after refactoring.
+      - Repository files must be simple, clean, and easy to replace with real API calls later.
+      - Translation keys must be consistent, descriptive, and follow a clear naming convention.
+      - Both en and cs translations must be complete — no missing keys in either language.
+      - The language switcher must work and persist the user's choice.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "implement-data-refactor"
+          agent: "claude"
+          prompt: |
+            Read DATA_SPEC.md and TASKS.md from the project root directory (not inside {{path}}).
+
+            Your job is to implement i18n and the repository data layer in the {{path}} project,
+            replacing all hardcoded strings with proper translation keys or repository calls.
+
+            Rules:
+            - Detect the project framework and follow its conventions for i18n setup,
+              file naming, imports, and component patterns.
+            - Use the i18n library and setup described in DATA_SPEC.md.
+            - Static UI strings go into translation files (locales/en.json, locales/cs.json).
+            - API/data strings go into repository files that return mocked data.
+            - Follow the key naming convention defined in DATA_SPEC.md.
+            - Both en and cs translations must be complete for every extracted string.
+            - Repository files must be clean, typed (if the project uses TypeScript/Dart), and easy
+              to replace with real API calls later.
+            - The visual appearance and functionality of every page must remain exactly the same.
+            - Ensure all imports, routes, and navigation still work correctly after changes.
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Do NOT add new features, pages, or functionality — only extract strings and data.
+            - The result must contain zero hardcoded user-facing text in components.
+
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each task, check it off in TASKS.md.
+            After every major change, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
