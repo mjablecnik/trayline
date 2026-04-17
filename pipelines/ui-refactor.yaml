@@ -13,6 +13,18 @@ steps:
       Your goal is to decompose every page into a clear hierarchy:
         Page → Sections → Components
 
+      Additionally, extract a shared theme/design token layer:
+      - Identify all colors, fonts, font sizes, font weights, spacing values, border radii,
+        shadows, breakpoints, and other recurring visual constants used across the project.
+      - Propose a centralized theme file (e.g., theme.ts, theme.dart, variables.css, tailwind.config.ts,
+        or whatever is idiomatic for the detected framework) that defines all design tokens as variables.
+      - All components, sections, and elements must reference these theme variables instead of
+        hardcoding color hex codes, font names, pixel sizes, etc.
+      - The theme must be structured so that changing a single variable (e.g., primary color, heading font)
+        updates the entire application consistently.
+      - If the framework supports theming natively (e.g., Flutter ThemeData, CSS custom properties,
+        Tailwind config, MUI theme), use that mechanism.
+
       For each page:
       - Identify all distinct visual sections (hero, features, pricing, footer, etc.)
       - For each section, identify reusable UI components (buttons, cards, forms, navigation items, etc.)
@@ -45,6 +57,12 @@ steps:
 
       1. REFACTORING.md — A detailed analysis document containing:
          - Overview of the current UI structure and detected framework
+         - Theme/design token analysis:
+           - All colors found in the codebase (hex values, named colors) and proposed token names
+           - All fonts, font sizes, font weights, and line heights with proposed token names
+           - Spacing values, border radii, shadows, and other recurring visual constants
+           - Proposed theme file location and structure (idiomatic for the framework)
+           - How components should reference theme tokens (imports, CSS variables, theme context, etc.)
          - For each page: list of sections it should be split into
          - For each section: list of components it should contain
          - Which sections and components are shared across multiple pages
@@ -53,6 +71,11 @@ steps:
          - Sort by impact (most reused and largest sections first)
 
       2. TASKS.md — A task list derived from REFACTORING.md. Order tasks so dependencies are created first:
+         Phase 0 — Create theme/design tokens:
+         - [ ] 1. [HIGH] Create centralized theme file with all design tokens (colors, fonts, spacing, shadows, radii, breakpoints)
+         - [ ] 2. [HIGH] Replace all hardcoded color values across the codebase with theme tokens
+         - [ ] 3. [HIGH] Replace all hardcoded font families, sizes, and weights with theme tokens
+         - [ ] 4. [MEDIUM] Replace all hardcoded spacing, border-radius, and shadow values with theme tokens
          Phase 1 — Create shared elements (smallest universal UI atoms):
          - [ ] 1. [HIGH] Create [element name] element in shared/elements/ — [purpose, used everywhere]
          Phase 2 — Create shared components and sections (used across multiple pages):
@@ -70,6 +93,9 @@ steps:
 
       Important:
       - The refactoring must NOT change the visual appearance of any page.
+      - All visual constants (colors, fonts, spacing, shadows, radii) must be defined in the theme file.
+      - Zero hardcoded visual values in components — everything references theme tokens.
+      - The theme must be structured so changing one token updates the entire app consistently.
       - Pages must become short — they only import and compose sections.
       - Sections compose components. Components are the smallest reusable UI building blocks.
       - Zero duplicated UI code — if a section or component appears on multiple pages, it must be shared.
@@ -95,6 +121,11 @@ steps:
             Rules:
             - Detect the project framework and follow its conventions for file naming,
               folder structure, imports, and component creation.
+            - Use the centralized theme/design tokens for all visual values:
+              - Never hardcode color hex codes, font names, pixel sizes, shadows, or radii in components.
+              - Always reference theme variables/tokens defined in the theme file.
+              - If a new visual value is needed, add it to the theme file first, then reference it.
+              - The theme must be the single source of truth for all visual constants.
             - Organize code logically per page with a shared layer:
               - Each page has its own folder with page-specific sections/ and components/
               - Sections and components used across multiple pages go into shared/
