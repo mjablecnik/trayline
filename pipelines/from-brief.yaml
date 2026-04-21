@@ -1,0 +1,53 @@
+variables:
+  number: "10"
+  brief: "BRIEF.md"
+  path: "this"
+
+steps:
+  - name: "create-spec-from-brief"
+    agent: "kiro"
+    prompt: |
+      Read the file {{brief}} in the project root directory.
+      This file contains a short project brief — a high-level description of what needs to be built.
+
+      Analyze the brief carefully and create two files in the project root directory (not inside {{path}}):
+
+      1. SPEC.md — A concise but complete specification document:
+         - Project overview and goals (derived from the brief)
+         - Technical approach and architecture decisions
+         - Key components and their responsibilities
+         - File structure proposal (follow the project's existing conventions if any code exists)
+         - Important constraints, edge cases, or considerations
+         Keep it focused and actionable — no fluff, just what a developer needs to implement it.
+
+      2. TASKS.md — A task list derived from SPEC.md. Use this format:
+         - [ ] 1. [HIGH] Short actionable description of what to implement
+         - [ ] 2. [HIGH] Short actionable description of what to implement
+         - [ ] 3. [MEDIUM] Short actionable description of what to implement
+         Order tasks so dependencies come first (setup, core logic, then features, then polish).
+         Each task must be a single, independently completable unit of work.
+         Be granular — one task per function, component, or logical unit.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "implement-tasks"
+          agent: "claude"
+          prompt: |
+            Read SPEC.md and TASKS.md from the project root directory (not inside {{path}}).
+
+            Your job is to implement the tasks described in TASKS.md, following the specification in SPEC.md.
+            Work in the {{path}} project directory.
+
+            Rules:
+            - Implement only up to {{number}} unchecked tasks in this run, then stop.
+            - Follow the specification exactly.
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Make sure the code compiles and tests pass after each change.
+            - Check off each completed task in TASKS.md as you finish it.
+            - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
