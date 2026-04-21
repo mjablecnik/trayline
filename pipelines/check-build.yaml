@@ -1,0 +1,43 @@
+variables:
+  path: "this"
+
+steps:
+  - name: "check-build"
+    agent: "claude"
+    prompt: |
+      Analyze the project in {{path}} folder and determine what kind of project it is
+      (language, framework, build system, package manager, etc.).
+
+      Your goal is to make the project build and run cleanly from a fresh checkout.
+      A developer coming to this project for the first time must be able to build and run it
+      without issues by following the README or standard conventions.
+
+      Follow these steps in order:
+
+      1. Detect the project type and its build/run toolchain.
+      2. Install dependencies if needed.
+      3. Run the build command. If it fails, fix the errors and rebuild until it succeeds.
+      4. Run the linter if one is configured. Fix all errors and simple warnings/info issues.
+         If a warning or info would require a large refactor or is purely cosmetic, leave it.
+      5. Run tests if they exist. Fix any broken tests caused by your changes.
+      6. Try to run/start the application and verify it starts without errors.
+         For servers, verify it starts and responds. For CLI tools, verify --help or a basic command works.
+         Stop the application after verification.
+      7. Check the README and any setup documentation:
+         - If build/run instructions are missing, outdated, or incorrect, fix them.
+         - If environment setup steps are missing (e.g., .env.example, required tools), add them.
+         - Only update documentation related to building, running, and setting up the project.
+
+      Rules:
+      - Fix all build errors — the build must succeed.
+      - Fix all linter errors — errors must be resolved no matter what.
+      - Fix warnings and info issues only if the fix is small (1-2 lines changed).
+        If fixing a warning would require switching libraries, rewriting large sections of code,
+        or changing the project architecture, leave it alone.
+      - Do not add new features or change functionality.
+      - Do not refactor code beyond what is needed to fix build/lint issues.
+      - Preserve existing behavior — only fix what is broken or produces errors.
+      - After every meaningful fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+      When you are done, print a summary of what you fixed.
+    verbose: true
