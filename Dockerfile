@@ -22,6 +22,15 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
+# Python + uv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3 /usr/bin/python
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && cp /root/.local/bin/uv /usr/local/bin/ \
+    && cp /root/.local/bin/uvx /usr/local/bin/
+
 # Flutter
 ARG FLUTTER_VERSION=3.27.4
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
@@ -40,7 +49,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Docker CLI (for controlling host Docker)
-RUN install -m 0755 -d /etc/apt/keyrings \
+# Clean stale lists/keys from prior layers to avoid GPG signature errors
+RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
+    && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
     > /etc/apt/sources.list.d/docker.list \
