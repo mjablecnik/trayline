@@ -32,7 +32,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && cp /root/.local/bin/uvx /usr/local/bin/
 
 # Flutter
-ARG FLUTTER_VERSION=3.27.4
+ARG FLUTTER_VERSION=3.38.5
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 RUN flutter precache && flutter config --no-analytics && dart --disable-analytics

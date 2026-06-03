@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-REMOTE="martin@sandbox"
+REMOTE="martin@192.168.31.65"
 REMOTE_BASE="/home/martin/Projects"
 EXCLUDE_FROM="${HOME}/.trayline/.rsyncignore"
 DIR_NAME="${PWD##*/}"
