@@ -12,15 +12,25 @@ steps:
       Analyze all design files thoroughly — understand the purpose, layout, content,
       navigation, visual structure, fonts, colors, images, videos, and every detail of each page.
 
+      RESPONSIVE DESIGN DETECTION:
+      If you find two design files that represent the same page but for different screen sizes
+      (e.g. "home-mobile" and "home-desktop", or files with "mobile"/"desktop" suffixes or
+      similar naming patterns), treat them as a SINGLE responsive page. Do NOT create
+      separate pages for mobile and desktop variants of the same design.
+
       Create two files in the project root directory (not inside {{path}}):
 
       1. PAGES.md — A summary document describing each page:
-         - Page name (derived from the file name)
+         - Page name (derived from the file name, merged if mobile+desktop variants exist)
          - Purpose and what the page is for
          - Key sections and content blocks
          - Navigation links to other pages
          - Notable visual elements (images, videos, icons, animations)
          - Color scheme, typography, and layout notes
+         - If the page has both mobile and desktop designs, describe BOTH layouts clearly:
+           - Desktop layout: [describe columns, spacing, element sizes, arrangement]
+           - Mobile layout: [describe stacking, hidden elements, changed sizes, arrangement]
+           - Breakpoint behavior: [describe how elements transition between layouts]
          List all pages with enough detail so another developer can understand
          the full scope of the website without looking at the design files.
 
@@ -28,7 +38,8 @@ steps:
          - [ ] 1. Create the [page name] page — [brief description of what the page contains]
          - [ ] 2. Create the [page name] page — [brief description of what the page contains]
          Order tasks logically (main/home page first, then secondary pages).
-         Each task must reference the corresponding design file in .design folder.
+         Each task must reference the corresponding design file(s) in .design folder.
+         If a page has mobile and desktop variants, reference BOTH files in one task.
          Include a final task:
          - [ ] N. Wire up navigation — ensure all pages link to each other correctly and all links work
 
@@ -36,6 +47,7 @@ steps:
       - Be extremely detailed about visual aspects — colors, spacing, fonts, sizes, layout.
       - Note every text, image, video, and interactive element visible in the design.
       - The goal is pixel-perfect reproduction, so capture every detail.
+      - For pages with mobile+desktop variants, document differences between the two layouts precisely.
 
   - loop:
       max_iterations: 50
@@ -61,6 +73,14 @@ steps:
             - All navigation links between pages must work. Pages must be interconnected.
             - Follow the project's existing code style, linting rules, and conventions.
             - Use responsive design patterns consistent with the project.
+            - RESPONSIVE PAGES: If a task references both mobile and desktop design files,
+              implement them as ONE page with responsive CSS/styling:
+              - Use CSS media queries (or the framework's responsive utilities) to switch layouts.
+              - Desktop layout should apply at >= 1024px (or a sensible breakpoint from the design).
+              - Mobile layout should apply below that breakpoint.
+              - Ensure the page looks exactly like the desktop design on large screens
+                and exactly like the mobile design on small screens.
+              - Do NOT create separate pages or routes for mobile and desktop.
 
             Implement only up to {{number}} tasks in this run, then stop.
             After completing each page, check off the task in TASKS.md.
