@@ -105,6 +105,18 @@ steps:
       - If a component or section is only used by one page, it belongs in that page's folder, not in shared/.
       - Only truly shared parts go into shared/. Don't over-share — keep page-specific code with its page.
 
+      STORYBOOK / COMPONENT CATALOG DETECTION:
+      - Check if the project uses Storybook, Ladle, Histoire, or any similar component catalog tool.
+        Look for config files like .storybook/, .ladle/, histoire.config.*, or related dependencies in package.json/pubspec.yaml.
+      - If a component catalog tool is detected:
+        - Document which tool is used and its configuration in REFACTORING.md.
+        - For every component and element created in Phase 1-3, add a task to create a corresponding story file.
+        - Stories must follow the conventions of the detected tool (e.g., ComponentName.stories.tsx for Storybook).
+        - Stories should be placed according to the tool's conventions (co-located with components or in a stories/ folder).
+        - Each story must showcase the component in its key states/variants (default, hover, disabled, with/without props, etc.)
+        - Group stories logically: shared/elements, shared/components, page-specific components.
+      - If NO component catalog tool is detected, skip story creation entirely — do not install one.
+
   - loop:
       max_iterations: 50
       condition:
@@ -142,6 +154,13 @@ steps:
             - The result must contain zero duplicated UI code.
             - The result must be clean, well-structured, and easily readable by a human developer.
             - Use clear, descriptive names for components, sections, elements, props, variables, and files.
+            - STORYBOOK / COMPONENT CATALOG:
+              - If REFACTORING.md mentions a component catalog tool (Storybook, Ladle, Histoire, etc.),
+                create story files for every component and element as specified in TASKS.md.
+              - Follow the detected tool's conventions for file naming and placement.
+              - Each story must render the component in its key visual states/variants.
+              - Stories must use the centralized theme — no hardcoded values.
+              - If no component catalog tool was detected, do NOT create any story files.
 
             Implement only up to {{number}} tasks in this run, then stop.
             After completing each task, check it off in TASKS.md.
