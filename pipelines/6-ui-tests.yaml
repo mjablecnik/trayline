@@ -1,0 +1,192 @@
+variables:
+  number: "10"
+  path: "this"
+  # When "false" (default): orphaned tests (tests for non-existent functionality) are deleted.
+  # When "true": instead of deleting orphaned tests, implement the missing functionality they reference.
+  implement_features: "false"
+
+steps:
+  - name: "analyze-tests"
+    agent: "kiro"
+    prompt: |
+      Analyze the {{path}} project directory to understand its UI structure, testing setup,
+      and current test coverage.
+
+      STEP 1 — DETECT TESTING TOOLS:
+      - Check if Playwright, Cypress, or a similar E2E testing framework is installed
+        (look in package.json, node_modules, playwright.config.*, cypress.config.*, etc.)
+      - Check if Storybook, Ladle, Histoire, or a similar component catalog is installed
+        (look for .storybook/, package.json dependencies, storybook config files)
+      - If NEITHER an E2E framework NOR a component catalog is found, create a file
+        called TEST-ABORT.md with the message: "No E2E testing framework (Playwright/Cypress)
+        and no component catalog (Storybook/Ladle/Histoire) detected. Install at least one
+        before running this pipeline." Then STOP — do not proceed further.
+      - If only one tool is found, proceed with just that tool's analysis.
+      - If both are found, proceed with both.
+
+      STEP 2 — ANALYZE UI STRUCTURE:
+      - Detect the project framework (React, Svelte, Vue, Next.js, Nuxt, SvelteKit, etc.)
+      - Map all pages/routes in the project
+      - Map all components, sections, and shared elements
+      - Identify which components have interactive states (hover, disabled, loading, error, empty)
+      - Identify all API calls / data fetching that pages and components perform
+      - Identify navigation structure (links between pages, menus)
+
+      STEP 3 — ANALYZE EXISTING TESTS:
+      - Find all existing test files (*.test.*, *.spec.*, *.stories.*)
+      - Run existing tests to check which pass and which fail
+      - Map which pages/components have test coverage and which don't
+      - Identify orphaned tests (tests for functionality/components that no longer exist)
+      - If TEST-REPORT.md exists from a previous run, read it for context
+
+      STEP 4 — CREATE ANALYSIS DOCUMENTS:
+      Create the following files in the project root directory (not inside {{path}}):
+
+      If a component catalog (Storybook/Ladle/Histoire) is detected, create:
+      COMPONENT-TESTS.md containing:
+        - Detected tool and its configuration
+        - List of components/sections that SHOULD have stories (components with multiple states)
+        - List of components that ALREADY have stories
+        - List of components with MISSING stories
+        - List of ORPHANED stories (stories for components that no longer exist)
+        - List of FAILING stories (if any interaction tests are configured)
+        - For each missing story: component name, path, states to cover (default, hover, disabled, loading, error, empty, etc.)
+
+      If an E2E framework (Playwright/Cypress) is detected, create:
+      E2E-TESTS.md containing:
+        - Detected framework and its configuration
+        - List of pages/routes that SHOULD have E2E tests
+        - List of pages that ALREADY have E2E tests
+        - List of pages with MISSING E2E tests
+        - List of ORPHANED E2E tests (tests for pages/routes that no longer exist)
+        - List of FAILING E2E tests
+        - API endpoints that need to be mocked (with example mock data for each)
+        - For each page needing tests: page name, route, key sections to assert,
+          navigation links to verify, responsive breakpoints to test
+        - Navigation test plan: which links should lead where
+        - Responsive test plan: which viewports to test (minimum: mobile 375px, desktop 1280px)
+
+      Create COMPONENT-TASKS.md with component-related tasks (only if component catalog detected):
+        Phase 0 — Cleanup:
+        - [ ] Remove orphaned stories (list each one)
+        Phase 1 — Fix failing tests:
+        - [ ] Fix [story name] — [what's wrong and how to fix]
+        Phase 2 — Create missing stories:
+        - [ ] Create story for [component] — states: [list states]
+
+        If everything is covered and all stories pass, COMPONENT-TASKS.md should contain only:
+        "All component tests are up to date. No changes needed."
+
+      Create E2E-TASKS.md with E2E-related tasks (only if E2E framework detected):
+        Phase 0 — Cleanup:
+        - [ ] Remove orphaned E2E tests (list each one)
+        Phase 1 — Fix failing tests:
+        - [ ] Fix [test name] — [what's wrong and how to fix]
+        Phase 2 — Create missing E2E tests:
+        - [ ] Create E2E test for [page] — assert: [key sections], mock: [API endpoints]
+        - [ ] Create navigation test — verify all inter-page links
+        - [ ] Create responsive test for [page] — viewports: mobile, desktop
+
+        If everything is covered and all E2E tests pass, E2E-TASKS.md should contain only:
+        "All E2E tests are up to date. No changes needed."
+
+      implement_features is set to "{{implement_features}}".
+      If it equals "true", add an additional phase to BOTH task files
+      (where applicable — only to the file that has orphaned tests):
+        Phase 3 — Implement missing features:
+        - [ ] Implement [feature] referenced by orphaned test [test name]
+        (Instead of deleting orphaned tests, implement the missing functionality)
+      If it equals "false", do NOT add Phase 3 — orphaned tests will be deleted in Phase 0.
+
+      Important:
+      - Be thorough — every page needs E2E coverage, every interactive component needs stories.
+      - For E2E tests, document exactly which API calls to mock and with what data.
+      - Mock data should be realistic but static — no random values.
+      - All tests must run headless without X11/Wayland.
+      - If everything is already covered and all tests pass, both task files should say
+        "All [component/E2E] tests are up to date. No changes needed."
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "generate-component-tests"
+          agent: "claude"
+          prompt: |
+            Read COMPONENT-TESTS.md and COMPONENT-TASKS.md from the project root directory (not inside {{path}}).
+
+            If COMPONENT-TESTS.md does not exist, skip this step entirely and say "No component test tasks. All tasks are done."
+            If COMPONENT-TASKS.md says "All component tests are up to date. No changes needed.",
+            say "All tasks are done."
+
+            Your job is to create, fix, or remove component stories/tests in {{path}}.
+
+            Rules:
+            - Follow the conventions of the detected component catalog tool (Storybook/Ladle/Histoire).
+            - Place story files co-located with their components (e.g., Button.stories.tsx next to Button.tsx).
+            - Each story must showcase the component in its key visual states as listed in COMPONENT-TESTS.md.
+            - Stories must be self-contained — no external API calls, no network requests.
+            - Use static mock data/props directly in stories.
+            - Use the component's actual props interface — do not hack around it.
+            - Group stories logically: one story file per component, multiple named exports for states.
+            - Name stories clearly: Default, Disabled, Loading, Error, Empty, WithLongText, etc.
+            - If removing orphaned stories, delete the file entirely.
+            - If fixing a failing story, identify the root cause and fix the story (not the component).
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Do NOT modify component source code — only create/fix/remove story files.
+
+            Only work on tasks listed in COMPONENT-TASKS.md.
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each task, check it off in COMPONENT-TASKS.md.
+            After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in COMPONENT-TASKS.md are now checked off, explicitly say "All tasks are done."
+
+        - name: "generate-e2e-tests"
+          agent: "claude"
+          prompt: |
+            Read E2E-TESTS.md and E2E-TASKS.md from the project root directory (not inside {{path}}).
+
+            If E2E-TESTS.md does not exist, skip this step entirely and say "No E2E tasks. All tasks are done."
+            If E2E-TASKS.md says "All E2E tests are up to date. No changes needed.",
+            say "All tasks are done."
+
+            Your job is to create, fix, or remove E2E tests for pages in {{path}}.
+
+            Rules:
+            - Follow the conventions of the detected E2E framework (Playwright/Cypress).
+            - Place test files in the standard test directory for the framework
+              (e.g., tests/, e2e/, cypress/e2e/).
+            - ALL API calls must be mocked — no real network requests to external servers.
+              Use Playwright's page.route() or Cypress intercept() to mock every API endpoint.
+              Mock data must be realistic and match the structure documented in E2E-TESTS.md.
+            - The dev server (Vite, Next, SvelteKit, etc.) is started automatically via
+              the framework's webServer config (playwright.config.ts) or equivalent.
+              Do NOT start servers manually in tests.
+            - For each page test, assert:
+              - Key sections are visible (use semantic selectors: roles, headings, test-ids)
+              - Content is rendered (headings, text blocks, images)
+              - Page-specific interactive elements work (menus open, modals trigger, etc.)
+            - Navigation tests: verify all inter-page links navigate to correct routes.
+            - Responsive tests: test at minimum two viewports (375px mobile, 1280px desktop).
+              Assert that layout changes appropriately (e.g., hamburger menu on mobile,
+              horizontal nav on desktop).
+            - Tests must run headless — no visual dependencies (X11, Wayland).
+            - Do NOT use screenshot comparison / visual regression — assert element presence and visibility.
+            - If removing orphaned tests, delete the file entirely.
+            - If fixing a failing test, identify the root cause and fix the test
+              (unless the component is genuinely broken — then note it in E2E-TASKS.md).
+            - Follow the project's existing code style, linting rules, and conventions.
+            - Do NOT modify page/component source code — only create/fix/remove test files.
+            - If implement_features is "{{implement_features}}" and it equals "true" and there are Phase 3 tasks,
+              implement the missing functionality instead of deleting orphaned tests.
+
+            Only work on tasks listed in E2E-TASKS.md.
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each task, check it off in E2E-TASKS.md.
+            After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in E2E-TASKS.md are now checked off, explicitly say "All tasks are done."
