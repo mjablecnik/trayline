@@ -1,5 +1,2 @@
-# Force LF line endings for all shell scripts and completions
-*.sh text eol=lf
-scripts/trayline-agent text eol=lf
-scripts/trayline text eol=lf
-completions/_trayline text eol=lf
+# Force LF line endings for all text files
+* text=auto eol=lf
