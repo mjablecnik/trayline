@@ -37,7 +37,7 @@ steps:
       - Run existing tests to check which pass and which fail
       - Map which pages/components have test coverage and which don't
       - Identify orphaned tests (tests for functionality/components that no longer exist)
-      - If TEST-REPORT.md exists from a previous run, read it for context
+      - If TEST-REPORT.md exists inside {{path}} from a previous run, read it for context
 
       STEP 4 — CREATE ANALYSIS DOCUMENTS:
       Create the following files in the project root directory (not inside {{path}}):
@@ -190,3 +190,65 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in E2E-TASKS.md are now checked off, explicitly say "All tasks are done."
+
+  - name: "summarize-tests"
+    agent: "kiro"
+    prompt: |
+      This is the final step of the UI test pipeline. Both test generation agents have finished.
+      Your job is to verify the final state and create a TEST-REPORT.md summary.
+
+      STEP 1 — RUN ALL TESTS:
+      - Run all component catalog tests (Storybook build/test, Ladle build, etc.) if applicable.
+      - Run all E2E tests (Playwright/Cypress) in headless mode if applicable.
+      - Record which tests pass and which fail.
+
+      STEP 2 — VERIFY COVERAGE:
+      - List all pages/routes in the {{path}} project.
+      - List all interactive components.
+      - Check which pages have E2E test coverage.
+      - Check which components have story/component test coverage.
+      - Identify any gaps (pages or components without tests).
+
+      STEP 3 — CREATE TEST-REPORT.md:
+      Create (or overwrite) TEST-REPORT.md inside the {{path}} project directory
+      with the following structure:
+
+      # Test Report
+      Created: [current date and time when this report is first generated]
+      Updated: [current date and time — always update this on every run]
+
+      ## Summary
+      - Total E2E tests: [count]
+      - Passing E2E tests: [count]
+      - Failing E2E tests: [count]
+      - Total component stories: [count]
+      - Passing component stories: [count]
+      - Failing component stories: [count]
+
+      ## E2E Test Coverage
+      | Page/Route | Test File | Status |
+      |---|---|---|
+      | /home | tests/home.spec.ts | ✅ Pass |
+      | /about | tests/about.spec.ts | ✅ Pass |
+      | ... | ... | ... |
+
+      ## Component Test Coverage
+      | Component | Story File | States Covered | Status |
+      |---|---|---|---|
+      | Button | Button.stories.tsx | Default, Disabled, Loading | ✅ Pass |
+      | Card | Card.stories.tsx | Default, WithImage, Empty | ✅ Pass |
+      | ... | ... | ... | ... |
+
+      ## Uncovered (no tests)
+      - [List any pages or components that still lack test coverage, if any]
+
+      ## Notes
+      - [Any issues encountered, warnings, or recommendations for future runs]
+
+      STEP 4 — CLEANUP:
+      - Delete COMPONENT-TESTS.md, COMPONENT-TASKS.md, E2E-TESTS.md, E2E-TASKS.md
+        from the project root (these are working documents, not needed after completion).
+      - Do NOT delete TEST-REPORT.md — it persists for the next pipeline run.
+
+      After creating TEST-REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update TEST-REPORT.md".
