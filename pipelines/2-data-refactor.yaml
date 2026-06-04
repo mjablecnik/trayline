@@ -10,7 +10,7 @@ steps:
       Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
       and examine all files containing user-facing text — pages, components, layouts, widgets, services.
 
-      If AI-LOG.md exists inside {{path}}, read it to understand what changed since the last
+      If AI_LOG.md exists inside {{path}}/.agents/, read it to understand what changed since the last
       data-refactor run (new components from ui-refactor, new pages from design-to-code, etc.).
       Focus on finding hardcoded strings in new or changed files rather than re-scanning
       already refactored code.
@@ -41,7 +41,9 @@ steps:
       - Repository files should be easy to replace with real API calls later
       - Group repositories by domain (e.g., productRepository, userRepository)
 
-      Create two files in the project root directory (not inside {{path}}):
+      Create two files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
+      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       1. DATA_SPEC.md — A detailed specification document containing:
          - Overview of the current state (how many hardcoded strings, which files)
@@ -88,7 +90,7 @@ steps:
         - name: "implement-data-refactor"
           agent: "claude"
           prompt: |
-            Read DATA_SPEC.md and TASKS.md from the project root directory (not inside {{path}}).
+            Read DATA_SPEC.md and TASKS.md from {{path}}/.agents/tmp/.
 
             Your job is to implement i18n and the repository data layer in the {{path}} project,
             replacing all hardcoded strings with proper translation keys or repository calls.
@@ -110,19 +112,20 @@ steps:
             - The result must contain zero hardcoded user-facing text in components.
 
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in TASKS.md.
+            After completing each task, check it off in {{path}}/.agents/tmp/TASKS.md.
             After every major change, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in {{path}}/.agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI-LOG.md inside the {{path}} project directory.
-      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+      Ensure the {{path}}/.agents/ directory exists.
 
-      Read TASKS.md and DATA_SPEC.md from the project root to understand what was done.
+      Read TASKS.md and DATA_SPEC.md from {{path}}/.agents/tmp/ to understand what was done.
       Also check the git log for commits made during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
@@ -139,8 +142,7 @@ steps:
       - Use past tense (Extracted, Created, Configured, Replaced).
 
       CLEANUP:
-      After updating AI-LOG.md, delete the following temporary files from the project root
-      (if they exist): TASKS.md, DATA_SPEC.md
+      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI-LOG.md".
+      and message "chore: update AI_LOG.md".

@@ -14,7 +14,7 @@ steps:
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
 
-            MEMORY: If MEMORY.md exists inside {{path}}, read it first. It contains known problems
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first. It contains known problems
             and their solutions from previous runs. Follow its guidance to avoid repeating mistakes.
 
             Follow the tasks exactly and check off each task as you complete it.
@@ -22,7 +22,7 @@ steps:
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
-            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}.
+            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}/.agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-code, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
@@ -35,8 +35,8 @@ steps:
     prompt: |
       Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
 
-      MEMORY: If MEMORY.md exists inside {{path}}, read it first for known build issues and solutions.
-      If you encounter and fix a new build problem, add it to MEMORY.md inside {{path}}.
+      MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known build issues and solutions.
+      If you encounter and fix a new build problem, add it to MEMORY.md inside {{path}}/.agents/.
       Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
 
   - loop:
@@ -49,7 +49,7 @@ steps:
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create all optional tests that haven't been created yet.
 
-            MEMORY: If MEMORY.md exists inside {{path}}, read it first for known issues and solutions.
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known issues and solutions.
 
             Rules:
             - Follow the tasks exactly and check off each task as you complete it.
@@ -64,7 +64,7 @@ steps:
             - Implement only up to {{number}} test tasks in this run, then stop.
             - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
-            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside {{path}}.
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside {{path}}/.agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
 
             When you are done, print a summary of which tasks you completed. If all test tasks
@@ -77,13 +77,14 @@ steps:
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI-LOG.md inside the {{path}} project directory.
-      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+      Ensure the {{path}}/.agents/ directory exists.
 
       Read the spec files in .kiro/specs/{{specs-name}} and check the git log for commits
       made during this pipeline run to understand what was implemented.
-      NOTE: Do NOT read TASKS.md — it was overwritten by the code-review step and no longer
-      reflects the original implementation tasks. Rely on git log and spec files instead.
+      NOTE: Do NOT read TASKS.md from .agents/tmp/ — it was overwritten by the code-review step
+      and no longer reflects the original implementation tasks. Rely on git log and spec files instead.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
 
@@ -100,8 +101,7 @@ steps:
       - Use past tense (Implemented, Created, Added, Configured, Fixed).
 
       CLEANUP:
-      After updating AI-LOG.md, delete the following temporary files from the project root
-      (if they exist): TASKS.md, CODE_REVIEW.md
+      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI-LOG.md".
+      and message "chore: update AI_LOG.md".

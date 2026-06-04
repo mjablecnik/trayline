@@ -18,9 +18,9 @@ steps:
       - Check if Storybook, Ladle, Histoire, or a similar component catalog is installed
         (look for .storybook/, package.json dependencies, storybook config files)
       - If NEITHER an E2E framework NOR a component catalog is found, create a file
-        called TEST-ABORT.md with the message: "No E2E testing framework (Playwright/Cypress)
-        and no component catalog (Storybook/Ladle/Histoire) detected. Install at least one
-        before running this pipeline." Then STOP — do not proceed further.
+        called TEST_ABORT.md in {{path}}/.agents/tmp/ with the message: "No E2E testing framework
+        (Playwright/Cypress) and no component catalog (Storybook/Ladle/Histoire) detected.
+        Install at least one before running this pipeline." Then STOP — do not proceed further.
       - If only one tool is found, proceed with just that tool's analysis.
       - If both are found, proceed with both.
 
@@ -37,16 +37,18 @@ steps:
       - Run existing tests to check which pass and which fail
       - Map which pages/components have test coverage and which don't
       - Identify orphaned tests (tests for functionality/components that no longer exist)
-      - If TEST-REPORT.md exists inside {{path}} from a previous run, read it for context
-      - If AI-LOG.md exists inside {{path}}, read it to understand what changed since the last
+      - If TEST_REPORT.md exists inside {{path}}/.agents/ from a previous run, read it for context
+      - If AI_LOG.md exists inside {{path}}/.agents/, read it to understand what changed since the last
         test pipeline run (new pages, new components, refactoring, etc.). Use this to focus
         analysis on what's new or changed rather than rescanning everything from scratch.
 
       STEP 4 — CREATE ANALYSIS DOCUMENTS:
-      Create the following files in the project root directory (not inside {{path}}):
+      Create the following files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
+      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       If a component catalog (Storybook/Ladle/Histoire) is detected, create:
-      COMPONENT-TESTS.md containing:
+      COMPONENT_TESTS.md containing:
         - Detected tool and its configuration
         - List of components/sections that SHOULD have stories (components with multiple states)
         - List of components that ALREADY have stories
@@ -56,7 +58,7 @@ steps:
         - For each missing story: component name, path, states to cover (default, hover, disabled, loading, error, empty, etc.)
 
       If an E2E framework (Playwright/Cypress) is detected, create:
-      E2E-TESTS.md containing:
+      E2E_TESTS.md containing:
         - Detected framework and its configuration
         - List of pages/routes that SHOULD have E2E tests
         - List of pages that ALREADY have E2E tests
@@ -69,7 +71,7 @@ steps:
         - Navigation test plan: which links should lead where
         - Responsive test plan: which viewports to test (minimum: mobile 375px, desktop 1280px)
 
-      Create COMPONENT-TASKS.md with component-related tasks (only if component catalog detected):
+      Create COMPONENT_TASKS.md with component-related tasks (only if component catalog detected):
         Phase 0 — Cleanup:
         - [ ] Remove orphaned stories (list each one)
         Phase 1 — Fix failing tests:
@@ -77,10 +79,10 @@ steps:
         Phase 2 — Create missing stories:
         - [ ] Create story for [component] — states: [list states]
 
-        If everything is covered and all stories pass, COMPONENT-TASKS.md should contain only:
+        If everything is covered and all stories pass, COMPONENT_TASKS.md should contain only:
         "All component tests are up to date. No changes needed."
 
-      Create E2E-TASKS.md with E2E-related tasks (only if E2E framework detected):
+      Create E2E_TASKS.md with E2E-related tasks (only if E2E framework detected):
         Phase 0 — Cleanup:
         - [ ] Remove orphaned E2E tests (list each one)
         Phase 1 — Fix failing tests:
@@ -90,7 +92,7 @@ steps:
         - [ ] Create navigation test — verify all inter-page links
         - [ ] Create responsive test for [page] — viewports: mobile, desktop
 
-        If everything is covered and all E2E tests pass, E2E-TASKS.md should contain only:
+        If everything is covered and all E2E tests pass, E2E_TASKS.md should contain only:
         "All E2E tests are up to date. No changes needed."
 
       implement_features is set to "{{implement_features}}".
@@ -117,10 +119,10 @@ steps:
         - name: "generate-component-tests"
           agent: "claude"
           prompt: |
-            Read COMPONENT-TESTS.md and COMPONENT-TASKS.md from the project root directory (not inside {{path}}).
+            Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from {{path}}/.agents/tmp/.
 
-            If COMPONENT-TESTS.md does not exist, skip this step entirely and say "All tasks are done."
-            If COMPONENT-TASKS.md says "All component tests are up to date. No changes needed.",
+            If COMPONENT_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
+            If COMPONENT_TASKS.md says "All component tests are up to date. No changes needed.",
             say "All tasks are done."
 
             Your job is to create, fix, or remove component stories/tests in {{path}}.
@@ -128,7 +130,7 @@ steps:
             Rules:
             - Follow the conventions of the detected component catalog tool (Storybook/Ladle/Histoire).
             - Place story files co-located with their components (e.g., Button.stories.tsx next to Button.tsx).
-            - Each story must showcase the component in its key visual states as listed in COMPONENT-TESTS.md.
+            - Each story must showcase the component in its key visual states as listed in COMPONENT_TESTS.md.
             - Stories must be self-contained — no external API calls, no network requests.
             - Use static mock data/props directly in stories.
             - Use the component's actual props interface — do not hack around it.
@@ -139,13 +141,13 @@ steps:
             - Follow the project's existing code style, linting rules, and conventions.
             - Do NOT modify component source code — only create/fix/remove story files.
 
-            Only work on tasks listed in COMPONENT-TASKS.md.
+            Only work on tasks listed in COMPONENT_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in COMPONENT-TASKS.md.
+            After completing each task, check it off in {{path}}/.agents/tmp/COMPONENT_TASKS.md.
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in COMPONENT-TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in {{path}}/.agents/tmp/COMPONENT_TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - loop:
       max_iterations: 50
@@ -155,17 +157,17 @@ steps:
         - name: "generate-e2e-tests"
           agent: "claude"
           prompt: |
-            Read E2E-TESTS.md and E2E-TASKS.md from the project root directory (not inside {{path}}).
+            Read E2E_TESTS.md and E2E_TASKS.md from {{path}}/.agents/tmp/.
 
-            If E2E-TESTS.md does not exist, skip this step entirely and say "All tasks are done."
-            If E2E-TASKS.md says "All E2E tests are up to date. No changes needed.",
+            If E2E_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
+            If E2E_TASKS.md says "All E2E tests are up to date. No changes needed.",
             say "All tasks are done."
 
             Your job is to create, fix, or remove E2E tests for pages in {{path}}.
 
-            MEMORY: If MEMORY.md exists inside {{path}}, read it for known issues — especially
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it for known issues — especially
             around mocking, dev server configuration, or framework quirks that affect testing.
-            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md.
+            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md inside {{path}}/.agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: ui-tests, [current date and time]
 
             Rules:
@@ -174,7 +176,7 @@ steps:
               (e.g., tests/, e2e/, cypress/e2e/).
             - ALL API calls must be mocked — no real network requests to external servers.
               Use Playwright's page.route() or Cypress intercept() to mock every API endpoint.
-              Mock data must be realistic and match the structure documented in E2E-TESTS.md.
+              Mock data must be realistic and match the structure documented in E2E_TESTS.md.
             - The dev server (Vite, Next, SvelteKit, etc.) is started automatically via
               the framework's webServer config (playwright.config.ts) or equivalent.
               Do NOT start servers manually in tests.
@@ -190,25 +192,25 @@ steps:
             - Do NOT use screenshot comparison / visual regression — assert element presence and visibility.
             - If removing orphaned tests, delete the file entirely.
             - If fixing a failing test, identify the root cause and fix the test
-              (unless the component is genuinely broken — then note it in E2E-TASKS.md).
+              (unless the component is genuinely broken — then note it in E2E_TASKS.md).
             - Follow the project's existing code style, linting rules, and conventions.
             - Do NOT modify page/component source code — only create/fix/remove test files.
             - If implement_features is "{{implement_features}}" and it equals "true" and there are Phase 3 tasks,
               implement the missing functionality instead of deleting orphaned tests.
 
-            Only work on tasks listed in E2E-TASKS.md.
+            Only work on tasks listed in E2E_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in E2E-TASKS.md.
+            After completing each task, check it off in {{path}}/.agents/tmp/E2E_TASKS.md.
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in E2E-TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in {{path}}/.agents/tmp/E2E_TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "summarize-tests"
     agent: "kiro"
     prompt: |
       This is the final step of the UI test pipeline. Both test generation agents have finished.
-      Your job is to verify the final state and create a TEST-REPORT.md summary.
+      Your job is to verify the final state and create a TEST_REPORT.md summary.
 
       STEP 1 — RUN ALL TESTS:
       - Run all component catalog tests (Storybook build/test, Ladle build, etc.) if applicable.
@@ -222,8 +224,8 @@ steps:
       - Check which components have story/component test coverage.
       - Identify any gaps (pages or components without tests).
 
-      STEP 3 — CREATE TEST-REPORT.md:
-      Create (or overwrite) TEST-REPORT.md inside the {{path}} project directory
+      STEP 3 — CREATE TEST_REPORT.md:
+      Create (or overwrite) TEST_REPORT.md inside {{path}}/.agents/
       with the following structure:
 
       # Test Report
@@ -259,23 +261,24 @@ steps:
       - [Any issues encountered, warnings, or recommendations for future runs]
 
       STEP 4 — CLEANUP:
-      - Delete COMPONENT-TESTS.md and E2E-TESTS.md from the project root
+      - Delete COMPONENT_TESTS.md and E2E_TESTS.md from {{path}}/.agents/tmp/
         (these are analysis documents, not needed after completion).
-      - Do NOT delete COMPONENT-TASKS.md and E2E-TASKS.md — they are needed by the AI-LOG step.
-      - Do NOT delete TEST-REPORT.md — it persists for the next pipeline run.
+      - Do NOT delete COMPONENT_TASKS.md and E2E_TASKS.md yet — they are needed by the AI_LOG step.
+      - Do NOT delete TEST_REPORT.md — it persists for the next pipeline run.
 
-      After creating TEST-REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update TEST-REPORT.md".
+      After creating TEST_REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update TEST_REPORT.md".
 
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI-LOG.md inside the {{path}} project directory.
-      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+      Ensure the {{path}}/.agents/ directory exists.
 
-      Read COMPONENT-TASKS.md and E2E-TASKS.md from the project root to understand what was done.
-      Also read TEST-REPORT.md inside {{path}} and check the git log for commits made during
-      this pipeline run.
+      Read COMPONENT_TASKS.md and E2E_TASKS.md from {{path}}/.agents/tmp/ to understand what was done.
+      Also read TEST_REPORT.md from {{path}}/.agents/ and check the git log for commits made
+      during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
 
@@ -291,8 +294,7 @@ steps:
       - Use past tense (Created, Fixed, Removed, Updated).
 
       CLEANUP:
-      After updating AI-LOG.md, delete the following temporary files from the project root
-      (if they exist): COMPONENT-TASKS.md, E2E-TASKS.md
+      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI-LOG.md".
+      and message "chore: update AI_LOG.md".

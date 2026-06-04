@@ -18,7 +18,9 @@ steps:
       similar naming patterns), treat them as a SINGLE responsive page. Do NOT create
       separate pages for mobile and desktop variants of the same design.
 
-      Create two files in the project root directory (not inside {{path}}):
+      Create two files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
+      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       1. PAGES.md — A summary document describing each page:
          - Page name (derived from the file name, merged if mobile+desktop variants exist)
@@ -57,7 +59,7 @@ steps:
         - name: "create-pages"
           agent: "claude"
           prompt: |
-            Read PAGES.md and TASKS.md from the project root directory (not inside {{path}}).
+            Read PAGES.md and TASKS.md from {{path}}/.agents/tmp/.
             Also open the .design folder and examine the design files for reference.
 
             Your job is to implement the web pages in the {{path}} project, reproducing the designs
@@ -83,19 +85,20 @@ steps:
               - Do NOT create separate pages or routes for mobile and desktop.
 
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each page, check off the task in TASKS.md.
+            After completing each page, check off the task in {{path}}/.agents/tmp/TASKS.md.
             After every completed page, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in {{path}}/.agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI-LOG.md inside the {{path}} project directory.
-      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+      Ensure the {{path}}/.agents/ directory exists.
 
-      Read TASKS.md and PAGES.md from the project root to understand what was done.
+      Read TASKS.md and PAGES.md from {{path}}/.agents/tmp/ to understand what was done.
       Also check the git log for commits made during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
@@ -111,8 +114,7 @@ steps:
       - Use past tense (Created, Wired, Implemented).
 
       CLEANUP:
-      After updating AI-LOG.md, delete the following temporary files from the project root
-      (if they exist): TASKS.md, PAGES.md
+      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI-LOG.md".
+      and message "chore: update AI_LOG.md".
