@@ -119,7 +119,7 @@ steps:
           prompt: |
             Read COMPONENT-TESTS.md and COMPONENT-TASKS.md from the project root directory (not inside {{path}}).
 
-            If COMPONENT-TESTS.md does not exist, skip this step entirely and say "No component test tasks. All tasks are done."
+            If COMPONENT-TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If COMPONENT-TASKS.md says "All component tests are up to date. No changes needed.",
             say "All tasks are done."
 
@@ -147,12 +147,17 @@ steps:
             When you are done, print a summary of which tasks you completed.
             If all tasks in COMPONENT-TASKS.md are now checked off, explicitly say "All tasks are done."
 
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
         - name: "generate-e2e-tests"
           agent: "claude"
           prompt: |
             Read E2E-TESTS.md and E2E-TASKS.md from the project root directory (not inside {{path}}).
 
-            If E2E-TESTS.md does not exist, skip this step entirely and say "No E2E tasks. All tasks are done."
+            If E2E-TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If E2E-TASKS.md says "All E2E tests are up to date. No changes needed.",
             say "All tasks are done."
 
@@ -249,8 +254,9 @@ steps:
       - [Any issues encountered, warnings, or recommendations for future runs]
 
       STEP 4 — CLEANUP:
-      - Delete COMPONENT-TESTS.md, COMPONENT-TASKS.md, E2E-TESTS.md, E2E-TASKS.md
-        from the project root (these are working documents, not needed after completion).
+      - Delete COMPONENT-TESTS.md and E2E-TESTS.md from the project root
+        (these are analysis documents, not needed after completion).
+      - Do NOT delete COMPONENT-TASKS.md and E2E-TASKS.md — they are needed by the AI-LOG step.
       - Do NOT delete TEST-REPORT.md — it persists for the next pipeline run.
 
       After creating TEST-REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
@@ -262,8 +268,9 @@ steps:
       Add a new entry to AI-LOG.md inside the {{path}} project directory.
       If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
 
-      Read COMPONENT-TASKS.md and E2E-TASKS.md from the project root (if they still exist)
-      to understand what was done. Also check the git log for commits made during this pipeline run.
+      Read COMPONENT-TASKS.md and E2E-TASKS.md from the project root to understand what was done.
+      Also read TEST-REPORT.md inside {{path}} and check the git log for commits made during
+      this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
 
@@ -278,5 +285,9 @@ steps:
         reading the full test report.
       - Use past tense (Created, Fixed, Removed, Updated).
 
-      After updating AI-LOG.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      CLEANUP:
+      After updating AI-LOG.md, delete the following temporary files from the project root
+      (if they exist): COMPONENT-TASKS.md, E2E-TASKS.md
+
+      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update AI-LOG.md".
