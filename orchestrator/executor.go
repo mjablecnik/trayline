@@ -211,9 +211,9 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	if step.Agent != "" {
 		stepType = "agent:" + step.Agent
 	}
-	fmt.Printf("\n%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s\n", colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset)
-	e.debugLog("Executing step %q (%s)", step.Name, stepType)
 	start := time.Now()
+	fmt.Printf("\n%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s %s[started %s]%s\n", colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset, colorDim, start.Format("15:04:05"), colorReset)
+	e.debugLog("Executing step %q (%s)", step.Name, stepType)
 
 	cwd, _ := os.Getwd()
 	projectDir := step.ProjectDir
@@ -235,21 +235,22 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 		output, exitCode, err = e.Runner.RunCommand(step.Command, projectDir, env, verbose, os.Stdout, os.Stderr)
 	}
 
-	elapsed := time.Since(start).Round(time.Millisecond)
+	end := time.Now()
+	elapsed := end.Sub(start).Round(time.Millisecond)
 	if err != nil {
-		fmt.Printf("  %s✗ %q failed after %s: %v%s\n", colorRed, step.Name, elapsed, err, colorReset)
+		fmt.Printf("  %s✗ %q failed after %s %s[finished %s]%s: %v%s\n", colorRed, step.Name, elapsed, colorDim, end.Format("15:04:05"), colorReset, err, colorReset)
 		e.debugError(fmt.Sprintf("step %q execution", step.Name), err)
 		return output, exitCode, err
 	}
 	if exitCode != 0 {
-		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorReset)
+		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s %s[finished %s]%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorDim, end.Format("15:04:05"), colorReset)
 		if output != "" {
 			fmt.Printf("  %s  output: %s%s\n", colorRed, output, colorReset)
 		}
 		e.debugLog("Step %q failed with exit code %d after %s", step.Name, exitCode, elapsed)
 		e.debugLog("Step %q failed output (%d bytes):\n%s", step.Name, len(output), output)
 	} else {
-		fmt.Printf("  %s✓ %q (%s) succeeded in %s%s\n", colorGreen, step.Name, stepType, elapsed, colorReset)
+		fmt.Printf("  %s✓ %q (%s) succeeded in %s %s[finished %s]%s\n", colorGreen, step.Name, stepType, elapsed, colorDim, end.Format("15:04:05"), colorReset)
 		e.debugLog("Step %q succeeded in %s (output: %d bytes)", step.Name, elapsed, len(output))
 		if len(output) > 0 {
 			preview := output
