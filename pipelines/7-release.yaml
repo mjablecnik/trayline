@@ -1,0 +1,94 @@
+variables:
+  path: "this"
+
+steps:
+  - name: "release"
+    agent: "claude"
+    prompt: |
+      You are creating a new release for the project in {{path}}.
+
+      STEP 1 — READ AI_LOG.md:
+      Read AI_LOG.md from {{path}}/.agents/. Find the last entry that contains "release" or "bump"
+      (this marks the previous release point). Collect all entries ABOVE that point — these are
+      the changes since the last release.
+      If no previous release entry exists, collect ALL entries in AI_LOG.md.
+      If AI_LOG.md does not exist, STOP and say: "No AI_LOG.md found — nothing to release."
+
+      STEP 2 — DETERMINE VERSION BUMP:
+      Based on the collected changes, determine the appropriate version bump:
+      - **patch** (0.0.X) — bug fixes, test fixes, minor adjustments, documentation updates
+      - **minor** (0.X.0) — new pages, new components, new features, new endpoints, refactoring
+      - **major** (X.0.0) — breaking changes, architecture changes, major rewrites, API contract changes
+
+      Read the current version from the project's manifest file:
+      - Node.js: package.json → "version"
+      - Flutter/Dart: pubspec.yaml → "version"
+      - Go: look for version constant in main.go or a VERSION file
+      - Python: pyproject.toml → [project] version, or setup.py, or __version__
+      - Rust: Cargo.toml → [package] version
+      - If none found, check for a VERSION file in the project root
+      - If no version source exists at all, create a VERSION file starting at "0.1.0"
+
+      Calculate the new version number by bumping the appropriate segment.
+
+      STEP 3 — UPDATE VERSION:
+      Update the version in the project's manifest file to the new version number.
+
+      STEP 4 — UPDATE CHANGELOG.md:
+      Create or update CHANGELOG.md in the {{path}} project root (NOT in .agents/).
+      Follow the Keep a Changelog format (https://keepachangelog.com):
+
+      If CHANGELOG.md doesn't exist, create it with this header:
+      # Changelog
+      All notable changes to this project will be documented in this file.
+
+      Add a new section at the top (below the header, above previous versions):
+
+      ## [X.Y.Z] - YYYY-MM-DD
+
+      ### Added
+      - [list new features, pages, components, endpoints]
+
+      ### Changed
+      - [list refactoring, modifications, improvements]
+
+      ### Fixed
+      - [list bug fixes, test fixes, build fixes]
+
+      ### Removed
+      - [list removed features, deleted code, removed dependencies]
+
+      Rules for CHANGELOG entries:
+      - Derive entries from the AI_LOG.md changes since last release.
+      - Each entry should be human-readable — written for developers, not agents.
+      - Be specific but concise: "Added checkout page with cart summary" not "Created page".
+      - Only include sections (Added/Changed/Fixed/Removed) that have entries — skip empty ones.
+      - Use present tense in changelog entries (Add, Fix, Remove, Change).
+
+      STEP 5 — UPDATE AI_LOG.md:
+      Add a new entry at the TOP of AI_LOG.md inside {{path}}/.agents/:
+
+      ## [current date and time] — release
+      - Bumped version: [old version] → [new version] ([patch/minor/major])
+      - Changelog updated with [count] entries
+      - Changes since last release: [brief summary of what was included]
+
+      This entry serves as the reference point for the next release.
+
+      STEP 6 — COMMIT AND TAG:
+      Create a git commit with all changes (version bump + CHANGELOG.md + AI_LOG.md)
+      with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "release: v[new version]"
+
+      Then create a git tag. Use the project directory name as prefix:
+      - Tag format: [project-name]/v[new version]
+      - Example: frontend-app/v1.2.0, backend-api/v2.0.1
+      - The project name is derived from the directory name of {{path}}
+        (e.g., if {{path}} is "frontend-app", tag is "frontend-app/v1.2.0")
+        (e.g., if {{path}} is "." or "this", use the repository root directory name)
+
+      When done, print a summary:
+      - Previous version → New version
+      - Bump type (patch/minor/major)
+      - Number of changelog entries
+      - Git tag created
