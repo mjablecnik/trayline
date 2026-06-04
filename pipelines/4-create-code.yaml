@@ -51,9 +51,18 @@ steps:
 
             MEMORY: If MEMORY.md exists inside {{path}}, read it first for known issues and solutions.
 
-            Follow the tasks exactly and check off each task as you complete it.
-            Implement only up to {{number}} test tasks in this run, then stop.
-            After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+            Rules:
+            - Follow the tasks exactly and check off each task as you complete it.
+            - Detect the existing test framework and conventions in the project
+              (test runner, assertion style, file naming, folder structure).
+            - Write tests that follow the same patterns as existing tests in the project.
+            - After writing each test, run it and verify it passes. If it fails, fix it before moving on.
+            - Mock all external dependencies (APIs, databases, file system, network).
+              Tests must run independently without external services.
+            - Each test must be deterministic — no random data, no time-dependent assertions.
+            - Use descriptive test names that explain what is being tested and expected behavior.
+            - Implement only up to {{number}} test tasks in this run, then stop.
+            - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside {{path}}.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
