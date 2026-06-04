@@ -13,9 +13,20 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
+
+            MEMORY: If MEMORY.md exists inside {{path}}, read it first. It contains known problems
+            and their solutions from previous runs. Follow its guidance to avoid repeating mistakes.
+
             Follow the tasks exactly and check off each task as you complete it.
             Implement only up to {{number}} tasks in this run, then stop.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
+            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-code, [current date and time]
+            If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+            Only record genuinely useful insights — not trivial typos or obvious fixes.
+
             When you are done, print a summary of which tasks you completed. If all tasks
             in the spec are now checked off, explicitly say "All tasks are done."
 
@@ -23,6 +34,10 @@ steps:
     agent: "claude"
     prompt: |
       Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
+
+      MEMORY: If MEMORY.md exists inside {{path}}, read it first for known build issues and solutions.
+      If you encounter and fix a new build problem, add it to MEMORY.md inside {{path}}.
+      Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
 
   - loop:
       max_iterations: 50
@@ -33,9 +48,16 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create all optional tests that haven't been created yet.
+
+            MEMORY: If MEMORY.md exists inside {{path}}, read it first for known issues and solutions.
+
             Follow the tasks exactly and check off each task as you complete it.
             Implement only up to {{number}} test tasks in this run, then stop.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside {{path}}.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
+
             When you are done, print a summary of which tasks you completed. If all test tasks
             in the spec are now checked off, explicitly say "All tasks are done."
 

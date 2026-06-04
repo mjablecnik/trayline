@@ -8,6 +8,9 @@ steps:
       Analyze the project in {{path}} folder and determine what kind of project it is
       (language, framework, build system, package manager, etc.).
 
+      MEMORY: If MEMORY.md exists inside {{path}}, read it first for known build issues
+      and their solutions. This may save you time debugging problems that were already solved.
+
       Your goal is to make the project build and run cleanly from a fresh checkout.
       A developer coming to this project for the first time must be able to build and run it
       without issues by following the README or standard conventions.
@@ -37,6 +40,10 @@ steps:
       - Do not add new features or change functionality.
       - Do not refactor code beyond what is needed to fix build/lint issues.
       - Preserve existing behavior — only fix what is broken or produces errors.
+      - If you encounter and solve a non-obvious build problem, add it to MEMORY.md inside {{path}}.
+        Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: check-build, [current date and time]
+        If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+        Only record genuinely useful insights — not trivial typos or obvious fixes.
       - After every meaningful fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
       When you are done, print a summary of what you fixed.

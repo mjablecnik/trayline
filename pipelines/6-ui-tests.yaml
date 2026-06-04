@@ -163,6 +163,11 @@ steps:
 
             Your job is to create, fix, or remove E2E tests for pages in {{path}}.
 
+            MEMORY: If MEMORY.md exists inside {{path}}, read it for known issues — especially
+            around mocking, dev server configuration, or framework quirks that affect testing.
+            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: ui-tests, [current date and time]
+
             Rules:
             - Follow the conventions of the detected E2E framework (Playwright/Cypress).
             - Place test files in the standard test directory for the framework

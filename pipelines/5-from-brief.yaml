@@ -38,6 +38,9 @@ steps:
           prompt: |
             Read SPEC.md and TASKS.md from the project root directory (not inside {{path}}).
 
+            MEMORY: If MEMORY.md exists inside {{path}}, read it first. It contains known problems
+            and their solutions from previous runs. Follow its guidance to avoid repeating mistakes.
+
             Your job is to implement the tasks described in TASKS.md, following the specification in SPEC.md.
             Work in the {{path}} project directory.
 
@@ -48,6 +51,12 @@ steps:
             - Make sure the code compiles and tests pass after each change.
             - Check off each completed task in TASKS.md as you finish it.
             - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
+            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: from-brief, [current date and time]
+            If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+            Only record genuinely useful insights — not trivial typos or obvious fixes.
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
