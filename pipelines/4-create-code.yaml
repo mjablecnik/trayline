@@ -42,3 +42,35 @@ steps:
   - name: "code-review"
     command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
     verbose: true
+
+  - name: "update-ai-log"
+    agent: "kiro"
+    prompt: |
+      Add a new entry to AI-LOG.md inside the {{path}} project directory.
+      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+
+      Read the spec files in .kiro/specs/{{specs-name}} and check the git log for commits
+      made during this pipeline run to understand what was implemented.
+      NOTE: Do NOT read TASKS.md — it was overwritten by the code-review step and no longer
+      reflects the original implementation tasks. Rely on git log and spec files instead.
+
+      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
+
+      ## [current date and time] — create-code
+      - Spec: {{specs-name}}
+      - [list features/components/services implemented]
+      - [list tests created]
+      - [list code review fixes applied]
+      - [be specific: file names, function names, endpoints]
+
+      Rules:
+      - Never modify or delete existing entries — only prepend a new one.
+      - Keep entries concise but specific.
+      - Use past tense (Implemented, Created, Added, Configured, Fixed).
+
+      CLEANUP:
+      After updating AI-LOG.md, delete the following temporary files from the project root
+      (if they exist): TASKS.md, CODE_REVIEW.md
+
+      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update AI-LOG.md".

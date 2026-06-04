@@ -51,3 +51,31 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
+
+  - name: "update-ai-log"
+    agent: "kiro"
+    prompt: |
+      Add a new entry to AI-LOG.md inside the {{path}} project directory.
+      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+
+      Read TASKS.md and SPEC.md from the project root to understand what was done.
+      Also check the git log for commits made during this pipeline run.
+
+      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
+
+      ## [current date and time] — from-brief
+      - Brief: {{brief}}
+      - [list features/components/services implemented]
+      - [be specific: file names, function names, endpoints]
+
+      Rules:
+      - Never modify or delete existing entries — only prepend a new one.
+      - Keep entries concise but specific.
+      - Use past tense (Implemented, Created, Added, Configured).
+
+      CLEANUP:
+      After updating AI-LOG.md, delete the following temporary files from the project root
+      (if they exist): TASKS.md, SPEC.md
+
+      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update AI-LOG.md".

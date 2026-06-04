@@ -10,6 +10,10 @@ steps:
       Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
       and examine all UI-related files — pages, components, layouts, sections, widgets.
 
+      If AI-LOG.md exists inside {{path}}, read it to understand what changed since the last
+      ui-refactor run (new pages from design-to-code, new components, etc.). Focus analysis
+      on what's new or changed rather than re-analyzing already refactored code.
+
       Your goal is to decompose every page into a clear hierarchy:
         Page → Sections → Components
 
@@ -168,3 +172,33 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in TASKS.md are now checked off, explicitly say "All tasks are done."
+
+  - name: "update-ai-log"
+    agent: "kiro"
+    prompt: |
+      Add a new entry to AI-LOG.md inside the {{path}} project directory.
+      If AI-LOG.md does not exist, create it with a "# AI Log" heading first.
+
+      Read TASKS.md and REFACTORING.md from the project root to understand what was done.
+      Also check the git log for commits made during this pipeline run.
+
+      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
+
+      ## [current date and time] — ui-refactor
+      - [list components/sections extracted]
+      - [list theme tokens created]
+      - [list pages refactored]
+      - [list stories created if applicable]
+      - [be specific: component names, file paths, shared vs page-specific]
+
+      Rules:
+      - Never modify or delete existing entries — only prepend a new one.
+      - Keep entries concise but specific.
+      - Use past tense (Extracted, Created, Refactored, Moved).
+
+      CLEANUP:
+      After updating AI-LOG.md, delete the following temporary files from the project root
+      (if they exist): TASKS.md, REFACTORING.md
+
+      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update AI-LOG.md".
