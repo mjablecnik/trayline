@@ -9,6 +9,14 @@ steps:
   - name: "analyze-tests"
     agent: "kiro"
     prompt: |
+      FIRST: Check if {{path}}/.agents/tmp/COMPONENT_TASKS.md or {{path}}/.agents/tmp/E2E_TASKS.md already exist.
+      If at least one of them exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing task files".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if neither task file exists (or both contain no unchecked tasks), proceed with the full analysis:
+
       Analyze the {{path}} project directory to understand its UI structure, testing setup,
       and current test coverage.
 

@@ -7,6 +7,14 @@ steps:
   - name: "create-spec-from-brief"
     agent: "kiro"
     prompt: |
+      FIRST: Check if {{path}}/.agents/tmp/TASKS.md already exists.
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing TASKS.md".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if TASKS.md does not exist or contains no unchecked tasks, proceed:
+
       Read the file {{brief}} in the project root directory.
       This file contains a short project brief — a high-level description of what needs to be built.
 

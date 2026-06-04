@@ -6,6 +6,14 @@ steps:
   - name: "analyze-data"
     agent: "kiro"
     prompt: |
+      FIRST: Check if {{path}}/.agents/tmp/TASKS.md already exists.
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing TASKS.md".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if TASKS.md does not exist or contains no unchecked tasks, proceed with the full analysis:
+
       Analyze the entire codebase in the {{path}} project directory.
       Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
       and examine all files containing user-facing text — pages, components, layouts, widgets, services.
