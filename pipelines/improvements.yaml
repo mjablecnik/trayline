@@ -1,11 +1,11 @@
 variables:
-  number: "10"
+  number: "5"
   specs-name: ""
   path: "this"
 
 steps:
   - loop:
-      max_iterations: 5
+      max_iterations: 1
       steps:
         - name: "find-improvements"
           agent: "kiro"
@@ -17,12 +17,17 @@ steps:
             2. Developer Experience — unclear error messages, missing or misleading logs, confusing APIs, inconsistent patterns, poor naming
             3. Tests — missing test coverage, weak assertions, untested edge cases, fragile tests
 
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it for context on known issues
+            and past solutions.
+
             Important rules:
             - Only suggest improvements to existing code. Do NOT propose new features or new functionality.
             - Do NOT suggest creating documentation files, README updates, or code comments.
             - All suggestions must remain compliant with the specification and design documents.
 
-            Create two files in the project root directory (not inside {{path}}):
+            Create two files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+            Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
+            If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
             1. IMPROVEMENTS.md — A detailed analysis document. For each improvement include:
                - A clear description of what can be improved
@@ -42,17 +47,22 @@ steps:
             If everything looks good, write that there are no remaining improvements in both files.
           verbose: false
           condition:
-            file: "TASKS.md"
+            file: "{{path}}/.agents/tmp/TASKS.md"
             contains: "- [ ]"
 
         - name: "apply-critical-and-high-improvements"
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read IMPROVEMENTS.md and TASKS.md from the project root directory (not inside {{path}}).
+            Also read IMPROVEMENTS.md and TASKS.md from {{path}}/.agents/tmp/.
             Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
+
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known issues and solutions.
+            If you encounter and solve a non-obvious problem, add it to MEMORY.md inside {{path}}/.agents/.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
+
             Apply all improvements marked as [CRITICAL] and [HIGH] in TASKS.md.
-            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
+            Follow the tasks exactly and check off each task in {{path}}/.agents/tmp/TASKS.md as you complete it.
             After each change, also update the relevant tests to reflect the change and make sure all tests pass.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
@@ -64,14 +74,47 @@ steps:
           agent: "claude"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
-            Also read IMPROVEMENTS.md and TASKS.md from the project root directory (not inside {{path}}).
+            Also read IMPROVEMENTS.md and TASKS.md from {{path}}/.agents/tmp/.
             Use IMPROVEMENTS.md to understand the context, rationale, and suggested solutions.
+
+            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known issues and solutions.
+            If you encounter and solve a non-obvious problem, add it to MEMORY.md inside {{path}}/.agents/.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
+
             Apply all improvements marked as [MEDIUM] in TASKS.md.
-            Follow the tasks exactly and check off each task in TASKS.md as you complete it.
+            Follow the tasks exactly and check off each task in {{path}}/.agents/tmp/TASKS.md as you complete it.
             After each change, also update the relevant tests to reflect the change and make sure all tests pass.
             Important: Do NOT create any new features or documentation. Only improve existing code.
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all improvement tasks
-            in TASKS.md are now checked off, explicitly say "All tasks are done."
+            in {{path}}/.agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
           verbose: true
+
+        - name: "update-ai-log"
+          agent: "kiro"
+          prompt: |
+            Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+            If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+            Ensure the {{path}}/.agents/ directory exists.
+
+            Read TASKS.md and IMPROVEMENTS.md from {{path}}/.agents/tmp/ to understand what was done.
+            Also check the git log for commits made during this pipeline run.
+
+            Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
+
+            ## [current date and time] — improvements
+            - [list improvements applied: validation added, error handling improved, tests added]
+            - [be specific: file names, function names, what was improved]
+            - [if nothing was needed, write: "No improvements needed — code is in good shape"]
+
+            Rules:
+            - Never modify or delete existing entries — only prepend a new one.
+            - Keep entries concise but specific.
+            - Use past tense (Added, Improved, Fixed, Strengthened).
+
+            CLEANUP:
+            After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
+
+            After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+            and message "chore: update AI_LOG.md".
