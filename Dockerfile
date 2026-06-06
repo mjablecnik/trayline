@@ -58,6 +58,14 @@ RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
     && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
+# Playwright system dependencies (Chromium headless shell)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnspr4 libnss3 libnss3-tools libatk1.0-0t64 libatk-bridge2.0-0t64 \
+    libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 \
+    libatspi2.0-0t64 libwayland-client0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
