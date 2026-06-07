@@ -66,6 +66,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatspi2.0-0t64 libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Playwright Chromium browser binary (shared location for non-root user)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
+RUN npx playwright install chromium
+
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
