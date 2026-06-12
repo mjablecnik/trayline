@@ -55,6 +55,7 @@ func (pe *PipelineElement) UnmarshalYAML(value *yaml.Node) error {
 type Step struct {
 	Name       string     `yaml:"name"`
 	Agent      string     `yaml:"agent"`
+	Model      string     `yaml:"model"`
 	Prompt     string     `yaml:"prompt"`
 	Command    string     `yaml:"command"`
 	ProjectDir string     `yaml:"project_dir"`

@@ -28,7 +28,7 @@ const (
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
 	// RunAgent executes a trayline-agent command.
-	RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
+	RunAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
 	// RunCommand executes a shell command via sh -c.
 	RunCommand(command string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
 }
@@ -36,9 +36,13 @@ type CommandRunner interface {
 // OSCommandRunner is the real CommandRunner using os/exec.
 type OSCommandRunner struct{}
 
-func (r *OSCommandRunner) RunAgent(agent string, prompt string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
 	agentBin := resolveAgentBinary()
-	args := []string{agent, "-p", projectDir, prompt}
+	args := []string{agent, "-p", projectDir}
+	if model != "" {
+		args = append(args, "-m", model)
+	}
+	args = append(args, prompt)
 	return runSubprocess(agentBin, args, projectDir, env, verbose, stdout, stderr)
 }
 
@@ -230,7 +234,7 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	var err error
 
 	if step.Agent != "" {
-		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, projectDir, env, verbose, os.Stdout, os.Stderr)
+		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, verbose, os.Stdout, os.Stderr)
 	} else {
 		output, exitCode, err = e.Runner.RunCommand(step.Command, projectDir, env, verbose, os.Stdout, os.Stderr)
 	}

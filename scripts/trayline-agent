@@ -6,7 +6,7 @@ PROXY_NAME="trayline-proxy"
 NETWORK_NAME="trayline-net"
 usage() {
   cat <<EOF
-Usage: trayline-agent <kiro|claude> [-p project-dir] [-i] [prompt]
+Usage: trayline-agent <kiro|claude> [-p project-dir] [-m model] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
@@ -16,12 +16,14 @@ Commands:
 
 Options:
   -p DIR   Path to project directory (default: current directory)
+  -m MODEL Model to use (e.g. claude-sonnet-4-20250514, default: agent's default)
   -i       Start in interactive mode (no prompt required)
   -h       Show this help
 
 Examples:
   trayline-agent kiro "Show me running containers"       # one-shot
   trayline-agent kiro -p ~/my-project "Add /health"      # one-shot with project
+  trayline-agent claude -m claude-sonnet-4-20250514 -p ~/project "Fix tests"
   trayline-agent kiro -i                                  # interactive
   trayline-agent claude -p ~/my-project -i                # claude, interactive
 EOF
@@ -38,9 +40,11 @@ fi
 
 INTERACTIVE=false
 PROJECT_DIR="$(pwd)"
+MODEL=""
 while [[ "${1:-}" == -* ]]; do
   case "$1" in
     -p) PROJECT_DIR="$(cd "$2" && pwd)"; shift 2 ;;
+    -m) MODEL="$2"; shift 2 ;;
     -i) INTERACTIVE=true; shift ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -102,6 +106,9 @@ if [[ "$AGENT" == "kiro" ]]; then
     -v "${HOME}/.local/share/kiro-cli":"${AGENT_HOME}/.local/share/kiro-cli"
   )
   CMD=(kiro-cli chat --trust-all-tools)
+  if [[ -n "$MODEL" ]]; then
+    CMD+=(--model "$MODEL")
+  fi
   if ! $INTERACTIVE; then
     CMD+=(--no-interactive "$PROMPT")
   fi
@@ -111,6 +118,9 @@ else
     -v "${HOME}/.claude.json":"${AGENT_HOME}/.claude.json"
   )
   CMD=(claude)
+  if [[ -n "$MODEL" ]]; then
+    CMD+=(--model "$MODEL")
+  fi
   if $INTERACTIVE; then
     CMD+=(--dangerously-skip-permissions)
   else
