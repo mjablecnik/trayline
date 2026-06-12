@@ -8,7 +8,7 @@ steps:
       You are creating a new release for the project in {{path}}.
 
       STEP 1 — READ AI_LOG.md:
-      Read AI_LOG.md from {{path}}/.agents/. Find the last entry that contains "release" or "bump"
+      Read AI_LOG.md from .agents/. Find the last entry that contains "release" or "bump"
       (this marks the previous release point). Collect all entries ABOVE that point — these are
       the changes since the last release.
       If no previous release entry exists, collect ALL entries in AI_LOG.md.
@@ -66,7 +66,7 @@ steps:
       - Use present tense in changelog entries (Add, Fix, Remove, Change).
 
       STEP 5 — UPDATE AI_LOG.md:
-      Add a new entry at the TOP of AI_LOG.md inside {{path}}/.agents/:
+      Add a new entry at the TOP of AI_LOG.md inside .agents/:
 
       ## [current date and time] — release
       - Bumped version: [old version] → [new version] ([patch/minor/major])

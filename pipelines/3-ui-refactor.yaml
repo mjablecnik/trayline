@@ -6,7 +6,7 @@ steps:
   - name: "analyze-ui-structure"
     agent: "kiro"
     prompt: |
-      FIRST: Check if {{path}}/.agents/tmp/TASKS.md already exists.
+      FIRST: Check if .agents/tmp/TASKS.md already exists.
       If it exists AND contains at least one unchecked task (a line with "- [ ]"),
       then a previous run was interrupted before completing. Skip all analysis
       and just say "Skipping analysis — resuming from existing TASKS.md".
@@ -18,7 +18,7 @@ steps:
       Detect the project framework (React, Svelte, Vue, Flutter, Next.js, Nuxt, SvelteKit, etc.)
       and examine all UI-related files — pages, components, layouts, sections, widgets.
 
-      If AI_LOG.md exists inside {{path}}/.agents/, read it to understand what changed since the last
+      If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
       ui-refactor run (new pages from design-to-code, new components, etc.). Focus analysis
       on what's new or changed rather than re-analyzing already refactored code.
 
@@ -65,7 +65,7 @@ steps:
         [page]/components/ → components specific to one page
         [page]/sections/   → sections specific to one page
 
-      Create two files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Create two files in .agents/tmp/ (create directories if they don't exist):
       Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
       If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
@@ -139,7 +139,7 @@ steps:
         - name: "refactor-ui"
           agent: "claude"
           prompt: |
-            Read REFACTORING.md and TASKS.md from {{path}}/.agents/tmp/.
+            Read REFACTORING.md and TASKS.md from .agents/tmp/.
 
             Your job is to refactor the UI code in the {{path}} project by decomposing pages
             into sections and components, eliminating all duplicated code.
@@ -177,20 +177,20 @@ steps:
               - If no component catalog tool was detected, do NOT create any story files.
 
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in {{path}}/.agents/tmp/TASKS.md.
+            After completing each task, check it off in .agents/tmp/TASKS.md.
             After every major change, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in {{path}}/.agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      Add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
-      Read TASKS.md and REFACTORING.md from {{path}}/.agents/tmp/ to understand what was done.
+      Read TASKS.md and REFACTORING.md from .agents/tmp/ to understand what was done.
       Also check the git log for commits made during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
@@ -208,7 +208,7 @@ steps:
       - Use past tense (Extracted, Created, Refactored, Moved).
 
       CLEANUP:
-      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
+      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update AI_LOG.md".

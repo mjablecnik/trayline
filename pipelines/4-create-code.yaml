@@ -14,7 +14,7 @@ steps:
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
 
-            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first. It contains known problems
+            MEMORY: If MEMORY.md exists inside .agents/, read it first. It contains known problems
             and their solutions from previous runs. Follow its guidance to avoid repeating mistakes.
 
             Follow the tasks exactly and check off each task as you complete it.
@@ -22,7 +22,7 @@ steps:
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
-            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}/.agents/.
+            workaround needed, configuration issue), add it to MEMORY.md inside .agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-code, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
@@ -35,8 +35,8 @@ steps:
     prompt: |
       Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
 
-      MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known build issues and solutions.
-      If you encounter and fix a new build problem, add it to MEMORY.md inside {{path}}/.agents/.
+      MEMORY: If MEMORY.md exists inside .agents/, read it first for known build issues and solutions.
+      If you encounter and fix a new build problem, add it to MEMORY.md inside .agents/.
       Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
 
   - loop:
@@ -49,7 +49,7 @@ steps:
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create all optional tests that haven't been created yet.
 
-            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known issues and solutions.
+            MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
 
             Rules:
             - Follow the tasks exactly and check off each task as you complete it.
@@ -64,7 +64,7 @@ steps:
             - Implement only up to {{number}} test tasks in this run, then stop.
             - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
-            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside {{path}}/.agents/.
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
 
             When you are done, print a summary of which tasks you completed. If all test tasks
@@ -77,9 +77,9 @@ steps:
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      Add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
       Read the spec files in .kiro/specs/{{specs-name}} and check the git log for commits
       made during this pipeline run to understand what was implemented.
@@ -101,7 +101,7 @@ steps:
       - Use past tense (Implemented, Created, Added, Configured, Fixed).
 
       CLEANUP:
-      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
+      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update AI_LOG.md".

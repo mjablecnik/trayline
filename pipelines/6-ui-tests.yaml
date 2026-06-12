@@ -9,7 +9,7 @@ steps:
   - name: "analyze-tests"
     agent: "kiro"
     prompt: |
-      FIRST: Check if {{path}}/.agents/tmp/COMPONENT_TASKS.md or {{path}}/.agents/tmp/E2E_TASKS.md already exist.
+      FIRST: Check if .agents/tmp/COMPONENT_TASKS.md or .agents/tmp/E2E_TASKS.md already exist.
       If at least one of them exists AND contains at least one unchecked task (a line with "- [ ]"),
       then a previous run was interrupted before completing. Skip all analysis
       and just say "Skipping analysis — resuming from existing task files".
@@ -26,7 +26,7 @@ steps:
       - Check if Storybook, Ladle, Histoire, or a similar component catalog is installed
         (look for .storybook/, package.json dependencies, storybook config files)
       - If NEITHER an E2E framework NOR a component catalog is found, create a file
-        called TEST_ABORT.md in {{path}}/.agents/tmp/ with the message: "No E2E testing framework
+        called TEST_ABORT.md in .agents/tmp/ with the message: "No E2E testing framework
         (Playwright/Cypress) and no component catalog (Storybook/Ladle/Histoire) detected.
         Install at least one before running this pipeline." Then STOP — do not proceed further.
       - If only one tool is found, proceed with just that tool's analysis.
@@ -45,13 +45,13 @@ steps:
       - Run existing tests to check which pass and which fail
       - Map which pages/components have test coverage and which don't
       - Identify orphaned tests (tests for functionality/components that no longer exist)
-      - If TEST_REPORT.md exists inside {{path}}/.agents/ from a previous run, read it for context
-      - If AI_LOG.md exists inside {{path}}/.agents/, read it to understand what changed since the last
+      - If TEST_REPORT.md exists inside .agents/ from a previous run, read it for context
+      - If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
         test pipeline run (new pages, new components, refactoring, etc.). Use this to focus
         analysis on what's new or changed rather than rescanning everything from scratch.
 
       STEP 4 — CREATE ANALYSIS DOCUMENTS:
-      Create the following files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Create the following files in .agents/tmp/ (create directories if they don't exist):
       Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
       If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
@@ -127,7 +127,7 @@ steps:
         - name: "generate-component-tests"
           agent: "claude"
           prompt: |
-            Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from {{path}}/.agents/tmp/.
+            Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from .agents/tmp/.
 
             If COMPONENT_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If COMPONENT_TASKS.md says "All component tests are up to date. No changes needed.",
@@ -151,11 +151,11 @@ steps:
 
             Only work on tasks listed in COMPONENT_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in {{path}}/.agents/tmp/COMPONENT_TASKS.md.
+            After completing each task, check it off in .agents/tmp/COMPONENT_TASKS.md.
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in {{path}}/.agents/tmp/COMPONENT_TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/COMPONENT_TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - loop:
       max_iterations: 50
@@ -165,7 +165,7 @@ steps:
         - name: "generate-e2e-tests"
           agent: "claude"
           prompt: |
-            Read E2E_TESTS.md and E2E_TASKS.md from {{path}}/.agents/tmp/.
+            Read E2E_TESTS.md and E2E_TASKS.md from .agents/tmp/.
 
             If E2E_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If E2E_TASKS.md says "All E2E tests are up to date. No changes needed.",
@@ -173,9 +173,9 @@ steps:
 
             Your job is to create, fix, or remove E2E tests for pages in {{path}}.
 
-            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it for known issues — especially
+            MEMORY: If MEMORY.md exists inside .agents/, read it for known issues — especially
             around mocking, dev server configuration, or framework quirks that affect testing.
-            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md inside {{path}}/.agents/.
+            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md inside .agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: ui-tests, [current date and time]
 
             Rules:
@@ -208,11 +208,11 @@ steps:
 
             Only work on tasks listed in E2E_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in {{path}}/.agents/tmp/E2E_TASKS.md.
+            After completing each task, check it off in .agents/tmp/E2E_TASKS.md.
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in {{path}}/.agents/tmp/E2E_TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/E2E_TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "summarize-tests"
     agent: "kiro"
@@ -233,7 +233,7 @@ steps:
       - Identify any gaps (pages or components without tests).
 
       STEP 3 — CREATE TEST_REPORT.md:
-      Create (or overwrite) TEST_REPORT.md inside {{path}}/.agents/
+      Create (or overwrite) TEST_REPORT.md inside .agents/
       with the following structure:
 
       # Test Report
@@ -269,7 +269,7 @@ steps:
       - [Any issues encountered, warnings, or recommendations for future runs]
 
       STEP 4 — CLEANUP:
-      - Delete COMPONENT_TESTS.md and E2E_TESTS.md from {{path}}/.agents/tmp/
+      - Delete COMPONENT_TESTS.md and E2E_TESTS.md from .agents/tmp/
         (these are analysis documents, not needed after completion).
       - Do NOT delete COMPONENT_TASKS.md and E2E_TASKS.md yet — they are needed by the AI_LOG step.
       - Do NOT delete TEST_REPORT.md — it persists for the next pipeline run.
@@ -280,12 +280,12 @@ steps:
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      Add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
-      Read COMPONENT_TASKS.md and E2E_TASKS.md from {{path}}/.agents/tmp/ to understand what was done.
-      Also read TEST_REPORT.md from {{path}}/.agents/ and check the git log for commits made
+      Read COMPONENT_TASKS.md and E2E_TASKS.md from .agents/tmp/ to understand what was done.
+      Also read TEST_REPORT.md from .agents/ and check the git log for commits made
       during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
@@ -302,7 +302,7 @@ steps:
       - Use past tense (Created, Fixed, Removed, Updated).
 
       CLEANUP:
-      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
+      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update AI_LOG.md".

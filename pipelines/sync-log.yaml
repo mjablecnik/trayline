@@ -8,7 +8,7 @@ steps:
       Your job is to synchronize AI_LOG.md with the git history of the {{path}} project.
 
       STEP 1 — READ CURRENT STATE:
-      - Read AI_LOG.md from {{path}}/.agents/ (if it exists).
+      - Read AI_LOG.md from .agents/ (if it exists).
       - Find the date/time of the most recent entry in AI_LOG.md.
         If AI_LOG.md doesn't exist, there is no previous state — all commits are new.
 
@@ -22,7 +22,7 @@ steps:
       For each group of commits not already covered by AI_LOG.md, create a new entry.
 
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
       Add NEW entries at the TOP of the log (below the # AI Log heading), in chronological order
       (most recent first), using this format:

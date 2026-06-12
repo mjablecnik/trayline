@@ -7,7 +7,7 @@ steps:
   - name: "create-spec-from-brief"
     agent: "kiro"
     prompt: |
-      FIRST: Check if {{path}}/.agents/tmp/TASKS.md already exists.
+      FIRST: Check if .agents/tmp/TASKS.md already exists.
       If it exists AND contains at least one unchecked task (a line with "- [ ]"),
       then a previous run was interrupted before completing. Skip all analysis
       and just say "Skipping analysis — resuming from existing TASKS.md".
@@ -18,7 +18,7 @@ steps:
       Read the file {{brief}} in the project root directory.
       This file contains a short project brief — a high-level description of what needs to be built.
 
-      Analyze the brief carefully and create two files in {{path}}/.agents/tmp/ (create directories if they don't exist):
+      Analyze the brief carefully and create two files in .agents/tmp/ (create directories if they don't exist):
       Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
       If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
@@ -46,9 +46,9 @@ steps:
         - name: "implement-tasks"
           agent: "claude"
           prompt: |
-            Read SPEC.md and TASKS.md from {{path}}/.agents/tmp/.
+            Read SPEC.md and TASKS.md from .agents/tmp/.
 
-            MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first. It contains known problems
+            MEMORY: If MEMORY.md exists inside .agents/, read it first. It contains known problems
             and their solutions from previous runs. Follow its guidance to avoid repeating mistakes.
 
             Your job is to implement the tasks described in TASKS.md, following the specification in SPEC.md.
@@ -59,26 +59,26 @@ steps:
             - Follow the specification exactly.
             - Follow the project's existing code style, linting rules, and conventions.
             - Make sure the code compiles and tests pass after each change.
-            - Check off each completed task in {{path}}/.agents/tmp/TASKS.md as you finish it.
+            - Check off each completed task in .agents/tmp/TASKS.md as you finish it.
             - After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
-            workaround needed, configuration issue), add it to MEMORY.md inside {{path}}/.agents/.
+            workaround needed, configuration issue), add it to MEMORY.md inside .agents/.
             Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: from-brief, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in {{path}}/.agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      Add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
-      Read TASKS.md and SPEC.md from {{path}}/.agents/tmp/ to understand what was done.
+      Read TASKS.md and SPEC.md from .agents/tmp/ to understand what was done.
       Also check the git log for commits made during this pipeline run.
 
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
@@ -94,7 +94,7 @@ steps:
       - Use past tense (Implemented, Created, Added, Configured).
 
       CLEANUP:
-      After updating AI_LOG.md, delete the {{path}}/.agents/tmp/ directory entirely.
+      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
 
       After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update AI_LOG.md".

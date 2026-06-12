@@ -8,7 +8,7 @@ steps:
       Analyze the project in {{path}} folder and determine what kind of project it is
       (language, framework, build system, package manager, etc.).
 
-      MEMORY: If MEMORY.md exists inside {{path}}/.agents/, read it first for known build issues
+      MEMORY: If MEMORY.md exists inside .agents/, read it first for known build issues
       and their solutions. This may save you time debugging problems that were already solved.
 
       Your goal is to make the project build and run cleanly from a fresh checkout.
@@ -40,7 +40,7 @@ steps:
       - Do not add new features or change functionality.
       - Do not refactor code beyond what is needed to fix build/lint issues.
       - Preserve existing behavior — only fix what is broken or produces errors.
-      - If you encounter and solve a non-obvious build problem, add it to MEMORY.md inside {{path}}/.agents/.
+      - If you encounter and solve a non-obvious build problem, add it to MEMORY.md inside .agents/.
         Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: check-build, [current date and time]
         If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
         Only record genuinely useful insights — not trivial typos or obvious fixes.
@@ -52,9 +52,9 @@ steps:
   - name: "update-ai-log"
     agent: "kiro"
     prompt: |
-      Add a new entry to AI_LOG.md inside {{path}}/.agents/.
+      Add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the {{path}}/.agents/ directory exists.
+      Ensure the .agents/ directory exists.
 
       Check the git log for commits made during this pipeline run to understand what was fixed.
 
