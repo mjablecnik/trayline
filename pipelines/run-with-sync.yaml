@@ -1,0 +1,44 @@
+variables:
+  pipeline: ""
+  path: "this"
+  specs-name: ""
+  number: "10"
+  brief: "BRIEF.md"
+  implement_features: "false"
+
+steps:
+  - name: "sync-pull"
+    agent: "claude"
+    prompt: |
+      Run `git pull origin main --rebase` in the current directory.
+
+      If there are merge conflicts:
+      1. Read the conflicting files and understand both sides
+      2. For code files: preserve the intent of both changes, prefer the incoming (remote) version
+         for .agents/ files since they are append-only logs
+      3. For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+      4. After resolving all conflicts, run `git rebase --continue`
+      5. Verify the resolution is clean with `git status`
+
+      If there are no conflicts, just confirm the pull succeeded.
+      If the remote has no new commits, that's fine — just say "Already up to date."
+
+  - name: "run-pipeline"
+    command: "trayline run --pipeline {{pipeline}} --var path={{path}} --var specs-name={{specs-name}} --var number={{number}} --var brief={{brief}} --var implement_features={{implement_features}}"
+    verbose: true
+
+  - name: "sync-push"
+    agent: "claude"
+    prompt: |
+      Push all committed work to the bare repo:
+
+      1. First run `git pull origin main --rebase` to catch any new commits pushed
+         since the pipeline started.
+      2. If there are merge conflicts:
+         - For code files: preserve the intent of both changes
+         - For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+         - After resolving, run `git rebase --continue`
+      3. Once clean, run `git push origin main`
+      4. Confirm the push succeeded.
+
+      If push still fails after pull+rebase, report the error.

@@ -22,6 +22,14 @@ chmod +x "$TRAYLINE_HOME/sync.sh"
 
 sed 's/\r$//' "$SCRIPT_DIR/.rsyncignore" > "$TRAYLINE_HOME/.rsyncignore"
 
+# Install config template (don't overwrite existing config)
+if [[ ! -f "$TRAYLINE_HOME/config" ]]; then
+  sed 's/\r$//' "$SCRIPT_DIR/config.example" > "$TRAYLINE_HOME/config"
+  echo "    Created config at ${TRAYLINE_HOME}/config (edit with your agent machine details)"
+else
+  echo "    Config already exists at ${TRAYLINE_HOME}/config (skipped)"
+fi
+
 # Build or copy orchestrator binary
 if command -v go &>/dev/null; then
   echo "==> Building orchestrator (trayline-run)..."
@@ -86,8 +94,9 @@ echo ""
 echo "Done! Installed:"
 echo "  ~/bin/trayline              (main CLI)"
 echo "  ~/.trayline/trayline-agent  (agent runner)"
-echo "  ~/.trayline/sync.sh         (rsync wrapper)"
+echo "  ~/.trayline/sync.sh         (sync: git + rsync)"
 echo "  ~/.trayline/.rsyncignore    (rsync exclude list)"
+echo "  ~/.trayline/config          (agent machine config)"
 echo "  ~/.trayline/trayline-run    (orchestrator)"
 echo "  ~/.trayline/pipelines/      (global pipelines)"
 echo "  ~/.zsh/completions/_trayline (zsh autocomplete)"

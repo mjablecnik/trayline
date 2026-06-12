@@ -1,0 +1,11 @@
+# Trayline sync configuration
+# Copy this file to ~/.trayline/config and fill in your values.
+
+# SSH connection to agent machine (user@host or user@ip)
+AGENT_HOST="martin@192.168.31.65"
+
+# Path to bare git repos on agent machine (used as git transport)
+AGENT_REPOS="/home/martin/repos"
+
+# Path to working repos on agent machine (where agent runs pipelines)
+AGENT_PROJECTS="/home/martin/Projects"
