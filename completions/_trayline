@@ -25,6 +25,7 @@ _trayline_agent() {
     *)
       _arguments \
         '-p[Project directory]:directory:_directories' \
+        '-m[Model to use]:model:' \
         '-i[Interactive mode]' \
         '-h[Show help]' \
         '*:prompt:'
@@ -35,8 +36,9 @@ _trayline_agent() {
 _trayline_sync() {
   local -a actions
   actions=(
-    'push:Send local changes to remote'
-    'pull:Fetch remote changes to local'
+    'push:Send local changes to remote (git or rsync)'
+    'pull:Fetch remote changes to local (git or rsync)'
+    'setup:Initialize bare + working repo on agent machine'
   )
 
   case $CURRENT in
@@ -45,6 +47,12 @@ _trayline_sync() {
       ;;
     *)
       _arguments \
+        '--rsync[Use rsync instead of git]' \
+        '--full[(pull --rsync) Pull everything including .kiro/]' \
+        '--specs-only[(push --rsync) Push only .kiro/ directory]' \
+        '--agents-only[(pull --rsync) Pull only .agents/ directory]' \
+        '--code-only[(pull --rsync) Pull only code]' \
+        '--dry-run[Show what would happen without doing it]' \
         '(-v --verbose)'{-v,--verbose}'[Show detailed output]' \
         '(-h --help)'{-h,--help}'[Show help]'
       ;;
