@@ -61,25 +61,30 @@ Options:
 
 Execute a YAML pipeline that orchestrates multiple agent steps, shell commands, and LLM-driven loops.
 
+```
+trayline run <pipeline> [options]
+```
+
 ```bash
-trayline run --pipeline code-review --verbose
-trayline run --pipeline ./local-pipeline.yaml --dry-run
-trayline run --pipeline create-code --var specs-name=my-spec --var path=./src
+trayline run processes/8-code-review --verbose
+trayline run workflows/feature-implementation --var specs-name=my-spec
+trayline run tasks/check-build --no-lifecycle
 ```
 
 Pipeline names are resolved from `~/.trayline/pipelines/`. Use a path with `/` or `.yaml` extension for local files.
 
 Options:
-- `--pipeline` — pipeline name or path (required)
 - `--var key=value` — set or override a pipeline variable (repeatable)
 - `--dry-run` — print steps without executing
 - `--verbose` — stream agent output in real time
+- `--no-lifecycle` — skip lifecycle.yaml before/after steps
+- `--log-llm` — log all LLM requests and responses to llm-debug.log
 
 See [orchestrator/README.md](orchestrator/README.md) for the full pipeline YAML format.
 
 ### sync
 
-Sync the current directory with a remote host via rsync.
+Sync the current directory with a remote server. Uses git-based sync (bare repo) by default with rsync as a fallback.
 
 ```bash
 trayline sync push
@@ -106,19 +111,50 @@ trayline/
 ├── install.sh            # Installer script
 ├── Dockerfile            # Sandbox container image
 ├── orchestrator/         # Go pipeline orchestrator (trayline-run)
-├── pipelines/            # Default pipeline definitions
+├── pipelines/
+│   ├── lifecycle.yaml    # Before/after hooks for every run
+│   ├── tasks/            # Atomic operations (check-build, release, sync)
+│   ├── processes/        # Standalone processes (create-code, code-review, etc.)
+│   └── workflows/        # Composed processes (feature-implementation, etc.)
 ├── completions/          # Zsh completions
 └── scripts/
     ├── trayline          # Main CLI wrapper (installed to ~/bin/)
     ├── trayline-agent    # Docker sandbox runner for AI agents
-    └── sync.sh           # Rsync wrapper
+    └── sync.sh           # Git + rsync sync wrapper
 ```
 
 ## Default Pipelines
 
+### Tasks
+
 | Pipeline | Description |
 |----------|-------------|
-| `default` | Full workflow: create code → verify build → create tests → code review |
-| `create-code` | Create code + tests + code review loop |
-| `code-review` | Standalone code review with iterative fixes |
-| `quick` | Create code only (no tests or review) |
+| `tasks/check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
+| `tasks/release` | Bumps version, updates CHANGELOG.md, creates git tag. |
+| `tasks/sync-pull` | Pulls from bare repo with conflict resolution. |
+| `tasks/sync-push` | Pushes to bare repo with conflict resolution. |
+| `tasks/update-ai-log` | Updates .agents/AI_LOG.md from .agents/tmp/ or git history. |
+
+### Processes
+
+| Pipeline | Description |
+|----------|-------------|
+| `processes/1-design-to-code` | Converts .design/ files into pixel-perfect web pages. |
+| `processes/2-data-refactor` | Extracts hardcoded strings into i18n + repository layer. |
+| `processes/3-ui-refactor` | Decomposes pages into component hierarchy with theme tokens. |
+| `processes/4-create-code` | Implements code from a Kiro spec, verifies build, runs code review. |
+| `processes/5-create-from-brief` | Generates spec from a brief file and implements it. |
+| `processes/6-ui-tests` | Creates/maintains E2E tests and component stories. |
+| `processes/7-create-tests` | Creates unit/integration tests for uncovered code. |
+| `processes/8-code-review` | Reviews code against spec, fixes critical/high/medium issues. |
+| `processes/9-improvements` | Finds and applies validation, DX, and test improvements. |
+
+### Workflows
+
+| Pipeline | Description |
+|----------|-------------|
+| `workflows/design-implementation` | Design → data refactor → UI refactor (1→2→3). |
+| `workflows/feature-implementation` | Create code → review → tests → UI tests (4→8→7→6). |
+| `workflows/bug-fixing` | Create from brief → tests → UI tests (5→7→6). |
+| `workflows/tests-implementation` | UI tests → unit tests (6→7). |
+| `workflows/refactoring` | Code review → improvements (8→9). |

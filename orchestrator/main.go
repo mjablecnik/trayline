@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var version = "dev"
+var version = "2.0.0"
 
 func programName() string {
 	return filepath.Base(os.Args[0])

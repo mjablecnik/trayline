@@ -1,102 +1,90 @@
 # Pipelines
 
-Overview of all available pipelines, what they do, and when to use them.
+Documentation for the trayline pipeline system — tasks, processes, and workflows that orchestrate AI agent actions.
 
-## 1-design-to-code
+## Structure Overview
 
-Converts visual designs into code. Three phases:
-1. **Design analysis** — Kiro reads all files in the `.design/` folder, creates `PAGES.md` (detailed page descriptions with responsive breakpoints) and `TASKS.md` (one task per page)
-2. **Page implementation** (loop, up to 50 iterations) — Claude implements pages with pixel-perfect accuracy, matching the designs exactly, including responsive layouts for mobile+desktop variants
-3. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
+```
+pipelines/
+├── lifecycle.yaml          ← Wraps every run: sync-pull → [run] → update-ai-log → sync-push
+├── tasks/                  ← Atomic operations (smallest runnable units)
+├── processes/              ← Standalone processes with clear output
+└── workflows/              ← Composed processes for full development cycles
+```
 
-Handles responsive designs automatically — if mobile and desktop variants of the same page exist, they are implemented as a single responsive page with media queries.
+## Tasks
 
-**Variables:** `path` (default: `this`), `number` (default: `10`)
+Atomic operations that perform a single responsibility. These are the smallest runnable units.
 
-## 2-data-refactor
+| Task | Description |
+|------|-------------|
+| `check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
+| `release` | Bumps version, updates CHANGELOG.md, creates git tag. |
+| `sync-pull` | Pulls from bare repo with conflict resolution. |
+| `sync-push` | Pushes to bare repo with conflict resolution. |
+| `update-ai-log` | Updates .agents/AI_LOG.md from .agents/tmp/ or git history. |
 
-Extracts hardcoded strings into i18n and a repository data layer. Three phases:
-1. **Analyze data** — Kiro identifies all hardcoded strings, classifies them (UI text vs API data), proposes i18n setup (en + cs) and repository layer, creates `DATA_SPEC.md` + `TASKS.md`
-2. **Implement** (loop, up to 50 iterations) — Claude sets up i18n, creates repositories, extracts strings, adds language switcher
-3. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
+## Processes
 
-Does not change visual appearance — only moves data out of components. Use when the project has hardcoded text that needs i18n or when mock data should be in a repository layer.
+Standalone processes with clear output. Each process focuses on one development concern.
 
-**Variables:** `path` (default: `this`), `number` (default: `10`)
+| Process | Description | Variables |
+|---------|-------------|-----------|
+| `1-design-to-code` | Converts .design/ files into pixel-perfect web pages. | `path`, `number` |
+| `2-data-refactor` | Extracts hardcoded strings into i18n + repository layer. | `path`, `number` |
+| `3-ui-refactor` | Decomposes pages into component hierarchy with theme tokens. | `path`, `number` |
+| `4-create-code` | Implements code from a Kiro spec, verifies build, runs code review. | `specs-name`, `path`, `number` |
+| `5-create-from-brief` | Generates spec from a brief file and implements it. | `brief`, `path`, `number` |
+| `6-ui-tests` | Creates/maintains E2E tests and component stories. | `path`, `number`, `implement_features` |
+| `7-create-tests` | Creates unit/integration tests for uncovered code. | `specs-name`, `path`, `number` |
+| `8-code-review` | Reviews code against spec, fixes critical/high/medium issues. | `specs-name`, `path`, `number` |
+| `9-improvements` | Finds and applies validation, DX, and test improvements. | `specs-name`, `path`, `number` |
 
-## 3-ui-refactor
+## Workflows
 
-Decomposes monolithic UI pages into a clean component hierarchy with a centralized theme. Three phases:
-1. **Analyze UI structure** — Kiro maps every page into sections → components, extracts design tokens (colors, fonts, spacing), proposes a folder structure with shared/page-specific layers, detects Storybook/Ladle/Histoire, creates `REFACTORING.md` + `TASKS.md`
-2. **Refactor** (loop, up to 50 iterations) — Claude implements the refactoring in phases: theme tokens → shared elements → shared components → page-specific components → page composition → stories (if catalog tool detected)
-3. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
+Composed processes for full development cycles. Workflows chain multiple processes together and support skip flags to bypass individual steps.
 
-Does not change visual appearance — only restructures code. Use when pages are large monolithic files with duplicated UI code.
+| Workflow | Processes | Skip Flags |
+|----------|-----------|------------|
+| `design-implementation` | 1→2→3 | `skip-data-refactor`, `skip-ui-refactor` |
+| `feature-implementation` | 4→8→7→6 | `skip-code-review`, `skip-create-tests`, `skip-ui-tests` |
+| `bug-fixing` | 5→7→6 | `skip-create-tests`, `skip-ui-tests` |
+| `tests-implementation` | 6→7 | `skip-ui-tests`, `skip-create-tests` |
+| `refactoring` | 8→9 | `skip-improvements` |
 
-**Variables:** `path` (default: `this`), `number` (default: `10`)
+## Lifecycle
 
-## 4-create-code
+The `lifecycle.yaml` wraps every pipeline run with synchronization steps:
 
-Full development pipeline from a Kiro spec. Five phases:
-1. **Code implementation** (loop, up to 50 iterations) — Claude implements tasks from `.kiro/specs/{specs-name}`, uses MEMORY.md for known issues
-2. **Build verification** — Claude checks that the build and Docker build work
-3. **Test creation** (loop, up to 50 iterations) — Claude creates all optional tests from the spec
-4. **Code review** — Runs the `code-review` pipeline as a sub-pipeline
-5. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
+```
+before: sync-pull
+  ↓
+[pipeline runs]
+  ↓
+after: update-ai-log → sync-push
+```
 
-Use for complete end-to-end development from a spec with quality assurance.
+- **before**: Pulls latest changes from the bare repo before the pipeline starts.
+- **after**: Updates the AI log and pushes results back to the bare repo.
 
-**Variables:** `specs-name`, `path` (default: `this`), `number` (default: `10`)
+Use `--no-lifecycle` flag to disable lifecycle wrapping (useful for local-only tasks or debugging).
 
-## 5-from-brief
+## Usage Examples
 
-Starts from a short project brief (a markdown file) instead of a full spec. Three phases:
-1. **Spec creation** — Kiro reads the brief and generates `SPEC.md` + `TASKS.md`
-2. **Implementation** (loop, up to 50 iterations) — Claude implements tasks from the generated spec, uses MEMORY.md for known issues
-3. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
-
-Use when you have a rough idea written in a markdown file and want the agent to figure out the spec and build it.
-
-**Variables:** `brief` (default: `BRIEF.md`), `path` (default: `this`), `number` (default: `10`)
-
-## 6-ui-tests
-
-Generates and maintains UI test coverage (E2E + component stories). Five phases:
-1. **Analyze tests** — Kiro detects testing tools (Playwright/Cypress + Storybook/Ladle/Histoire), maps UI structure, identifies missing/orphaned/failing tests, creates `COMPONENT-TESTS.md`, `E2E-TESTS.md`, `COMPONENT-TASKS.md`, `E2E-TASKS.md`
-2. **Generate component tests** (loop, up to 50 iterations) — Claude creates/fixes/removes stories
-3. **Generate E2E tests** (loop, up to 50 iterations) — Claude creates/fixes/removes E2E tests with mocked APIs
-4. **Summarize tests** — Kiro runs all tests, verifies coverage, creates `TEST-REPORT.md` inside the project
-5. **AI-LOG update** — Kiro logs what was done, cleans up temporary files
-
-Aborts early if neither an E2E framework nor a component catalog is installed.
-
-**Variables:** `path` (default: `this`), `number` (default: `10`), `implement_features` (default: `false` — when `true`, implements missing features instead of deleting orphaned tests)
-
-## check-build
-
-Single-step pipeline. Claude detects the project type, runs the build, linter, and tests, and fixes everything needed to make the project build and run cleanly. Fixes all errors, fixes small warnings (1-2 line changes), updates build/run documentation if needed, and uses MEMORY.md to avoid repeating past mistakes.
-
-Use as a quick health check to verify a project builds and runs without issues.
-
-**Variables:** `path` (default: `this`)
-
-## code-review
-
-Reviews existing code against a spec and fixes issues. Runs up to 3 iterations of:
-1. **Review** — Kiro analyzes the codebase, compares it to the spec, creates `CODE_REVIEW.md` + `TASKS.md` with issues sorted by severity
-2. **Fix critical/high** — Claude fixes all CRITICAL and HIGH issues
-3. **Fix medium** — Claude fixes all MEDIUM issues
-
-Loop exits when no unchecked tasks remain. Uses MEMORY.md for context and records new insights.
-
-**Variables:** `specs-name`, `path` (default: `this`), `number` (default: `10`)
-
----
+```bash
+trayline run processes/4-create-code --var specs-name=my-feature
+trayline run workflows/feature-implementation --var specs-name=my-feature
+trayline run workflows/feature-implementation --var specs-name=my-feature --var skip-code-review=true
+trayline run tasks/check-build --no-lifecycle
+trayline run tasks/update-ai-log
+```
 
 ## Common Patterns
 
-- All pipelines use `MEMORY.md` inside the project to persist lessons learned across runs.
-- All pipelines end with an `AI-LOG.md` update step that logs what was done and cleans up temporary files (TASKS.md, SPEC.md, etc.).
-- Git commits are made with author `Martin Jablečník <martin.jablecnik@email.cz>`.
-- The `number` variable controls how many tasks are completed per loop iteration.
-- The `path` variable points to the project directory (defaults to `this` = current project).
+- All processes use `.agents/MEMORY.md` for persistent knowledge.
+- `.agents/tmp/` is used for temporary task files (cleaned up by update-ai-log).
+- `.agents/AI_LOG.md` tracks all pipeline activity.
+- Git commits are made with author Martin Jablečník.
+- The `number` variable controls tasks per loop iteration.
+- The `path` variable points to the project directory.
+- The `skip` field on steps accepts "true"/"false" for conditional execution.
