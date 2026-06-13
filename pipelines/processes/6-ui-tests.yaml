@@ -1,5 +1,5 @@
 variables:
-  number: "10"
+  number: "5"
   path: "this"
   # When "false" (default): orphaned tests (tests for non-existent functionality) are deleted.
   # When "true": instead of deleting orphaned tests, implement the missing functionality they reference.

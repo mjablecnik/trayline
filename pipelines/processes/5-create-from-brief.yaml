@@ -1,5 +1,5 @@
 variables:
-  number: "10"
+  number: "1"
   brief: "BRIEF.md"
   path: "this"
 

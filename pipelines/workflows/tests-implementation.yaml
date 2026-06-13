@@ -1,7 +1,7 @@
 variables:
   specs-name: ""
   path: "this"
-  number: "10"
+  number: "1"
   skip-ui-tests: "false"
   skip-create-tests: "false"
 

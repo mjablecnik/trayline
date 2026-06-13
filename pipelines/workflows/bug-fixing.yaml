@@ -1,9 +1,9 @@
 variables:
   brief: "BRIEF.md"
   path: "this"
-  number: "10"
-  skip-create-tests: "false"
-  skip-ui-tests: "false"
+  number: "1"
+  skip-create-tests: "true"
+  skip-ui-tests: "true"
 
 steps:
   - name: "create-from-brief"

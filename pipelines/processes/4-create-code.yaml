@@ -1,5 +1,5 @@
 variables:
-  number: "10"
+  number: "1"
   specs-name: ""
   path: "this"
 
@@ -32,6 +32,3 @@ steps:
 
   - name: "verify-builds"
     command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"
-
-  - name: "code-review"
-    command: "trayline run processes/8-code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"

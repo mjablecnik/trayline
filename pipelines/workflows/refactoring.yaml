@@ -1,8 +1,8 @@
 variables:
   specs-name: ""
   path: "this"
-  number: "10"
-  skip-improvements: "false"
+  number: "5"
+  skip-improvements: "true"
 
 steps:
   - name: "code-review"

@@ -1,6 +1,6 @@
 variables:
   path: "this"
-  number: "10"
+  number: "1"
   skip-data-refactor: "false"
   skip-ui-refactor: "false"
 
