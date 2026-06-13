@@ -278,31 +278,4 @@ steps:
       and message "chore: update TEST_REPORT.md".
 
   - name: "update-ai-log"
-    agent: "kiro"
-    prompt: |
-      Add a new entry to AI_LOG.md inside .agents/.
-      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the .agents/ directory exists.
-
-      Read COMPONENT_TASKS.md and E2E_TASKS.md from .agents/tmp/ to understand what was done.
-      Also read TEST_REPORT.md from .agents/ and check the git log for commits made
-      during this pipeline run.
-
-      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
-
-      ## [current date and time] — ui-tests
-      - [list each action taken: created, fixed, removed tests/stories]
-      - [be specific: mention file names, component names, page names]
-      - [if nothing was needed, write: "No changes needed — all tests up to date"]
-
-      Rules:
-      - Never modify or delete existing entries — only prepend a new one.
-      - Keep entries concise but specific — someone should understand what changed without
-        reading the full test report.
-      - Use past tense (Created, Fixed, Removed, Updated).
-
-      CLEANUP:
-      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
-
-      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI_LOG.md".
+    command: "trayline run --pipeline update-ai-log --var pipeline-name=ui-tests"

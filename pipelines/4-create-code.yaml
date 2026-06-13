@@ -75,33 +75,4 @@ steps:
     verbose: true
 
   - name: "update-ai-log"
-    agent: "kiro"
-    prompt: |
-      Add a new entry to AI_LOG.md inside .agents/.
-      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the .agents/ directory exists.
-
-      Read the spec files in .kiro/specs/{{specs-name}} and check the git log for commits
-      made during this pipeline run to understand what was implemented.
-      NOTE: Do NOT read TASKS.md from .agents/tmp/ — it was overwritten by the code-review step
-      and no longer reflects the original implementation tasks. Rely on git log and spec files instead.
-
-      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
-
-      ## [current date and time] — create-code
-      - Spec: {{specs-name}}
-      - [list features/components/services implemented]
-      - [list tests created]
-      - [list code review fixes applied]
-      - [be specific: file names, function names, endpoints]
-
-      Rules:
-      - Never modify or delete existing entries — only prepend a new one.
-      - Keep entries concise but specific.
-      - Use past tense (Implemented, Created, Added, Configured, Fixed).
-
-      CLEANUP:
-      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
-
-      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI_LOG.md".
+    command: "trayline run --pipeline update-ai-log --var pipeline-name=create-code"

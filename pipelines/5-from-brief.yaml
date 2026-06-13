@@ -72,29 +72,4 @@ steps:
             If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "update-ai-log"
-    agent: "kiro"
-    prompt: |
-      Add a new entry to AI_LOG.md inside .agents/.
-      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the .agents/ directory exists.
-
-      Read TASKS.md and SPEC.md from .agents/tmp/ to understand what was done.
-      Also check the git log for commits made during this pipeline run.
-
-      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
-
-      ## [current date and time] — from-brief
-      - Brief: {{brief}}
-      - [list features/components/services implemented]
-      - [be specific: file names, function names, endpoints]
-
-      Rules:
-      - Never modify or delete existing entries — only prepend a new one.
-      - Keep entries concise but specific.
-      - Use past tense (Implemented, Created, Added, Configured).
-
-      CLEANUP:
-      After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
-
-      After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI_LOG.md".
+    command: "trayline run --pipeline update-ai-log --var pipeline-name=from-brief"

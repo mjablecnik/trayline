@@ -50,27 +50,4 @@ steps:
     verbose: true
 
   - name: "update-ai-log"
-    agent: "kiro"
-    prompt: |
-      Add a new entry to AI_LOG.md inside .agents/.
-      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-      Ensure the .agents/ directory exists.
-
-      Check the git log for commits made during this pipeline run to understand what was fixed.
-
-      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
-
-      ## [current date and time] — check-build
-      - [list build issues fixed]
-      - [list linter errors fixed]
-      - [list test fixes]
-      - [list documentation updates]
-      - [if nothing was needed, write: "Build clean — no fixes needed"]
-
-      Rules:
-      - Never modify or delete existing entries — only prepend a new one.
-      - Keep entries concise but specific.
-      - Use past tense (Fixed, Updated, Resolved, Added).
-
-      After updating AI_LOG.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update AI_LOG.md".
+    command: "trayline run --pipeline update-ai-log --var pipeline-name=check-build"

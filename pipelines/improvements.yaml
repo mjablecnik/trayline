@@ -92,29 +92,4 @@ steps:
           verbose: true
 
         - name: "update-ai-log"
-          agent: "kiro"
-          prompt: |
-            Add a new entry to AI_LOG.md inside .agents/.
-            If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
-            Ensure the .agents/ directory exists.
-
-            Read TASKS.md and IMPROVEMENTS.md from .agents/tmp/ to understand what was done.
-            Also check the git log for commits made during this pipeline run.
-
-            Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
-
-            ## [current date and time] — improvements
-            - [list improvements applied: validation added, error handling improved, tests added]
-            - [be specific: file names, function names, what was improved]
-            - [if nothing was needed, write: "No improvements needed — code is in good shape"]
-
-            Rules:
-            - Never modify or delete existing entries — only prepend a new one.
-            - Keep entries concise but specific.
-            - Use past tense (Added, Improved, Fixed, Strengthened).
-
-            CLEANUP:
-            After updating AI_LOG.md, delete the .agents/tmp/ directory entirely.
-
-            After cleanup, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-            and message "chore: update AI_LOG.md".
+          command: "trayline run --pipeline update-ai-log --var pipeline-name=improvements"

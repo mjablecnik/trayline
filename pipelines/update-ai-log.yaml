@@ -1,0 +1,49 @@
+variables:
+  pipeline-name: "manual"
+
+steps:
+  - name: "update-ai-log"
+    agent: "kiro"
+    prompt: |
+      Your job is to add a new entry to AI_LOG.md inside .agents/.
+      If AI_LOG.md does not exist, create it with a "# AI Log" heading first.
+      Ensure the .agents/ directory exists.
+
+      STEP 1 — DETERMINE WHAT HAPPENED:
+
+      Check if .agents/tmp/ directory exists:
+
+      A) If .agents/tmp/ EXISTS and contains files:
+         - Read ALL files inside .agents/tmp/ (TASKS.md, SPEC.md, CODE_REVIEW.md, etc.)
+         - Also check git log for recent commits to get additional context.
+         - Use the content of these files to understand what was done.
+
+      B) If .agents/tmp/ does NOT exist (or is empty):
+         - Read the most recent entry in AI_LOG.md to find its date/time.
+         - Run `git log` and look at all commits AFTER that date.
+         - If AI_LOG.md has no entries, look at the entire git history.
+         - Use commit messages and changed files to understand what was done.
+
+      STEP 2 — WRITE THE ENTRY:
+
+      Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
+
+      ## [current date and time] — {{pipeline-name}}
+      - [summarize what was done, based on .agents/tmp/ files or git log]
+      - [be specific: file names, component names, features, fixes]
+      - [if nothing meaningful happened, write: "No changes made"]
+
+      Rules:
+      - Never modify or delete existing entries — only prepend a new one.
+      - Keep entries concise but specific.
+      - Use past tense (Created, Fixed, Implemented, Extracted, Refactored).
+      - Someone reading the log should understand what changed without reading source code.
+
+      STEP 3 — CLEANUP:
+
+      If .agents/tmp/ exists, delete it entirely after updating AI_LOG.md.
+
+      STEP 4 — COMMIT:
+
+      Create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update AI_LOG.md".
