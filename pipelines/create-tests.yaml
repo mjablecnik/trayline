@@ -1,0 +1,202 @@
+variables:
+  number: "10"
+  specs-name: ""
+  path: "this"
+
+steps:
+  - name: "analyze-test-coverage"
+    agent: "kiro"
+    prompt: |
+      FIRST: Check if .agents/tmp/TASKS.md already exists.
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing TASKS.md".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if TASKS.md does not exist or contains no unchecked tasks, proceed with the full analysis:
+
+      Analyze the entire codebase in the {{path}} project directory.
+      If a .kiro/specs/{{specs-name}} folder exists, read all files inside it for additional context
+      about the project's intended behavior and architecture.
+
+      If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
+      test pipeline run. Focus analysis on new or changed code rather than re-scanning everything.
+
+      SCOPE — Focus on these test types:
+      - Unit tests for individual functions, methods, classes, and modules
+      - Integration tests for service interactions, API endpoints, database queries
+      - Edge cases: error handling, boundary conditions, null/empty inputs, timeouts
+      - Input validation tests
+
+      OUT OF SCOPE (handled by the ui-tests pipeline):
+      - E2E browser tests (Playwright, Cypress)
+      - Component stories (Storybook, Ladle, Histoire)
+      - Visual regression tests
+      Do NOT create tasks for any of the above.
+
+      Your analysis should:
+      1. Detect the project framework, language, and test tooling (test runner, assertion library,
+         mocking framework, file naming conventions, test directory structure).
+      2. Map all source files that contain testable logic (business logic, utilities, services,
+         API handlers, data transformations, validators).
+      3. Identify which files/functions already have test coverage and which don't.
+      4. For uncovered code, determine what tests are needed and their priority.
+      5. Identify existing tests that are broken, outdated, or testing deleted code.
+
+      Create two files in .agents/tmp/ (create directories if they don't exist):
+      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
+      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
+
+      1. TEST_SPEC.md — A detailed test specification:
+         - Detected test tooling and conventions
+         - Current coverage overview (which files/modules have tests, which don't)
+         - For each missing test group:
+           - File/function/method to test
+           - What behavior or scenario to verify
+           - Expected inputs and outputs
+           - Mocking requirements (external services, databases, file system)
+           - Priority: [HIGH] (core logic, untested), [MEDIUM] (edge cases, error paths),
+             [LOW] (utilities, simple getters)
+         Sort by priority (high first), then by file.
+
+      2. TASKS.md — A task list derived from TEST_SPEC.md:
+         Phase 0 — Cleanup:
+         - [ ] Remove orphaned/broken tests for deleted code (list each)
+         Phase 1 — High priority (core logic without coverage):
+         - [ ] [HIGH] Create unit tests for [file/function] — [what to test]
+         Phase 2 — Medium priority (edge cases, error handling):
+         - [ ] [MEDIUM] Add edge case tests for [file/function] — [scenarios]
+         Phase 3 — Low priority (utilities, simple logic):
+         - [ ] [LOW] Add tests for [file/function] — [what to test]
+
+         Each task must be a single, actionable unit — one test file or one logical group of tests.
+
+      Important:
+      - Do NOT include E2E tests, browser tests, or component stories — those belong in ui-tests pipeline.
+      - All tests must be runnable without external services (mock everything).
+      - Follow the project's existing test conventions exactly.
+      - If the project has no test framework set up, include a setup task as the first HIGH priority item.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "implement-tests"
+          agent: "claude"
+          prompt: |
+            Read TEST_SPEC.md and TASKS.md from .agents/tmp/.
+            If a .kiro/specs/{{specs-name}} folder exists, read it for additional context.
+
+            MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+
+            Your job is to create, fix, or remove tests in the {{path}} project.
+
+            Rules:
+            - Detect the existing test framework and conventions in the project
+              (test runner, assertion style, file naming, folder structure).
+            - Write tests that follow the same patterns as existing tests in the project.
+            - After writing each test, run it and verify it passes. If it fails, fix it before moving on.
+            - Mock all external dependencies (APIs, databases, file system, network).
+              Tests must run independently without external services.
+            - Each test must be deterministic — no random data, no time-dependent assertions.
+            - Use descriptive test names that explain what is being tested and expected behavior.
+            - Do NOT modify source code to make tests pass — if a test reveals a bug, note it
+              in the test as a comment but make the test assert the current behavior.
+              Exception: if a task explicitly says "fix broken test", then fix the source.
+            - If removing orphaned tests, delete the file entirely (or remove specific test cases).
+            - Follow the project's existing code style, linting rules, and conventions.
+
+            Implement only up to {{number}} tasks in this run, then stop.
+            After completing each task, check it off in .agents/tmp/TASKS.md.
+            After every batch of passing tests, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
+            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
+            If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+            Only record genuinely useful insights — not trivial typos or obvious fixes.
+
+            When you are done, print a summary of which tasks you completed.
+            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
+
+  - name: "verify-tests"
+    agent: "kiro"
+    prompt: |
+      This is the verification step. All test creation is done.
+      Your job is to run all tests and report the results.
+
+      STEP 1 — RUN ALL TESTS:
+      - Detect the test runner for the {{path}} project.
+      - Run the full test suite.
+      - Record which tests pass and which fail.
+
+      STEP 2 — WRITE RESULTS:
+      Create (or overwrite) .agents/tmp/TEST_RESULTS.md with:
+      - Total tests, passing, failing
+      - For each failure: test name, file, brief error description
+      - If ALL tests pass, write "All tests pass." at the top.
+
+      Do NOT fix anything — just report.
+    condition:
+      file: ".agents/tmp/TEST_RESULTS.md"
+      not_contains: "All tests pass."
+
+  - name: "fix-failing-tests"
+    agent: "claude"
+    prompt: |
+      Read .agents/tmp/TEST_RESULTS.md to understand which tests are failing and why.
+
+      MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+
+      Fix all failing tests. For each failure:
+      - Read the test file and the source code it tests
+      - Determine if the test is wrong (bad assertion, outdated expectation) or the source has a bug
+      - If the test is wrong: fix the test to correctly assert the actual behavior
+      - If the source has a bug: fix the source code
+      - Run the fixed test to verify it passes
+
+      After fixing all failures, run the entire test suite to confirm nothing else broke.
+
+      If you encounter and solve a non-obvious problem, add it to MEMORY.md inside .agents/.
+      Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
+
+      After every fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
+      When done, print a summary of what you fixed.
+
+  - name: "generate-test-report"
+    agent: "kiro"
+    prompt: |
+      Run the full test suite for the {{path}} project one final time.
+
+      Create (or overwrite) UNIT_TEST_REPORT.md inside .agents/ with this structure:
+
+      # Test Report
+      Created: [current date and time when this report is first generated]
+      Updated: [current date and time — always update this on every run]
+
+      ## Summary
+      - Total tests: [count]
+      - Passing: [count]
+      - Failing: [count]
+      - Coverage: [percentage if available, or "not measured"]
+
+      ## Test Results
+      | Test File | Tests | Pass | Fail | Status |
+      |---|---|---|---|---|
+      | tests/auth_test.go | 5 | 5 | 0 | ✅ Pass |
+      | ... | ... | ... | ... | ... |
+
+      ## Failures (if any)
+      - [test name]: [brief failure reason]
+
+      ## Uncovered (no tests)
+      - [List any source files/modules that still lack test coverage, if any]
+
+      ## Notes
+      - [Any issues encountered, warnings, or recommendations for future runs]
+
+      After creating UNIT_TEST_REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update UNIT_TEST_REPORT.md".
+
+  - name: "update-ai-log"
+    command: "trayline run --pipeline update-ai-log --var pipeline-name=create-tests"

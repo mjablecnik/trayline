@@ -45,7 +45,7 @@ steps:
       - Run existing tests to check which pass and which fail
       - Map which pages/components have test coverage and which don't
       - Identify orphaned tests (tests for functionality/components that no longer exist)
-      - If TEST_REPORT.md exists inside .agents/ from a previous run, read it for context
+      - If UI_TEST_REPORT.md exists inside .agents/ from a previous run, read it for context
       - If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
         test pipeline run (new pages, new components, refactoring, etc.). Use this to focus
         analysis on what's new or changed rather than rescanning everything from scratch.
@@ -218,7 +218,7 @@ steps:
     agent: "kiro"
     prompt: |
       This is the final step of the UI test pipeline. Both test generation agents have finished.
-      Your job is to verify the final state and create a TEST_REPORT.md summary.
+      Your job is to verify the final state and create a UI_TEST_REPORT.md summary.
 
       STEP 1 — RUN ALL TESTS:
       - Run all component catalog tests (Storybook build/test, Ladle build, etc.) if applicable.
@@ -232,8 +232,8 @@ steps:
       - Check which components have story/component test coverage.
       - Identify any gaps (pages or components without tests).
 
-      STEP 3 — CREATE TEST_REPORT.md:
-      Create (or overwrite) TEST_REPORT.md inside .agents/
+      STEP 3 — CREATE UI_TEST_REPORT.md:
+      Create (or overwrite) UI_TEST_REPORT.md inside .agents/
       with the following structure:
 
       # Test Report
@@ -272,10 +272,10 @@ steps:
       - Delete COMPONENT_TESTS.md and E2E_TESTS.md from .agents/tmp/
         (these are analysis documents, not needed after completion).
       - Do NOT delete COMPONENT_TASKS.md and E2E_TASKS.md yet — they are needed by the AI_LOG step.
-      - Do NOT delete TEST_REPORT.md — it persists for the next pipeline run.
+      - Do NOT delete UI_TEST_REPORT.md — it persists for the next pipeline run.
 
-      After creating TEST_REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
-      and message "chore: update TEST_REPORT.md".
+      After creating UI_TEST_REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "chore: update UI_TEST_REPORT.md".
 
   - name: "update-ai-log"
     command: "trayline run --pipeline update-ai-log --var pipeline-name=ui-tests"
