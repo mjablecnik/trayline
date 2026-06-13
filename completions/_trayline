@@ -16,6 +16,50 @@ _trayline_pipelines() {
   fi
 }
 
+_trayline_pipeline_vars() {
+  local pipelines_dir="${TRAYLINE_HOME:-${HOME}/.trayline}/pipelines"
+  local pipeline_ref=""
+
+  # Find the pipeline reference from the command line
+  local i
+  for (( i=1; i <= ${#words[@]}; i++ )); do
+    case "${words[$i]}" in
+      --pipeline)
+        pipeline_ref="${words[$((i+1))]}"
+        break
+        ;;
+      --*) ;;
+      *)
+        # First non-flag after "run" is the positional pipeline arg
+        if [[ $i -gt 1 && "${words[$((i-1))]}" != "--pipeline" && "${words[$i]}" != "run" ]]; then
+          pipeline_ref="${words[$i]}"
+          break
+        fi
+        ;;
+    esac
+  done
+
+  [[ -z "$pipeline_ref" ]] && return
+
+  # Resolve pipeline path
+  local pipeline_path=""
+  if [[ "$pipeline_ref" == *.yaml || "$pipeline_ref" == *.yml ]]; then
+    pipeline_path="$pipeline_ref"
+  elif [[ -f "${pipelines_dir}/${pipeline_ref}.yaml" ]]; then
+    pipeline_path="${pipelines_dir}/${pipeline_ref}.yaml"
+  fi
+
+  [[ -z "$pipeline_path" || ! -f "$pipeline_path" ]] && return
+
+  # Extract variable keys from the variables: section
+  local -a var_keys
+  var_keys=( $(sed -n '/^variables:/,/^[^ ]/{ /^  [a-z]/s/^  \([a-z][a-z0-9-]*\):.*/\1=/p }' "$pipeline_path") )
+
+  [[ ${#var_keys[@]} -eq 0 ]] && return
+
+  _describe 'variable' var_keys -S ''
+}
+
 _trayline_agent() {
   local -a agents
   agents=(
@@ -72,7 +116,7 @@ _trayline_run() {
     '--verbose[Stream output in real time]' \
     '--log-llm[Log LLM requests and responses to llm-debug.log]' \
     '--no-lifecycle[Skip lifecycle.yaml before/after steps]' \
-    '*--var[Set variable key=value]:variable:'
+    '*--var[Set variable key=value]:variable:_trayline_pipeline_vars'
 }
 
 _trayline() {
