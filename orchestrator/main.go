@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +36,7 @@ Flags:
   --verbose           Stream trayline-agent output to stdout in real time
   --log-llm           Log all LLM requests and responses to llm-debug.log
   --no-lifecycle      Skip lifecycle.yaml before/after steps
+  --restart           Ignore checkpoint and start pipeline from the beginning
   --version           Print version and exit
   --help, -h          Show this help message
 
@@ -74,6 +76,7 @@ func run(args []string) int {
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	logLLMFlag := fs.Bool("log-llm", false, "Log all LLM requests and responses to llm-debug.log")
 	noLifecycleFlag := fs.Bool("no-lifecycle", false, "Skip lifecycle.yaml before/after steps")
+	restartFlag := fs.Bool("restart", false, "Ignore checkpoint and start pipeline from the beginning")
 	var vars varFlags
 	fs.Var(&vars, "var", "Set variable key=value (repeatable)")
 
@@ -162,6 +165,8 @@ func run(args []string) int {
 		Verbose:      *verboseFlag,
 		Runner:       &OSCommandRunner{},
 		ResolvedVars: resolvedVars,
+		PipelineName: pipelinePath,
+		Restart:      *restartFlag,
 	}
 
 	// Lifecycle: wrap execution with before/after steps from lifecycle.yaml
@@ -212,10 +217,17 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		return executor.Run()
 	}
 
+	type RetryConfig struct {
+		OnRateLimit bool `yaml:"on-rate-limit"`
+		WaitMinutes int  `yaml:"wait-minutes"`
+		MaxRetries  int  `yaml:"max-retries"`
+	}
+
 	type LifecycleConfig struct {
-		LogTask string `yaml:"log-task"`
-		Before  []Step `yaml:"before"`
-		After   []Step `yaml:"after"`
+		LogTask string      `yaml:"log-task"`
+		Retry   RetryConfig `yaml:"retry"`
+		Before  []Step      `yaml:"before"`
+		After   []Step      `yaml:"after"`
 	}
 
 	var lc LifecycleConfig
@@ -253,8 +265,31 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		}
 	}
 
-	// Execute main pipeline
-	exitCode := executor.Run()
+	// Execute main pipeline (with rate limit retry)
+	var exitCode int
+	maxAttempts := 1
+	if lc.Retry.OnRateLimit && lc.Retry.MaxRetries > 0 {
+		maxAttempts = lc.Retry.MaxRetries + 1 // +1 for initial attempt
+	}
+	waitDuration := time.Duration(lc.Retry.WaitMinutes) * time.Minute
+	if waitDuration == 0 {
+		waitDuration = 120 * time.Minute // default 2 hours
+	}
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		exitCode = executor.Run()
+
+		// Exit code 2 = rate limit. Retry if configured.
+		if exitCode == 2 && lc.Retry.OnRateLimit && attempt < maxAttempts {
+			fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Waiting %d minutes before retry...%s\n",
+				colorBold, colorYellow, attempt, maxAttempts, lc.Retry.WaitMinutes, colorReset)
+			time.Sleep(waitDuration)
+			fmt.Printf("\n%s%s⟳ Retrying pipeline (attempt %d/%d)...%s\n",
+				colorBold, colorCyan, attempt+1, maxAttempts, colorReset)
+			continue
+		}
+		break
+	}
 
 	// Execute after steps (even if pipeline failed — we still want to push results)
 	for i, step := range lc.After {

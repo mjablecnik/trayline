@@ -6,7 +6,7 @@ Documentation for the trayline pipeline system — tasks, processes, and workflo
 
 ```
 pipelines/
-├── lifecycle.yaml          ← Wraps every run: sync-pull → [run] → update-ai-log → sync-push
+├── lifecycle.yaml          ← Wraps every run: sync-pull → [run] → sync-push
 ├── tasks/                  ← Atomic operations (smallest runnable units)
 ├── processes/              ← Standalone processes with clear output
 └── workflows/              ← Composed processes for full development cycles
@@ -54,37 +54,94 @@ Composed processes for full development cycles. Workflows chain multiple process
 
 ## Lifecycle
 
-The `lifecycle.yaml` wraps every pipeline run with synchronization steps:
+The `lifecycle.yaml` wraps every pipeline run with synchronization and logging:
 
 ```
 before: sync-pull
   ↓
 [pipeline runs]
+  ↓ (log:true steps trigger update-ai-log automatically)
   ↓
-after: update-ai-log → sync-push
+after: sync-push
 ```
 
 - **before**: Pulls latest changes from the bare repo before the pipeline starts.
-- **after**: Updates the AI log and pushes results back to the bare repo.
+- **log-task**: Configured task that runs automatically after steps with `log: true`.
+- **after**: Pushes results back to the bare repo.
+- **retry**: Configures automatic retry on rate limit errors.
 
-Use `--no-lifecycle` flag to disable lifecycle wrapping (useful for local-only tasks or debugging).
+### log: true
+
+Steps with `log: true` automatically trigger the configured `log-task` (default: `tasks/update-ai-log`) after successful completion. This ensures each process gets its own AI log entry in workflows.
+
+```yaml
+- name: "create-code"
+  command: "trayline run processes/4-create-code ..."
+  verbose: true
+  log: true    # → runs tasks/update-ai-log after this step
+```
+
+### Retry on Rate Limit
+
+When an agent hits a token/rate limit, the orchestrator detects it from the output, saves a checkpoint, waits the configured duration, and retries from where it left off.
+
+```yaml
+retry:
+  on-rate-limit: true    # Enable automatic retry
+  wait-minutes: 120      # Wait 2 hours between retries
+  max-retries: 3         # Maximum retry attempts
+```
+
+Use `--no-lifecycle` flag to disable all lifecycle behavior (sync, logging, retry).
+
+## Checkpoint & Resume
+
+The orchestrator automatically saves progress after each completed step. If a pipeline fails or hits a rate limit, it can resume from where it left off.
+
+**How it works:**
+- After each successful top-level step, the step name is recorded in memory.
+- On failure or rate limit, a checkpoint is saved to `.agents/tmp/.checkpoint`.
+- On the next run of the same pipeline, completed steps are skipped automatically.
+- On successful completion, the checkpoint is cleared.
+
+**Flags:**
+- `--restart` — Ignore any existing checkpoint and start from the beginning.
+
+**Rate limit behavior:**
+- Exit code 2 indicates a rate limit was hit.
+- If retry is configured in lifecycle.yaml, the orchestrator waits and retries automatically.
+- If retry is not configured, the pipeline exits and you can re-run it manually later.
 
 ## Usage Examples
 
 ```bash
+# Run a single process:
 trayline run processes/4-create-code --var specs-name=my-feature
+
+# Run a full workflow:
 trayline run workflows/feature-implementation --var specs-name=my-feature
+
+# Skip specific steps in a workflow:
 trayline run workflows/feature-implementation --var specs-name=my-feature --var skip-code-review=true
+
+# Run a task without lifecycle (no sync):
 trayline run tasks/check-build --no-lifecycle
-trayline run tasks/update-ai-log
+
+# Force restart (ignore checkpoint):
+trayline run workflows/feature-implementation --var specs-name=my-feature --restart
+
+# Dry run (preview what would execute):
+trayline run workflows/feature-implementation --var specs-name=my-feature --dry-run
 ```
 
 ## Common Patterns
 
 - All processes use `.agents/MEMORY.md` for persistent knowledge.
 - `.agents/tmp/` is used for temporary task files (cleaned up by update-ai-log).
-- `.agents/AI_LOG.md` tracks all pipeline activity.
+- `.agents/AI_LOG.md` tracks all pipeline activity with project attribution.
 - Git commits are made with author Martin Jablečník.
 - The `number` variable controls tasks per loop iteration.
 - The `path` variable points to the project directory.
 - The `skip` field on steps accepts "true"/"false" for conditional execution.
+- The `log` field on steps triggers automatic AI log updates after completion.
+- The `model` field on agent steps overrides the default LLM model.

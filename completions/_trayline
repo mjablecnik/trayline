@@ -116,6 +116,7 @@ _trayline_run() {
     '--verbose[Stream output in real time]' \
     '--log-llm[Log LLM requests and responses to llm-debug.log]' \
     '--no-lifecycle[Skip lifecycle.yaml before/after steps]' \
+    '--restart[Ignore checkpoint and start from the beginning]' \
     '*--var[Set variable key=value]:variable:_trayline_pipeline_vars'
 }
 

@@ -78,7 +78,10 @@ Options:
 - `--dry-run` — print steps without executing
 - `--verbose` — stream agent output in real time
 - `--no-lifecycle` — skip lifecycle.yaml before/after steps
+- `--restart` — ignore checkpoint and start from the beginning
 - `--log-llm` — log all LLM requests and responses to llm-debug.log
+
+Pipelines automatically resume from where they left off if interrupted or rate-limited. Use `--restart` to force a fresh start.
 
 See [orchestrator/README.md](orchestrator/README.md) for the full pipeline YAML format.
 

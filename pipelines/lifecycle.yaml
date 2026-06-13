@@ -1,5 +1,10 @@
 log-task: "tasks/update-ai-log"
 
+retry:
+  on-rate-limit: true
+  wait-minutes: 30
+  max-retries: 8
+
 before:
   - name: "sync-pull"
     agent: "claude"

@@ -91,14 +91,16 @@ func runSubprocess(name string, args []string, dir string, env []string, verbose
 
 // Executor runs the pipeline.
 type Executor struct {
-	Config       *Config
-	Pipeline     *Pipeline
-	LLM          ConditionEvaluator
-	DryRun       bool
-	Verbose      bool
-	Runner       CommandRunner
-	ResolvedVars map[string]string // for dry-run display
-	LogTask      string            // pipeline to run after steps with log:true
+	Config        *Config
+	Pipeline      *Pipeline
+	LLM           ConditionEvaluator
+	DryRun        bool
+	Verbose       bool
+	Runner        CommandRunner
+	ResolvedVars  map[string]string // for dry-run display
+	LogTask       string            // pipeline to run after steps with log:true
+	PipelineName  string            // name of the pipeline (for checkpoint)
+	Restart       bool              // if true, ignore checkpoint and start fresh
 }
 // setLLMContext sets context on the LLM logger if logging is enabled.
 // debugLog writes a message to the LLM debug log if logging is enabled.
@@ -133,6 +135,17 @@ func (e *Executor) Run() int {
 	allSteps := e.flattenTopLevelElements()
 	totalSteps := e.countTopLevelSteps()
 
+	// Load checkpoint for resume capability
+	var checkpoint *Checkpoint
+	if !e.Restart && e.PipelineName != "" {
+		checkpoint = LoadCheckpoint(e.PipelineName)
+		if checkpoint != nil {
+			fmt.Printf("%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
+		}
+	}
+
+	var completedSteps []string
+
 	printTotal := func(label string) {
 		fmt.Printf("\n%s%s━━━ %s Total time: %s ━━━%s\n", colorBold, colorGreen, label, time.Since(start).Round(time.Millisecond), colorReset)
 	}
@@ -165,6 +178,14 @@ func (e *Executor) Run() int {
 			continue
 		}
 
+		// Skip step if already completed (resume from checkpoint)
+		if checkpoint != nil && checkpoint.IsStepCompleted(step.Name) {
+			fmt.Printf("\n%s⏭ Skipping step %d/%d:%s %q (already completed)\n", colorYellow, stepNum, totalSteps, colorReset, step.Name)
+			completedSteps = append(completedSteps, step.Name)
+			i++
+			continue
+		}
+
 		output, exitCode, runErr := e.executeStep(step, stepNum, totalSteps)
 		if runErr != nil {
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s %v\n", colorRed, colorReset, runErr)
@@ -172,10 +193,24 @@ func (e *Executor) Run() int {
 			return 1
 		}
 		if exitCode != 0 {
+			// Check if this is a rate limit error
+			if IsRateLimitError(output) {
+				fmt.Printf("\n%s⏸ Rate limit detected on step %q. Saving checkpoint for resume.%s\n", colorYellow, step.Name, colorReset)
+				SaveCheckpoint(e.PipelineName, completedSteps, step.Name, true)
+				printTotal("Pipeline paused (rate limit).")
+				return 2 // Special exit code for rate limit
+			}
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
+			// Save checkpoint so we can resume from this step
+			if e.PipelineName != "" {
+				SaveCheckpoint(e.PipelineName, completedSteps, step.Name, false)
+			}
 			printTotal("Pipeline failed.")
 			return exitCode
 		}
+
+		// Step succeeded — record completion
+		completedSteps = append(completedSteps, step.Name)
 
 		// Run log-task after successful step if log:true is set
 		if step.Log && e.LogTask != "" {
@@ -203,6 +238,8 @@ func (e *Executor) Run() int {
 		i++
 	}
 
+	// Pipeline completed successfully — clear checkpoint
+	ClearCheckpoint()
 	printTotal("Pipeline complete.")
 	return 0
 }
