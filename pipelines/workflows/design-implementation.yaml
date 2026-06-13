@@ -7,11 +7,14 @@ variables:
 steps:
   - name: "design-to-code"
     command: "trayline run processes/1-design-to-code --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
 
   - name: "data-refactor"
     command: "trayline run processes/2-data-refactor --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-data-refactor}}"
 
   - name: "ui-refactor"
     command: "trayline run processes/3-ui-refactor --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-ui-refactor}}"

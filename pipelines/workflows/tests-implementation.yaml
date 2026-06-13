@@ -8,8 +8,10 @@ variables:
 steps:
   - name: "ui-tests"
     command: "trayline run processes/6-ui-tests --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-ui-tests}}"
 
   - name: "create-tests"
     command: "trayline run processes/7-create-tests --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-create-tests}}"

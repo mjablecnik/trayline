@@ -8,11 +8,14 @@ variables:
 steps:
   - name: "create-from-brief"
     command: "trayline run processes/5-create-from-brief --var brief={{brief}} --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
 
   - name: "create-tests"
     command: "trayline run processes/7-create-tests --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-create-tests}}"
 
   - name: "ui-tests"
     command: "trayline run processes/6-ui-tests --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-ui-tests}}"

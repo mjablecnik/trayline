@@ -7,7 +7,9 @@ variables:
 steps:
   - name: "code-review"
     command: "trayline run processes/8-code-review --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
 
   - name: "improvements"
     command: "trayline run processes/9-improvements --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
     skip: "{{skip-improvements}}"
