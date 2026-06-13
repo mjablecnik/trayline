@@ -4,7 +4,7 @@ variables:
 
 steps:
   - loop:
-      max_iterations: 2
+      max_iterations: 1
       steps:
         - name: "code-review"
           agent: "kiro"

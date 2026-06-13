@@ -68,3 +68,6 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
+
+  - name: "verify-builds"
+    command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"
