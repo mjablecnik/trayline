@@ -11,7 +11,7 @@ steps:
       MEMORY: If MEMORY.md exists inside .agents/, read it first for known build issues
       and their solutions. This may save you time debugging problems that were already solved.
 
-      Your goal is to make the project build and run cleanly from a fresh checkout.
+      Your goal is to make the project build and run cleanly.
       A developer coming to this project for the first time must be able to build and run it
       without issues by following the README or standard conventions.
 
@@ -20,13 +20,16 @@ steps:
       1. Detect the project type and its build/run toolchain.
       2. Install dependencies if needed.
       3. Run the build command. If it fails, fix the errors and rebuild until it succeeds.
+         Repeat until the build passes cleanly.
       4. Run the linter if one is configured. Fix all errors and simple warnings/info issues.
          If a warning or info would require a large refactor or is purely cosmetic, leave it.
       5. Run tests if they exist. Fix any broken tests caused by your changes.
       6. Try to run/start the application and verify it starts without errors.
          For servers, verify it starts and responds. For CLI tools, verify --help or a basic command works.
          Stop the application after verification.
-      7. Check the README and any setup documentation:
+      7. If Docker is configured (Dockerfile exists), verify `docker build` succeeds.
+         If it fails, fix the Dockerfile or related files until it builds.
+      8. Check the README and any setup documentation:
          - If build/run instructions are missing, outdated, or incorrect, fix them.
          - If environment setup steps are missing (e.g., .env.example, required tools), add them.
          - Only update documentation related to building, running, and setting up the project.
@@ -46,8 +49,6 @@ steps:
         Only record genuinely useful insights — not trivial typos or obvious fixes.
       - After every meaningful fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
-      When you are done, print a summary of what you fixed.
+      When you are done, print "Build verified successfully." if everything passes.
+      If something still fails after multiple attempts, print what remains broken.
     verbose: true
-
-  - name: "update-ai-log"
-    command: "trayline run --pipeline update-ai-log --var pipeline-name=check-build"

@@ -6,7 +6,12 @@ _trayline_pipelines() {
   local pipelines_dir="${TRAYLINE_HOME:-${HOME}/.trayline}/pipelines"
   if [[ -d "$pipelines_dir" ]]; then
     local -a pipelines
-    pipelines=( ${pipelines_dir}/*.yaml(N:t:r) )
+    # Include files from subdirectories (tasks/, processes/, workflows/)
+    pipelines=( ${pipelines_dir}/**/*.yaml(N) )
+    pipelines=( ${pipelines[@]#${pipelines_dir}/} )
+    pipelines=( ${pipelines[@]%.yaml} )
+    # Exclude lifecycle.yaml
+    pipelines=( ${pipelines[@]:#lifecycle} )
     _describe 'pipeline' pipelines
   fi
 }
@@ -61,10 +66,12 @@ _trayline_sync() {
 
 _trayline_run() {
   _arguments \
-    '--pipeline[Pipeline name or path]:pipeline:_trayline_pipelines' \
+    '1:pipeline:_trayline_pipelines' \
+    '--pipeline[Pipeline name or path (alternative to positional)]:pipeline:_trayline_pipelines' \
     '--dry-run[Print steps without executing]' \
     '--verbose[Stream output in real time]' \
     '--log-llm[Log LLM requests and responses to llm-debug.log]' \
+    '--no-lifecycle[Skip lifecycle.yaml before/after steps]' \
     '*--var[Set variable key=value]:variable:'
 }
 

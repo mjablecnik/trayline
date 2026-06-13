@@ -1,0 +1,17 @@
+variables:
+  path: "this"
+  number: "10"
+  skip-data-refactor: "false"
+  skip-ui-refactor: "false"
+
+steps:
+  - name: "design-to-code"
+    command: "trayline run processes/1-design-to-code --var path={{path}} --var number={{number}} --no-lifecycle"
+
+  - name: "data-refactor"
+    command: "trayline run processes/2-data-refactor --var path={{path}} --var number={{number}} --no-lifecycle"
+    skip: "{{skip-data-refactor}}"
+
+  - name: "ui-refactor"
+    command: "trayline run processes/3-ui-refactor --var path={{path}} --var number={{number}} --no-lifecycle"
+    skip: "{{skip-ui-refactor}}"

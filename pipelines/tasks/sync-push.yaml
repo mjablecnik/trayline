@@ -1,0 +1,16 @@
+steps:
+  - name: "sync-push"
+    agent: "claude"
+    prompt: |
+      Push all committed work to the bare repo:
+
+      1. First run `git pull origin main --rebase` to catch any new commits pushed
+         since the pipeline started.
+      2. If there are merge conflicts:
+         - For code files: preserve the intent of both changes
+         - For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+         - After resolving, run `git rebase --continue`
+      3. Once clean, run `git push origin main`
+      4. Confirm the push succeeded.
+
+      If push still fails after pull+rebase, report the error.

@@ -1,12 +1,4 @@
-variables:
-  pipeline: ""
-  path: "this"
-  specs-name: ""
-  number: "10"
-  brief: "BRIEF.md"
-  implement_features: "false"
-
-steps:
+before:
   - name: "sync-pull"
     agent: "claude"
     prompt: |
@@ -23,9 +15,9 @@ steps:
       If there are no conflicts, just confirm the pull succeeded.
       If the remote has no new commits, that's fine — just say "Already up to date."
 
-  - name: "run-pipeline"
-    command: "trayline run --pipeline {{pipeline}} --var path={{path}} --var specs-name={{specs-name}} --var number={{number}} --var brief={{brief}} --var implement_features={{implement_features}}"
-    verbose: true
+after:
+  - name: "update-ai-log"
+    command: "trayline run tasks/update-ai-log --var pipeline-name={{pipeline-name}} --no-lifecycle"
 
   - name: "sync-push"
     agent: "claude"

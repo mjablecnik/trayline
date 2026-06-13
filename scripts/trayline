@@ -35,6 +35,32 @@ EOF
 
 [[ $# -eq 0 ]] && usage
 
+# Resolve a pipeline reference to a full path
+resolve_pipeline() {
+  local ref="$1"
+  # If it's already a path (contains / or ends with .yaml/.yml), use as-is
+  if [[ "$ref" == *.yaml || "$ref" == *.yml ]]; then
+    echo "$ref"
+    return
+  fi
+  # Try to resolve from pipelines directory (supports subdirectories like processes/4-create-code)
+  local resolved="${PIPELINES_DIR}/${ref}.yaml"
+  if [[ -f "$resolved" ]]; then
+    echo "$resolved"
+    return
+  fi
+  # Try without subdirectory (flat lookup)
+  resolved="${PIPELINES_DIR}/${ref}.yaml"
+  if [[ -f "$resolved" ]]; then
+    echo "$resolved"
+    return
+  fi
+  echo "error: pipeline '${ref}' not found in ${PIPELINES_DIR}/" >&2
+  echo "Available pipelines:" >&2
+  find "${PIPELINES_DIR}" -name "*.yaml" -not -name "lifecycle.yaml" | sed "s|${PIPELINES_DIR}/||;s|\.yaml$||" | sort | sed 's/^/  /' >&2
+  exit 1
+}
+
 COMMAND="$1"; shift
 
 case "$COMMAND" in
@@ -45,8 +71,9 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/sync.sh" "$@"
     ;;
   run)
-    # Resolve pipeline name to path if needed
+    # Resolve pipeline names to paths — supports both positional and --pipeline flag
     ARGS=()
+    PIPELINE_RESOLVED=false
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --pipeline)
@@ -56,24 +83,24 @@ case "$COMMAND" in
             echo "error: --pipeline requires a value" >&2
             exit 1
           fi
-          # If it contains / or ends with .yaml/.yml, treat as local path
-          if [[ "$PIPELINE_REF" == */* || "$PIPELINE_REF" == *.yaml || "$PIPELINE_REF" == *.yml ]]; then
-            ARGS+=(--pipeline "$PIPELINE_REF")
-          else
-            # Resolve from global pipelines directory
-            RESOLVED="${PIPELINES_DIR}/${PIPELINE_REF}.yaml"
-            if [[ ! -f "$RESOLVED" ]]; then
-              echo "error: pipeline '${PIPELINE_REF}' not found in ${PIPELINES_DIR}/" >&2
-              echo "Available pipelines:" >&2
-              ls -1 "${PIPELINES_DIR}"/*.yaml 2>/dev/null | xargs -I{} basename {} .yaml | sed 's/^/  /' >&2
-              exit 1
-            fi
-            ARGS+=(--pipeline "$RESOLVED")
-          fi
+          RESOLVED=$(resolve_pipeline "$PIPELINE_REF")
+          ARGS+=(--pipeline "$RESOLVED")
+          PIPELINE_RESOLVED=true
+          shift
+          ;;
+        --*)
+          ARGS+=("$1")
           shift
           ;;
         *)
-          ARGS+=("$1")
+          # First non-flag argument is treated as pipeline (positional)
+          if ! $PIPELINE_RESOLVED; then
+            RESOLVED=$(resolve_pipeline "$1")
+            ARGS+=("$RESOLVED")
+            PIPELINE_RESOLVED=true
+          else
+            ARGS+=("$1")
+          fi
           shift
           ;;
       esac

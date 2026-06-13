@@ -1,0 +1,16 @@
+steps:
+  - name: "sync-pull"
+    agent: "claude"
+    prompt: |
+      Run `git pull origin main --rebase` in the current directory.
+
+      If there are merge conflicts:
+      1. Read the conflicting files and understand both sides
+      2. For code files: preserve the intent of both changes, prefer the incoming (remote) version
+         for .agents/ files since they are append-only logs
+      3. For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+      4. After resolving all conflicts, run `git rebase --continue`
+      5. Verify the resolution is clean with `git status`
+
+      If there are no conflicts, just confirm the pull succeeded.
+      If the remote has no new commits, that's fine — just say "Already up to date."

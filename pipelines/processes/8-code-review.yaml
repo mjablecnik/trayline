@@ -21,8 +21,6 @@ steps:
             Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how to fix it]\n- Source: code-review, [current date and time]
 
             Create two files in .agents/tmp/ (create directories if they don't exist):
-            Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
-            If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
             1. CODE_REVIEW.md — A detailed analysis document. For each found issue include:
                - A clear description of the problem

@@ -156,6 +156,14 @@ func (e *Executor) Run() int {
 		// It's a step
 		step := elem.Step
 		stepNum++
+
+		// Skip step if skip field resolves to "true"
+		if step.Skip == "true" {
+			fmt.Printf("\n%s⏭ Skipping step %d/%d:%s %q (skip=true)\n", colorYellow, stepNum, totalSteps, colorReset, step.Name)
+			i++
+			continue
+		}
+
 		output, exitCode, runErr := e.executeStep(step, stepNum, totalSteps)
 		if runErr != nil {
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s %v\n", colorRed, colorReset, runErr)
@@ -395,6 +403,13 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 
 			step := elem.Step
 			stepNum++
+
+			// Skip step if skip field resolves to "true"
+			if step.Skip == "true" {
+				fmt.Printf("  %s⏭ Skipping %q (skip=true)%s\n", colorYellow, step.Name, colorReset)
+				continue
+			}
+
 			output, exitCode, err := e.executeStep(step, stepNum, stepCount)
 			if err != nil {
 				e.debugError(fmt.Sprintf("loop step %q", step.Name), err)

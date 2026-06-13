@@ -31,17 +31,7 @@ steps:
             in the spec are now checked off, explicitly say "All tasks are done."
 
   - name: "verify-builds"
-    agent: "claude"
-    prompt: |
-      Test whether the build and docker build works for this project. If it doesn't work, fix the code so it builds successfully.
-
-      MEMORY: If MEMORY.md exists inside .agents/, read it first for known build issues and solutions.
-      If you encounter and fix a new build problem, add it to MEMORY.md inside .agents/.
-      Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
+    command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"
 
   - name: "code-review"
-    command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"
-    verbose: true
-
-  - name: "update-ai-log"
-    command: "trayline run --pipeline update-ai-log --var pipeline-name=create-code"
+    command: "trayline run processes/8-code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"

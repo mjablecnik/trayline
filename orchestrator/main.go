@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 var version = "dev"
@@ -19,26 +21,30 @@ func usageText() string {
 	return fmt.Sprintf(`%s — sequential AI agent pipeline runner
 
 Usage:
-  %s --pipeline <path> [--dry-run] [--verbose] [--log-llm] [--var key=value ...]
+  %s <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--var key=value ...]
+  %s --pipeline <path> [options]
   %s --version
   %s --help
 
+The pipeline can be specified as a positional argument or with --pipeline flag.
+
 Flags:
-  --pipeline string   Path to pipeline YAML file (required)
+  --pipeline string   Path to pipeline YAML file (alternative to positional arg)
   --var key=value     Set or override a pipeline variable (repeatable)
   --dry-run           Print pipeline steps without executing
   --verbose           Stream trayline-agent output to stdout in real time
   --log-llm           Log all LLM requests and responses to llm-debug.log
+  --no-lifecycle      Skip lifecycle.yaml before/after steps
   --version           Print version and exit
   --help, -h          Show this help message
 
 Examples:
-  %s --pipeline workflow.yaml
-  %s --pipeline workflow.yaml --verbose
+  %s processes/4-create-code --var specs-name=my-feature
+  %s workflows/feature-implementation --var specs-name=my-feature --verbose
+  %s tasks/check-build --no-lifecycle
   %s --pipeline workflow.yaml --dry-run
-  %s --pipeline workflow.yaml --var project-path=/tmp/proj --var spec-name=my-spec
   %s --version
-`, name, name, name, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name, name, name)
 }
 
 // varFlags is a repeatable --var flag that accumulates key=value strings.
@@ -62,11 +68,12 @@ func run(args []string) int {
 		fmt.Fprint(os.Stderr, usageText())
 	}
 
-	pipelineFlag := fs.String("pipeline", "", "Path to pipeline YAML file (required)")
+	pipelineFlag := fs.String("pipeline", "", "Path to pipeline YAML file")
 	dryRunFlag := fs.Bool("dry-run", false, "Print pipeline steps without executing")
 	verboseFlag := fs.Bool("verbose", false, "Stream trayline-agent output to stdout in real time")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	logLLMFlag := fs.Bool("log-llm", false, "Log all LLM requests and responses to llm-debug.log")
+	noLifecycleFlag := fs.Bool("no-lifecycle", false, "Skip lifecycle.yaml before/after steps")
 	var vars varFlags
 	fs.Var(&vars, "var", "Set variable key=value (repeatable)")
 
@@ -79,8 +86,14 @@ func run(args []string) int {
 		return 0
 	}
 
-	if *pipelineFlag == "" {
-		fmt.Fprint(os.Stderr, "error: --pipeline flag is required\n\n")
+	// Resolve pipeline path: positional argument takes precedence over --pipeline flag
+	pipelinePath := *pipelineFlag
+	if pipelinePath == "" && fs.NArg() > 0 {
+		pipelinePath = fs.Arg(0)
+	}
+
+	if pipelinePath == "" {
+		fmt.Fprint(os.Stderr, "error: pipeline path is required (positional arg or --pipeline flag)\n\n")
 		fmt.Fprint(os.Stderr, usageText())
 		return 1
 	}
@@ -96,7 +109,7 @@ func run(args []string) int {
 	cfg := LoadConfig()
 
 	// Parse pipeline (raw, no validation yet)
-	pipeline, yamlVars, err := ParsePipelineRaw(*pipelineFlag)
+	pipeline, yamlVars, err := ParsePipelineRaw(pipelinePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
@@ -151,5 +164,110 @@ func run(args []string) int {
 		ResolvedVars: resolvedVars,
 	}
 
+	// Lifecycle: wrap execution with before/after steps from lifecycle.yaml
+	if !*noLifecycleFlag && !*dryRunFlag {
+		lifecyclePath := findLifecycleFile()
+		if lifecyclePath != "" {
+			return runWithLifecycle(executor, lifecyclePath, pipelinePath, resolvedVars, *verboseFlag)
+		}
+	}
+
 	return executor.Run()
+}
+
+// findLifecycleFile searches for lifecycle.yaml in the pipelines directory.
+func findLifecycleFile() string {
+	// Look next to the current executable first
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		candidate := filepath.Join(dir, "pipelines", "lifecycle.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		// Also check sibling pipelines dir (for dev mode)
+		candidate = filepath.Join(dir, "..", "pipelines", "lifecycle.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	// Check TRAYLINE_HOME
+	home := os.Getenv("TRAYLINE_HOME")
+	if home == "" {
+		home = filepath.Join(os.Getenv("HOME"), ".trayline")
+	}
+	candidate := filepath.Join(home, "pipelines", "lifecycle.yaml")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+
+	return ""
+}
+
+// runWithLifecycle executes before steps, runs the pipeline, then executes after steps.
+func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName string, vars map[string]string, verbose bool) int {
+	data, err := os.ReadFile(lifecyclePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not read lifecycle.yaml: %v\n", err)
+		return executor.Run()
+	}
+
+	type LifecycleConfig struct {
+		Before []Step `yaml:"before"`
+		After  []Step `yaml:"after"`
+	}
+
+	var lc LifecycleConfig
+	if err := yaml.Unmarshal(data, &lc); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not parse lifecycle.yaml: %v\n", err)
+		return executor.Run()
+	}
+
+	runner := &OSCommandRunner{}
+	env := os.Environ()
+	cwd, _ := os.Getwd()
+
+	// Execute before steps
+	for i, step := range lc.Before {
+		fmt.Printf("\n%s%s⟡ Lifecycle before [%d/%d]:%s %q\n", colorBold, colorCyan, i+1, len(lc.Before), colorReset, step.Name)
+		projectDir := step.ProjectDir
+		if projectDir == "" {
+			projectDir = cwd
+		}
+		stepVerbose := verbose || step.Verbose
+		var exitCode int
+		if step.Agent != "" {
+			_, exitCode, err = runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+		} else if step.Command != "" {
+			_, exitCode, err = runner.RunCommand(step.Command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+		}
+		if err != nil || exitCode != 0 {
+			fmt.Fprintf(os.Stderr, "%s✗ Lifecycle before step %q failed%s\n", colorRed, step.Name, colorReset)
+			return 1
+		}
+	}
+
+	// Execute main pipeline
+	exitCode := executor.Run()
+
+	// Execute after steps (even if pipeline failed — we still want to push results)
+	for i, step := range lc.After {
+		// Substitute {{pipeline-name}} in after steps
+		prompt := strings.ReplaceAll(step.Prompt, "{{pipeline-name}}", filepath.Base(pipelineName))
+		command := strings.ReplaceAll(step.Command, "{{pipeline-name}}", filepath.Base(pipelineName))
+
+		fmt.Printf("\n%s%s⟡ Lifecycle after [%d/%d]:%s %q\n", colorBold, colorCyan, i+1, len(lc.After), colorReset, step.Name)
+		projectDir := step.ProjectDir
+		if projectDir == "" {
+			projectDir = cwd
+		}
+		stepVerbose := verbose || step.Verbose
+		if step.Agent != "" {
+			runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+		} else if command != "" {
+			runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+		}
+	}
+
+	return exitCode
 }

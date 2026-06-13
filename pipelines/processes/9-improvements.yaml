@@ -26,8 +26,6 @@ steps:
             - All suggestions must remain compliant with the specification and design documents.
 
             Create two files in .agents/tmp/ (create directories if they don't exist):
-            Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
-            If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
             1. IMPROVEMENTS.md — A detailed analysis document. For each improvement include:
                - A clear description of what can be improved
@@ -90,6 +88,3 @@ steps:
             When you are done, print a summary of which tasks you completed. If all improvement tasks
             in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
           verbose: true
-
-        - name: "update-ai-log"
-          command: "trayline run --pipeline update-ai-log --var pipeline-name=improvements"

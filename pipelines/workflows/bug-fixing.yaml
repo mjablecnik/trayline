@@ -1,0 +1,18 @@
+variables:
+  brief: "BRIEF.md"
+  path: "this"
+  number: "10"
+  skip-create-tests: "false"
+  skip-ui-tests: "false"
+
+steps:
+  - name: "create-from-brief"
+    command: "trayline run processes/5-create-from-brief --var brief={{brief}} --var path={{path}} --var number={{number}} --no-lifecycle"
+
+  - name: "create-tests"
+    command: "trayline run processes/7-create-tests --var path={{path}} --var number={{number}} --no-lifecycle"
+    skip: "{{skip-create-tests}}"
+
+  - name: "ui-tests"
+    command: "trayline run processes/6-ui-tests --var path={{path}} --var number={{number}} --no-lifecycle"
+    skip: "{{skip-ui-tests}}"

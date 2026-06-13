@@ -47,15 +47,28 @@ chmod +x "$BIN_DIR/trayline"
 
 # Copy default pipelines (overwrite if source is newer)
 echo "==> Syncing default pipelines..."
-for f in "$SCRIPT_DIR"/pipelines/*.yaml(N); do
-  dest="$TRAYLINE_HOME/pipelines/$(basename "$f")"
-  if [[ ! -f "$dest" ]] || [[ "$f" -nt "$dest" ]]; then
-    cp "$f" "$dest"
-    echo "    Updated $(basename "$f")"
-  else
-    echo "    Skipped $(basename "$f") (up to date)"
-  fi
+for dir in tasks processes workflows; do
+  mkdir -p "$TRAYLINE_HOME/pipelines/$dir"
+  for f in "$SCRIPT_DIR"/pipelines/$dir/*.yaml(N); do
+    dest="$TRAYLINE_HOME/pipelines/$dir/$(basename "$f")"
+    if [[ ! -f "$dest" ]] || [[ "$f" -nt "$dest" ]]; then
+      cp "$f" "$dest"
+      echo "    Updated $dir/$(basename "$f")"
+    else
+      echo "    Skipped $dir/$(basename "$f") (up to date)"
+    fi
+  done
 done
+# Copy lifecycle.yaml
+if [[ -f "$SCRIPT_DIR/pipelines/lifecycle.yaml" ]]; then
+  dest="$TRAYLINE_HOME/pipelines/lifecycle.yaml"
+  if [[ ! -f "$dest" ]] || [[ "$SCRIPT_DIR/pipelines/lifecycle.yaml" -nt "$dest" ]]; then
+    cp "$SCRIPT_DIR/pipelines/lifecycle.yaml" "$dest"
+    echo "    Updated lifecycle.yaml"
+  else
+    echo "    Skipped lifecycle.yaml (up to date)"
+  fi
+fi
 
 # Install zsh completions (only if zsh is available and is the user's shell)
 if command -v zsh &>/dev/null && [[ "$SHELL" == */zsh ]]; then

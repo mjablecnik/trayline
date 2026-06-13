@@ -27,8 +27,6 @@ steps:
       separate pages for mobile and desktop variants of the same design.
 
       Create two files in .agents/tmp/ (create directories if they don't exist):
-      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
-      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       1. PAGES.md — A summary document describing each page:
          - Page name (derived from the file name, merged if mobile+desktop variants exist)
@@ -98,6 +96,3 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
-
-  - name: "update-ai-log"
-    command: "trayline run --pipeline update-ai-log --var pipeline-name=design-to-code"

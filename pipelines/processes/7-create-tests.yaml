@@ -44,8 +44,6 @@ steps:
       5. Identify existing tests that are broken, outdated, or testing deleted code.
 
       Create two files in .agents/tmp/ (create directories if they don't exist):
-      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
-      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       1. TEST_SPEC.md — A detailed test specification:
          - Detected test tooling and conventions
@@ -197,6 +195,3 @@ steps:
 
       After creating UNIT_TEST_REPORT.md, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
       and message "chore: update UNIT_TEST_REPORT.md".
-
-  - name: "update-ai-log"
-    command: "trayline run --pipeline update-ai-log --var pipeline-name=create-tests"

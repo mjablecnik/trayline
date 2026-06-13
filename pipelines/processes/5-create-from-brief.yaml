@@ -19,8 +19,6 @@ steps:
       This file contains a short project brief — a high-level description of what needs to be built.
 
       Analyze the brief carefully and create two files in .agents/tmp/ (create directories if they don't exist):
-      Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
-      If .gitignore doesn't exist, create it. If it exists but doesn't contain .agents/tmp/, add it.
 
       1. SPEC.md — A concise but complete specification document:
          - Project overview and goals (derived from the brief)
@@ -70,6 +68,3 @@ steps:
 
             When you are done, print a summary of which tasks you completed.
             If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
-
-  - name: "update-ai-log"
-    command: "trayline run --pipeline update-ai-log --var pipeline-name=from-brief"

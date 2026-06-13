@@ -1,0 +1,13 @@
+variables:
+  specs-name: ""
+  path: "this"
+  number: "10"
+  skip-improvements: "false"
+
+steps:
+  - name: "code-review"
+    command: "trayline run processes/8-code-review --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
+
+  - name: "improvements"
+    command: "trayline run processes/9-improvements --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
+    skip: "{{skip-improvements}}"
