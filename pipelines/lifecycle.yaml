@@ -1,3 +1,5 @@
+log-task: "tasks/update-ai-log"
+
 before:
   - name: "sync-pull"
     agent: "claude"
@@ -16,9 +18,6 @@ before:
       If the remote has no new commits, that's fine — just say "Already up to date."
 
 after:
-  - name: "update-ai-log"
-    command: "trayline run tasks/update-ai-log --var pipeline-name={{pipeline-name}} --no-lifecycle"
-
   - name: "sync-push"
     agent: "claude"
     prompt: |

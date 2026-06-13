@@ -9,18 +9,22 @@ steps:
   - name: "create-code"
     command: "trayline run processes/4-create-code --var specs-name={{specs-name}} --var path={{path}} --no-lifecycle"
     verbose: true
+    log: true
 
   - name: "code-review"
     command: "trayline run processes/8-code-review --var specs-name={{specs-name}} --var path={{path}} --no-lifecycle"
     verbose: true
+    log: true
     skip: "{{skip-code-review}}"
 
   - name: "create-tests"
     command: "trayline run processes/7-create-tests --var specs-name={{specs-name}} --var path={{path}} --no-lifecycle"
     verbose: true
+    log: true
     skip: "{{skip-create-tests}}"
 
   - name: "ui-tests"
     command: "trayline run processes/6-ui-tests --var path={{path}} --no-lifecycle"
     verbose: true
+    log: true
     skip: "{{skip-ui-tests}}"

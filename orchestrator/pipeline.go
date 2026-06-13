@@ -61,6 +61,7 @@ type Step struct {
 	ProjectDir string     `yaml:"project_dir"`
 	Verbose    bool       `yaml:"verbose,omitempty"`
 	Skip       string     `yaml:"skip"`
+	Log        bool       `yaml:"log,omitempty"`
 	Condition  *Condition `yaml:"condition"`
 }
 

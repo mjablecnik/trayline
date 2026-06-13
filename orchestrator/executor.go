@@ -98,6 +98,7 @@ type Executor struct {
 	Verbose      bool
 	Runner       CommandRunner
 	ResolvedVars map[string]string // for dry-run display
+	LogTask      string            // pipeline to run after steps with log:true
 }
 // setLLMContext sets context on the LLM logger if logging is enabled.
 // debugLog writes a message to the LLM debug log if logging is enabled.
@@ -174,6 +175,11 @@ func (e *Executor) Run() int {
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
 			printTotal("Pipeline failed.")
 			return exitCode
+		}
+
+		// Run log-task after successful step if log:true is set
+		if step.Log && e.LogTask != "" {
+			e.runLogTask(step.Name)
 		}
 
 		// Evaluate step condition if present
@@ -571,5 +577,39 @@ func printElements(elements []PipelineElement, cwd string, stepNum *int, indent 
 			printCondition(lc, indent+"  ")
 			printElements(elem.Loop.Elements, cwd, stepNum, indent+"  ")
 		}
+	}
+}
+
+// runLogTask executes the configured log task after a step with log:true.
+func (e *Executor) runLogTask(stepName string) {
+	fmt.Printf("  %s📝 Running log task for %q%s\n", colorDim, stepName, colorReset)
+
+	// Resolve the log task pipeline path
+	home := os.Getenv("TRAYLINE_HOME")
+	if home == "" {
+		home = filepath.Join(os.Getenv("HOME"), ".trayline")
+	}
+	logTaskPath := filepath.Join(home, "pipelines", e.LogTask+".yaml")
+
+	// Build command: trayline run <log-task> --var pipeline-name=<step-name> --no-lifecycle
+	traylineBin := "trayline"
+	if exe, err := os.Executable(); err == nil {
+		sibling := filepath.Join(filepath.Dir(exe), "..", "bin", "trayline")
+		if _, err := os.Stat(sibling); err == nil {
+			traylineBin = sibling
+		}
+	}
+
+	args := []string{"run", "--pipeline", logTaskPath, "--var", "pipeline-name=" + stepName, "--no-lifecycle"}
+	cwd, _ := os.Getwd()
+
+	cmd := exec.Command(traylineBin, args...)
+	cmd.Dir = cwd
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "  %s⚠ Log task failed: %v%s\n", colorYellow, err, colorReset)
 	}
 }

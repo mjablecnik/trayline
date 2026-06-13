@@ -213,14 +213,20 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 	}
 
 	type LifecycleConfig struct {
-		Before []Step `yaml:"before"`
-		After  []Step `yaml:"after"`
+		LogTask string `yaml:"log-task"`
+		Before  []Step `yaml:"before"`
+		After   []Step `yaml:"after"`
 	}
 
 	var lc LifecycleConfig
 	if err := yaml.Unmarshal(data, &lc); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not parse lifecycle.yaml: %v\n", err)
 		return executor.Run()
+	}
+
+	// Pass log-task to executor so it can run it after steps with log:true
+	if lc.LogTask != "" {
+		executor.LogTask = lc.LogTask
 	}
 
 	runner := &OSCommandRunner{}
