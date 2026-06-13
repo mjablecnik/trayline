@@ -59,7 +59,7 @@ steps:
 
             MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
             If you encounter and solve a non-obvious problem, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
 
             Apply all improvements marked as [CRITICAL] and [HIGH] in TASKS.md.
             Follow the tasks exactly and check off each task in .agents/tmp/TASKS.md as you complete it.
@@ -79,7 +79,7 @@ steps:
 
             MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
             If you encounter and solve a non-obvious problem, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: improvements, [current date and time]
 
             Apply all improvements marked as [MEDIUM] in TASKS.md.
             Follow the tasks exactly and check off each task in .agents/tmp/TASKS.md as you complete it.

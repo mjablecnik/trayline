@@ -41,7 +41,7 @@ steps:
       - Do not refactor code beyond what is needed to fix build/lint issues.
       - Preserve existing behavior — only fix what is broken or produces errors.
       - If you encounter and solve a non-obvious build problem, add it to MEMORY.md inside .agents/.
-        Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: check-build, [current date and time]
+        Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: check-build, [current date and time]
         If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
         Only record genuinely useful insights — not trivial typos or obvious fixes.
       - After every meaningful fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.

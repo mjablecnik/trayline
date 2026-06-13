@@ -18,7 +18,7 @@ steps:
             MEMORY: If MEMORY.md exists inside .agents/, read it for context on known issues
             and past solutions. If you find a recurring pattern or issue that future agents
             should know about, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how to fix it]\n- Source: code-review, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how to fix it]\n- Source: code-review, [current date and time]
 
             Create two files in .agents/tmp/ (create directories if they don't exist):
             Also ensure that ".agents/tmp/" is listed in the project's .gitignore file.
@@ -54,7 +54,7 @@ steps:
 
             MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
             If you encounter and solve a non-obvious problem while fixing tasks, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: code-review-fix, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: code-review-fix, [current date and time]
 
             Fix all tasks marked as [CRITICAL] and [HIGH] in TASKS.md.
             Follow the tasks exactly and check off each task in .agents/tmp/TASKS.md as you complete it.
@@ -71,7 +71,7 @@ steps:
 
             MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
             If you encounter and solve a non-obvious problem while fixing tasks, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: code-review-fix, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: code-review-fix, [current date and time]
 
             Fix all tasks marked as [MEDIUM] in TASKS.md.
             Follow the tasks exactly and check off each task in .agents/tmp/TASKS.md as you complete it.

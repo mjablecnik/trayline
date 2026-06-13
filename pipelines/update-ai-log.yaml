@@ -29,6 +29,7 @@ steps:
       Add a NEW entry at the TOP of the log (below the # AI Log heading), using this format:
 
       ## [current date and time] — {{pipeline-name}}
+      - Project: [name of the project/directory where changes were made, e.g. "backend", "frontend"]
       - [summarize what was done, based on .agents/tmp/ files or git log]
       - [be specific: file names, component names, features, fixes]
       - [if nothing meaningful happened, write: "No changes made"]

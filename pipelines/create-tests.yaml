@@ -112,7 +112,7 @@ steps:
             After every batch of passing tests, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
 
@@ -158,7 +158,7 @@ steps:
       After fixing all failures, run the entire test suite to confirm nothing else broke.
 
       If you encounter and solve a non-obvious problem, add it to MEMORY.md inside .agents/.
-      Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
+      Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
 
       After every fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
       When done, print a summary of what you fixed.

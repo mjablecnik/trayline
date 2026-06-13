@@ -23,7 +23,7 @@ steps:
 
             If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
             workaround needed, configuration issue), add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-code, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-code, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
 
@@ -37,7 +37,7 @@ steps:
 
       MEMORY: If MEMORY.md exists inside .agents/, read it first for known build issues and solutions.
       If you encounter and fix a new build problem, add it to MEMORY.md inside .agents/.
-      Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
+      Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-builds, [current date and time]
 
   - name: "code-review"
     command: "trayline run --pipeline code-review --verbose --var specs-name={{specs-name}} --var path={{path}} --var number={{number}}"

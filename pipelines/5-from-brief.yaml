@@ -64,7 +64,7 @@ steps:
 
             If you encounter a non-obvious problem and solve it (dependency conflict, framework quirk,
             workaround needed, configuration issue), add it to MEMORY.md inside .agents/.
-            Format: ## Short title\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: from-brief, [current date and time]
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: from-brief, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
 
