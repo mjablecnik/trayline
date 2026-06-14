@@ -76,6 +76,34 @@ _trayline_pipeline_vars() {
     return
   fi
 
+  # Complete path= with directories (supports nested: path=frontend/src/<TAB>)
+  if [[ "$current" == path=* ]]; then
+    local prefix="path="
+    local typed="${current#path=}"
+    local search_dir="."
+    local file_prefix=""
+
+    if [[ -n "$typed" && -d "$typed" ]]; then
+      # User typed a valid directory, show its subdirectories
+      search_dir="$typed"
+      file_prefix="${typed%/}/"
+    elif [[ -n "$typed" && "$typed" == */ && -d "${typed%/}" ]]; then
+      search_dir="${typed%/}"
+      file_prefix="$typed"
+    elif [[ -n "$typed" && -d "${typed%/*}" ]]; then
+      # Partial path — show siblings in parent dir
+      search_dir="${typed%/*}"
+      file_prefix="${typed%/*}/"
+    fi
+
+    local -a dirs
+    dirs=( ${search_dir}/*(N/:t) )
+    if [[ ${#dirs[@]} -gt 0 ]]; then
+      compadd -P "${prefix}${file_prefix}" -S '/' -- "${dirs[@]}"
+    fi
+    return
+  fi
+
   # Extract variable keys from the variables: section
   local -a var_keys
   var_keys=( $(sed -n '/^variables:/,/^[^ ]/{ /^  [a-z]/s/^  \([a-z][a-z0-9-]*\):.*/\1=/p }' "$pipeline_path") )
