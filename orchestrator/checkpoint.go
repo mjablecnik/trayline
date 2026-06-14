@@ -13,11 +13,12 @@ const checkpointFile = ".agents/tmp/.checkpoint"
 
 // Checkpoint stores the state of a pipeline run for resume capability.
 type Checkpoint struct {
-	Pipeline       string   `json:"pipeline"`
-	CompletedSteps []string `json:"completed_steps"`
-	NextStep       string   `json:"next_step"`
-	Timestamp      string   `json:"timestamp"`
-	RateLimited    bool     `json:"rate_limited"`
+	Pipeline       string            `json:"pipeline"`
+	Variables      map[string]string `json:"variables"`
+	CompletedSteps []string          `json:"completed_steps"`
+	NextStep       string            `json:"next_step"`
+	Timestamp      string            `json:"timestamp"`
+	RateLimited    bool              `json:"rate_limited"`
 }
 
 // rateLimitPatterns are strings that indicate a rate limit error in agent output.
@@ -45,9 +46,10 @@ func IsRateLimitError(output string) bool {
 }
 
 // SaveCheckpoint writes the current pipeline state to disk.
-func SaveCheckpoint(pipelineName string, completedSteps []string, nextStep string, rateLimited bool) error {
+func SaveCheckpoint(pipelineName string, variables map[string]string, completedSteps []string, nextStep string, rateLimited bool) error {
 	cp := Checkpoint{
 		Pipeline:       pipelineName,
+		Variables:      variables,
 		CompletedSteps: completedSteps,
 		NextStep:       nextStep,
 		Timestamp:      time.Now().Format(time.RFC3339),
@@ -68,8 +70,8 @@ func SaveCheckpoint(pipelineName string, completedSteps []string, nextStep strin
 }
 
 // LoadCheckpoint reads the checkpoint file if it exists.
-// Returns nil if no checkpoint exists.
-func LoadCheckpoint(pipelineName string) *Checkpoint {
+// Returns nil if no checkpoint exists or if pipeline/variables don't match.
+func LoadCheckpoint(pipelineName string, variables map[string]string) *Checkpoint {
 	data, err := os.ReadFile(checkpointFile)
 	if err != nil {
 		return nil
@@ -83,6 +85,16 @@ func LoadCheckpoint(pipelineName string) *Checkpoint {
 	// Only return checkpoint if it's for the same pipeline
 	if cp.Pipeline != pipelineName {
 		return nil
+	}
+
+	// Check that variables match
+	if len(cp.Variables) != len(variables) {
+		return nil
+	}
+	for k, v := range cp.Variables {
+		if variables[k] != v {
+			return nil
+		}
 	}
 
 	return &cp

@@ -168,7 +168,7 @@ func (e *Executor) Run() int {
 	// Load checkpoint for resume capability
 	var checkpoint *Checkpoint
 	if !e.Restart && e.PipelineName != "" {
-		checkpoint = LoadCheckpoint(e.PipelineName)
+		checkpoint = LoadCheckpoint(e.PipelineName, e.ResolvedVars)
 		if checkpoint != nil {
 			fmt.Printf("%s%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", indent(), colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
 		}
@@ -226,14 +226,14 @@ func (e *Executor) Run() int {
 			// Check if this is a rate limit error
 			if IsRateLimitError(output) {
 				fmt.Printf("\n%s%s⏸ Rate limit detected on step %q. Saving checkpoint for resume.%s\n", indent(), colorYellow, step.Name, colorReset)
-				SaveCheckpoint(e.PipelineName, completedSteps, step.Name, true)
+				SaveCheckpoint(e.PipelineName, e.ResolvedVars, completedSteps, step.Name, true)
 				printTotal("Pipeline paused (rate limit).")
 				return 2 // Special exit code for rate limit
 			}
 			fmt.Fprintf(os.Stderr, "%s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
 			// Save checkpoint so we can resume from this step
 			if e.PipelineName != "" {
-				SaveCheckpoint(e.PipelineName, completedSteps, step.Name, false)
+				SaveCheckpoint(e.PipelineName, e.ResolvedVars, completedSteps, step.Name, false)
 			}
 			printTotal("Pipeline failed.")
 			return exitCode
@@ -242,7 +242,7 @@ func (e *Executor) Run() int {
 		// Step succeeded — record completion and save checkpoint
 		completedSteps = append(completedSteps, step.Name)
 		if e.PipelineName != "" {
-			SaveCheckpoint(e.PipelineName, completedSteps, "", false)
+			SaveCheckpoint(e.PipelineName, e.ResolvedVars, completedSteps, "", false)
 		}
 
 		// Run log-task after successful step if log:true is set
