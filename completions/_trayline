@@ -4,15 +4,27 @@
 
 _trayline_pipelines() {
   local pipelines_dir="${TRAYLINE_HOME:-${HOME}/.trayline}/pipelines"
-  if [[ -d "$pipelines_dir" ]]; then
-    local -a pipelines
-    # Include files from subdirectories (tasks/, processes/, workflows/)
-    pipelines=( ${pipelines_dir}/**/*.yaml(N) )
-    pipelines=( ${pipelines[@]#${pipelines_dir}/} )
-    pipelines=( ${pipelines[@]%.yaml} )
-    # Exclude lifecycle.yaml
-    pipelines=( ${pipelines[@]:#lifecycle} )
-    _describe 'pipeline' pipelines
+  if [[ ! -d "$pipelines_dir" ]]; then
+    return
+  fi
+
+  local input="${words[CURRENT]}"
+
+  # If input already contains a slash (e.g. "processes/"), show files inside that dir
+  if [[ "$input" == */* ]]; then
+    local subdir="${input%%/*}"
+    local dir_path="${pipelines_dir}/${subdir}"
+    if [[ -d "$dir_path" ]]; then
+      local -a files
+      files=( ${dir_path}/*.yaml(N:t:r) )
+      local prefix="${subdir}/"
+      compadd -P "$prefix" -S '' -- "${files[@]}"
+    fi
+  else
+    # Show directories first
+    local -a dirs
+    dirs=( ${pipelines_dir}/*(N/:t) )
+    _describe 'category' dirs -S '/'
   fi
 }
 
