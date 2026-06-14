@@ -241,8 +241,9 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 	env := os.Environ()
 	cwd, _ := os.Getwd()
 
-	// Execute before steps
-	for i, step := range lc.Before {
+	// Execute before steps (with fallback: if command fails, next agent step resolves it)
+	for i := 0; i < len(lc.Before); i++ {
+		step := lc.Before[i]
 		fmt.Printf("\n%s%s⟡ Lifecycle before [%d/%d]:%s %q\n", colorBold, colorCyan, i+1, len(lc.Before), colorReset, step.Name)
 		projectDir := step.ProjectDir
 		if projectDir == "" {
@@ -255,9 +256,32 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		} else if step.Command != "" {
 			_, exitCode, err = runner.RunCommand(step.Command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		}
+
 		if err != nil || exitCode != 0 {
-			fmt.Fprintf(os.Stderr, "%s✗ Lifecycle before step %q failed%s\n", colorRed, step.Name, colorReset)
-			return 1
+			// Command failed — check if next step is an agent fallback
+			if i+1 < len(lc.Before) && lc.Before[i+1].Agent != "" {
+				fmt.Printf("  %s⚠ Step failed, running fallback: %q%s\n", colorYellow, lc.Before[i+1].Name, colorReset)
+				i++ // advance to fallback step
+				fallback := lc.Before[i]
+				fbDir := fallback.ProjectDir
+				if fbDir == "" {
+					fbDir = cwd
+				}
+				fbVerbose := verbose || fallback.Verbose
+				_, fbExit, fbErr := runner.RunAgent(fallback.Agent, fallback.Prompt, fallback.Model, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
+				if fbErr != nil || fbExit != 0 {
+					fmt.Fprintf(os.Stderr, "%s✗ Lifecycle fallback %q also failed%s\n", colorRed, fallback.Name, colorReset)
+					return 1
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "%s✗ Lifecycle before step %q failed%s\n", colorRed, step.Name, colorReset)
+				return 1
+			}
+		} else {
+			// Command succeeded — skip next step if it's an agent fallback
+			if i+1 < len(lc.Before) && lc.Before[i+1].Agent != "" {
+				i++ // skip the fallback agent step
+			}
 		}
 	}
 
@@ -287,8 +311,9 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		break
 	}
 
-	// Execute after steps (even if pipeline failed — we still want to push results)
-	for i, step := range lc.After {
+	// Execute after steps (with fallback: if command fails, next agent step resolves it)
+	for i := 0; i < len(lc.After); i++ {
+		step := lc.After[i]
 		// Substitute {{pipeline-name}} in after steps
 		prompt := strings.ReplaceAll(step.Prompt, "{{pipeline-name}}", filepath.Base(pipelineName))
 		command := strings.ReplaceAll(step.Command, "{{pipeline-name}}", filepath.Base(pipelineName))
@@ -299,10 +324,35 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 			projectDir = cwd
 		}
 		stepVerbose := verbose || step.Verbose
+		var stepExitCode int
+		var stepErr error
 		if step.Agent != "" {
-			runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			_, stepExitCode, stepErr = runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		} else if command != "" {
-			runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			_, stepExitCode, stepErr = runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+		}
+
+		if stepErr != nil || stepExitCode != 0 {
+			// Command failed — check if next step is an agent fallback
+			if i+1 < len(lc.After) && lc.After[i+1].Agent != "" {
+				fmt.Printf("  %s⚠ Step failed, running fallback: %q%s\n", colorYellow, lc.After[i+1].Name, colorReset)
+				i++ // advance to fallback step
+				fallback := lc.After[i]
+				fbPrompt := strings.ReplaceAll(fallback.Prompt, "{{pipeline-name}}", filepath.Base(pipelineName))
+				fbDir := fallback.ProjectDir
+				if fbDir == "" {
+					fbDir = cwd
+				}
+				fbVerbose := verbose || fallback.Verbose
+				runner.RunAgent(fallback.Agent, fbPrompt, fallback.Model, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
+			} else {
+				fmt.Fprintf(os.Stderr, "  %s⚠ Lifecycle after step %q failed%s\n", colorYellow, step.Name, colorReset)
+			}
+		} else {
+			// Command succeeded — skip next step if it's an agent fallback
+			if i+1 < len(lc.After) && lc.After[i+1].Agent != "" {
+				i++ // skip the fallback agent step
+			}
 		}
 	}
 

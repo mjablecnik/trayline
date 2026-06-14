@@ -7,34 +7,36 @@ retry:
 
 before:
   - name: "sync-pull"
+    command: "git pull agent main --rebase"
+  - name: "resolve-pull-conflicts"
     agent: "claude"
     prompt: |
-      Run `git pull agent main --rebase` in the current directory.
+      A git rebase failed due to merge conflicts. Check `git status` to see conflicted files.
 
-      If there are merge conflicts:
-      1. Read the conflicting files and understand both sides
-      2. For code files: preserve the intent of both changes, prefer the incoming (remote) version
-         for .agents/ files since they are append-only logs
+      For each conflicted file:
+      1. Read both versions (ours and theirs)
+      2. For code files: preserve the intent of both changes, merge them intelligently
       3. For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
-      4. After resolving all conflicts, run `git rebase --continue`
-      5. Verify the resolution is clean with `git status`
+      4. Mark each file as resolved with `git add <file>`
+      5. After all conflicts are resolved, run `git rebase --continue`
+      6. Verify with `git status` that the working tree is clean
 
-      If there are no conflicts, just confirm the pull succeeded.
-      If the remote has no new commits, that's fine — just say "Already up to date."
+      If `git status` shows no conflicts (rebase already completed), just say "No conflicts to resolve."
 
 after:
   - name: "sync-push"
+    command: "git push agent main"
+  - name: "resolve-push-conflicts"
     agent: "claude"
     prompt: |
-      Push all committed work to the bare repo:
+      A git push failed (likely non-fast-forward). Fix it:
 
-      1. First run `git pull agent main --rebase` to catch any new commits pushed
-         since the pipeline started.
-      2. If there are merge conflicts:
+      1. Run `git pull agent main --rebase`
+      2. If there are merge conflicts, resolve them:
          - For code files: preserve the intent of both changes
          - For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
-         - After resolving, run `git rebase --continue`
+         - After resolving, `git add` each file and `git rebase --continue`
       3. Once clean, run `git push agent main`
       4. Confirm the push succeeded.
 
-      If push still fails after pull+rebase, report the error.
+      If `git status` shows everything is clean and push succeeds on first try, just confirm success.
