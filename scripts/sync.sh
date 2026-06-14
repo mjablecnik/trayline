@@ -110,6 +110,11 @@ git_push() {
 
   git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE $FORCE
   echo "Pushed to agent bare repo."
+
+  # Auto-pull on remote working repo
+  ssh "$AGENT_HOST" "cd ${AGENT_PROJECTS}/${DIR_NAME} && git pull agent main" 2>/dev/null && \
+    echo "Remote working repo updated." || \
+    echo "Warning: could not auto-pull on remote (agent may be working)."
 }
 
 git_pull() {
