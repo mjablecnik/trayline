@@ -4,6 +4,7 @@ variables:
   number: "5"
   skip-improvements: "true"
   skip-security-audit: "false"
+  skip-seo-audit: "false"
 
 steps:
   - name: "code-review"
@@ -22,3 +23,9 @@ steps:
     verbose: true
     log: true
     skip: "{{skip-security-audit}}"
+
+  - name: "seo-audit"
+    command: "trayline run processes/11-seo-audit --var path={{path}} --var number={{number}} --no-lifecycle"
+    verbose: true
+    log: true
+    skip: "{{skip-seo-audit}}"

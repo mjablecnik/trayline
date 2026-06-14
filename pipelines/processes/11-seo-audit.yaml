@@ -1,0 +1,153 @@
+variables:
+  number: "10"
+  path: "this"
+
+steps:
+  - name: "analyze-seo"
+    agent: "kiro"
+    prompt: |
+      FIRST: Check if .agents/tmp/TASKS.md already exists.
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing TASKS.md".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if TASKS.md does not exist or contains no unchecked tasks, proceed with the full analysis:
+
+      Analyze the {{path}} project for technical SEO and web optimization issues.
+      Detect the project framework (React, Next.js, Nuxt, SvelteKit, Astro, Vue, Angular, etc.).
+
+      APPLICABILITY CHECK:
+      If the project is NOT a web frontend (e.g., it's a backend API, CLI tool, library, or mobile app),
+      STOP and write "Not applicable — this project is not a web frontend." in both output files.
+      Only proceed if the project renders HTML pages that will be indexed by search engines.
+
+      If MEMORY.md exists inside .agents/, read it for context on previously found issues.
+
+      Perform a thorough technical SEO audit covering:
+
+      1. META TAGS & HEAD:
+         - Missing or duplicate <title> tags per page
+         - Missing or empty meta description per page
+         - Missing canonical URLs
+         - Missing or incorrect Open Graph tags (og:title, og:description, og:image, og:url)
+         - Missing Twitter Card tags
+         - Missing viewport meta tag
+         - Missing charset declaration
+         - Missing lang attribute on <html>
+         - Favicon missing or incorrect
+
+      2. SEMANTIC HTML & STRUCTURE:
+         - Missing or incorrect heading hierarchy (multiple h1, skipped levels)
+         - Missing landmark elements (main, nav, header, footer)
+         - Non-semantic elements used where semantic ones should be (div instead of section/article/aside)
+         - Missing alt attributes on images
+         - Empty links or buttons without accessible text
+         - Incorrect use of heading tags for styling (h2 used for small text)
+
+      3. STRUCTURED DATA (JSON-LD):
+         - Missing schema.org markup where applicable (Organization, WebSite, BreadcrumbList, Article, Product, FAQ, etc.)
+         - Invalid or incomplete structured data
+         - Missing breadcrumb navigation markup
+
+      4. CRAWLABILITY & INDEXING:
+         - Missing or incorrect robots.txt
+         - Missing sitemap.xml (or sitemap generation not configured)
+         - Missing noindex on pages that shouldn't be indexed (admin, auth, 404, 500)
+         - Broken internal links (href to non-existent routes)
+         - Missing 404 page
+
+      5. PERFORMANCE (SEO-impacting):
+         - Images without explicit width/height (causes layout shift / CLS)
+         - Large images not using next-gen formats or not lazy-loaded
+         - Missing font-display: swap on web fonts
+         - Render-blocking resources in <head>
+         - Missing preconnect/prefetch for external resources
+         - Bundle size issues (unused large dependencies)
+
+      6. ACCESSIBILITY (SEO-impacting):
+         - Missing ARIA labels where needed
+         - Low color contrast (if detectable from code)
+         - Missing skip-to-content link
+         - Form inputs without associated labels
+         - Interactive elements not keyboard accessible
+
+      7. INTERNATIONALIZATION (if i18n detected):
+         - Missing hreflang tags
+         - Missing language alternates in sitemap
+         - Default language not specified
+
+      Create two files in .agents/tmp/ (create directories if they don't exist):
+
+      1. SEO_AUDIT.md — A detailed technical SEO audit report:
+         - Framework detected and SSR/SSG/SPA mode
+         - Overall SEO readiness score (POOR / FAIR / GOOD / EXCELLENT)
+         - For each finding:
+           - Category (from the list above)
+           - Severity: [CRITICAL], [HIGH], [MEDIUM], or [LOW]
+             - CRITICAL: Blocks indexing or causes major ranking loss
+             - HIGH: Significantly impacts SEO performance
+             - MEDIUM: Affects SEO but not critically
+             - LOW: Best practice, minor improvement
+           - File and location
+           - Description of the issue
+           - Recommended fix with code example
+         - Sort by severity (critical first)
+
+      2. TASKS.md — A task list derived from SEO_AUDIT.md:
+         Phase 1 — Critical (blocks indexing):
+         - [ ] 1. [CRITICAL] Description — file
+         Phase 2 — High (significant SEO impact):
+         - [ ] N. [HIGH] Description — file
+         Phase 3 — Medium (improvements):
+         - [ ] N. [MEDIUM] Description — file
+         Phase 4 — Low (best practices):
+         - [ ] N. [LOW] Description — file
+
+         Each task must be a single, independently fixable issue.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "fix-seo-issues"
+          agent: "claude"
+          prompt: |
+            Read SEO_AUDIT.md and TASKS.md from .agents/tmp/.
+
+            MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+
+            Your job is to fix the technical SEO issues identified in SEO_AUDIT.md.
+            Work in the {{path}} project directory.
+
+            Rules:
+            - Fix issues in order of severity: CRITICAL first, then HIGH, MEDIUM, LOW.
+            - For meta tags: add them to the appropriate place for the framework
+              (e.g., Next.js Head/Metadata, Nuxt useHead, SvelteKit svelte:head, etc.)
+            - For structured data: add JSON-LD scripts in the correct page/layout.
+              Use schema.org vocabulary. Validate the structure.
+            - For semantic HTML: replace non-semantic elements with proper alternatives.
+              Do NOT change visual appearance — only change the HTML element type.
+            - For images: add alt text, width/height, lazy loading attributes.
+              Use descriptive alt text based on the context of the image.
+            - For sitemap/robots.txt: create or configure using the framework's recommended approach.
+            - For accessibility: add ARIA labels, fix heading hierarchy, add skip links.
+            - For performance: add loading="lazy", font-display: swap, preconnect hints.
+            - Do NOT change the visual design or layout of any page.
+            - Do NOT change text content (that's content SEO, not technical SEO).
+            - Do NOT add new pages or features.
+            - Ensure all changes are framework-idiomatic (use the framework's built-in SEO tools).
+            - After each fix, verify the code compiles and the page renders correctly.
+
+            Implement only up to {{number}} fixes in this run, then stop.
+            After completing each fix, check it off in .agents/tmp/TASKS.md.
+            After every batch of fixes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+            and a descriptive message (e.g., "seo: add meta descriptions to all pages").
+
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: seo-audit, [current date and time]
+            If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+
+            When you are done, print a summary of which issues you fixed.
+            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
