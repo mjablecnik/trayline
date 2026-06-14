@@ -8,4 +8,4 @@ echo "==> Uninstalling..."
 
 echo ""
 echo "==> Installing..."
-"$SCRIPT_DIR/../install.sh"
+"$SCRIPT_DIR/../install.sh" "$@"

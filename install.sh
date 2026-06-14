@@ -5,8 +5,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="${HOME}/bin"
 TRAYLINE_HOME="${HOME}/.trayline"
 
-echo "==> Building trayline-sandbox Docker image..."
-docker build -t trayline-sandbox "$SCRIPT_DIR"
+# Parse flags
+BUILD_DOCKER=true
+for arg in "$@"; do
+  case "$arg" in
+    --skip-docker-build) BUILD_DOCKER=false ;;
+  esac
+done
+
+if $BUILD_DOCKER; then
+  echo "==> Building trayline-sandbox Docker image..."
+  docker build -t trayline-sandbox "$SCRIPT_DIR"
+else
+  echo "==> Skipping Docker build (--no-docker)"
+fi
 
 echo "==> Setting up directories..."
 mkdir -p "$BIN_DIR"
