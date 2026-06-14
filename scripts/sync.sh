@@ -147,7 +147,7 @@ git_setup() {
   ssh "$AGENT_HOST" "
     mkdir -p ${AGENT_REPOS}
     if [ ! -d ${AGENT_REPOS}/${DIR_NAME}.git ]; then
-      git init --bare ${AGENT_REPOS}/${DIR_NAME}.git
+      git init --bare -b main ${AGENT_REPOS}/${DIR_NAME}.git
       echo 'Created bare repo: ${AGENT_REPOS}/${DIR_NAME}.git'
     else
       echo 'Bare repo already exists: ${AGENT_REPOS}/${DIR_NAME}.git'
