@@ -239,8 +239,11 @@ func (e *Executor) Run() int {
 			return exitCode
 		}
 
-		// Step succeeded — record completion
+		// Step succeeded — record completion and save checkpoint
 		completedSteps = append(completedSteps, step.Name)
+		if e.PipelineName != "" {
+			SaveCheckpoint(e.PipelineName, completedSteps, "", false)
+		}
 
 		// Run log-task after successful step if log:true is set
 		if step.Log && e.LogTask != "" {
