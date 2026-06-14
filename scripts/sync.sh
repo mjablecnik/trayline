@@ -38,6 +38,7 @@ Options:
   --specs-only      (push --rsync) Push only .kiro/ directory
   --agents-only     (pull --rsync) Pull only .agents/ directory
   --code-only       (pull --rsync) Pull only code (excludes .kiro/ and .agents/)
+  --force, -f       Force push (overwrite remote history)
   --verbose, -v     Show detailed output
   --dry-run         Show what would happen without doing it
   --help, -h        Show this help
@@ -69,6 +70,7 @@ SPECS_ONLY=false
 AGENTS_ONLY=false
 CODE_ONLY=false
 DRY_RUN=""
+FORCE=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -80,6 +82,7 @@ for arg in "$@"; do
     --agents-only) AGENTS_ONLY=true ;;
     --code-only) CODE_ONLY=true ;;
     --dry-run) DRY_RUN="--dry-run" ;;
+    --force|-f) FORCE="--force" ;;
     --help|-h) usage ;;
     *) echo "Unknown argument: $arg" >&2; usage ;;
   esac
@@ -90,22 +93,22 @@ done
 # ─── GIT MODE ───────────────────────────────────────────────────────────────────
 
 git_push() {
-  # Auto-commit if there are uncommitted changes
+  # Check for uncommitted changes
   if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
-    git add -A
-    git commit -m "sync: $(date '+%Y-%m-%d %H:%M:%S')"
-    [[ -n "$VERBOSE" ]] && echo "Auto-committed local changes."
+    echo "Error: uncommitted changes detected. Commit your changes first, then push." >&2
+    git status --short >&2
+    exit 1
   fi
 
   local BRANCH=$(git branch --show-current)
 
   if [[ -n "$DRY_RUN" ]]; then
     echo "[dry-run] Would push to $BARE_REPO"
-    git log --oneline "origin/${BRANCH}..HEAD" 2>/dev/null || git log --oneline -3
+    git log --oneline -5
     return
   fi
 
-  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE
+  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE $FORCE
   echo "Pushed to agent bare repo."
 }
 
@@ -119,11 +122,19 @@ git_pull() {
     return
   fi
 
-  # Auto-commit before rebase to avoid dirty tree errors
+  # Force pull: discard local state, take remote
+  if [[ -n "$FORCE" ]]; then
+    git fetch "$BARE_REPO" main
+    git reset --hard FETCH_HEAD
+    echo "Force-pulled from agent bare repo (local state discarded)."
+    return
+  fi
+
+  # Check for uncommitted changes before rebase
   if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
-    git add -A
-    git commit -m "sync: local changes before pull $(date '+%Y-%m-%d %H:%M:%S')"
-    [[ -n "$VERBOSE" ]] && echo "Auto-committed local changes before rebase."
+    echo "Error: uncommitted changes detected. Commit or stash your changes first, then pull." >&2
+    git status --short >&2
+    exit 1
   fi
 
   git pull "$BARE_REPO" "main:${BRANCH}" --rebase $VERBOSE
