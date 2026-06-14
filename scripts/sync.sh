@@ -97,17 +97,21 @@ git_push() {
     [[ -n "$VERBOSE" ]] && echo "Auto-committed local changes."
   fi
 
+  local BRANCH=$(git branch --show-current)
+
   if [[ -n "$DRY_RUN" ]]; then
     echo "[dry-run] Would push to $BARE_REPO"
-    git log --oneline "origin/main..HEAD" 2>/dev/null || git log --oneline -3
+    git log --oneline "origin/${BRANCH}..HEAD" 2>/dev/null || git log --oneline -3
     return
   fi
 
-  git push "$BARE_REPO" main $VERBOSE
+  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE
   echo "Pushed to agent bare repo."
 }
 
 git_pull() {
+  local BRANCH=$(git branch --show-current)
+
   if [[ -n "$DRY_RUN" ]]; then
     echo "[dry-run] Would pull from $BARE_REPO"
     git fetch "$BARE_REPO" main
@@ -122,7 +126,7 @@ git_pull() {
     [[ -n "$VERBOSE" ]] && echo "Auto-committed local changes before rebase."
   fi
 
-  git pull "$BARE_REPO" main --rebase $VERBOSE
+  git pull "$BARE_REPO" "main:${BRANCH}" --rebase $VERBOSE
 
   if [[ $? -ne 0 ]]; then
     echo ""
