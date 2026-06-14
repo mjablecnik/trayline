@@ -63,6 +63,19 @@ _trayline_pipeline_vars() {
 
   [[ -z "$pipeline_path" || ! -f "$pipeline_path" ]] && return
 
+  # Check if user is completing a value (after =) for specs-name
+  local current="${words[CURRENT]}"
+  if [[ "$current" == specs-name=* ]]; then
+    local prefix="specs-name="
+    local specs_dir=".kiro/specs"
+    if [[ -d "$specs_dir" ]]; then
+      local -a specs
+      specs=( ${specs_dir}/*(N/:t) )
+      compadd -P "$prefix" -S '' -- "${specs[@]}"
+    fi
+    return
+  fi
+
   # Extract variable keys from the variables: section
   local -a var_keys
   var_keys=( $(sed -n '/^variables:/,/^[^ ]/{ /^  [a-z]/s/^  \([a-z][a-z0-9-]*\):.*/\1=/p }' "$pipeline_path") )
