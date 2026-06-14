@@ -244,7 +244,7 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 	// Execute before steps (with fallback: if command fails, next agent step resolves it)
 	for i := 0; i < len(lc.Before); i++ {
 		step := lc.Before[i]
-		fmt.Printf("\n%s%s⟡ Lifecycle before [%d/%d]:%s %q\n", colorBold, colorCyan, i+1, len(lc.Before), colorReset, step.Name)
+		fmt.Printf("%s  ◇ %s%s\n", colorDim, step.Name, colorReset)
 		projectDir := step.ProjectDir
 		if projectDir == "" {
 			projectDir = cwd
@@ -318,7 +318,7 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		prompt := strings.ReplaceAll(step.Prompt, "{{pipeline-name}}", filepath.Base(pipelineName))
 		command := strings.ReplaceAll(step.Command, "{{pipeline-name}}", filepath.Base(pipelineName))
 
-		fmt.Printf("\n%s%s⟡ Lifecycle after [%d/%d]:%s %q\n", colorBold, colorCyan, i+1, len(lc.After), colorReset, step.Name)
+		fmt.Printf("%s  ◇ %s%s\n", colorDim, step.Name, colorReset)
 		projectDir := step.ProjectDir
 		if projectDir == "" {
 			projectDir = cwd

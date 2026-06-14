@@ -662,19 +662,19 @@ func (e *Executor) runLogTask(stepName string) {
 	}
 	logTaskPath := filepath.Join(home, "pipelines", e.LogTask+".yaml")
 
-	// Build command: trayline run <log-task> --var pipeline-name=<step-name> --no-lifecycle
-	traylineBin := "trayline"
-	if exe, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(exe), "..", "bin", "trayline")
-		if _, err := os.Stat(sibling); err == nil {
-			traylineBin = sibling
+	// Call trayline-run directly (bypass wrapper to avoid argument parsing issues)
+	traylineRun := filepath.Join(home, "trayline-run")
+	if _, err := os.Stat(traylineRun); err != nil {
+		// Fallback: try next to current executable
+		if exe, err2 := os.Executable(); err2 == nil {
+			traylineRun = filepath.Join(filepath.Dir(exe), "trayline-run")
 		}
 	}
 
-	args := []string{"run", logTaskPath, "--var", "pipeline-name=" + stepName, "--no-lifecycle"}
+	args := []string{logTaskPath, "--var", "pipeline-name=" + stepName, "--no-lifecycle"}
 	cwd, _ := os.Getwd()
 
-	cmd := exec.Command(traylineBin, args...)
+	cmd := exec.Command(traylineRun, args...)
 	cmd.Dir = cwd
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
