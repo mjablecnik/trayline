@@ -164,7 +164,13 @@ git_setup() {
       echo 'Created working repo: ${AGENT_PROJECTS}/${DIR_NAME}'
     else
       echo 'Working repo already exists: ${AGENT_PROJECTS}/${DIR_NAME}'
-      cd ${AGENT_PROJECTS}/${DIR_NAME} && git pull origin main
+      cd ${AGENT_PROJECTS}/${DIR_NAME}
+      # Ensure 'agent' remote points to bare repo
+      git remote set-url agent ${AGENT_REPOS}/${DIR_NAME}.git 2>/dev/null || \
+        git remote add agent ${AGENT_REPOS}/${DIR_NAME}.git
+      git fetch agent
+      git checkout main 2>/dev/null || git checkout -b main agent/main
+      git reset --hard agent/main
     fi
   "
 
