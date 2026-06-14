@@ -1,0 +1,136 @@
+variables:
+  number: "10"
+  path: "this"
+
+steps:
+  - name: "analyze-security"
+    agent: "kiro"
+    prompt: |
+      FIRST: Check if .agents/tmp/TASKS.md already exists.
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing TASKS.md".
+      Do NOT overwrite or modify the existing files.
+
+      ONLY if TASKS.md does not exist or contains no unchecked tasks, proceed with the full analysis:
+
+      Perform a thorough security audit of the entire codebase in the {{path}} project directory.
+      Detect the project language, framework, and dependencies.
+
+      If MEMORY.md exists inside .agents/, read it for context on previously found and fixed issues.
+
+      Analyze the code for the following security concerns:
+
+      1. INJECTION VULNERABILITIES:
+         - SQL injection (raw queries, string concatenation in queries)
+         - Command injection (unsanitized input in shell commands, exec calls)
+         - XSS (unescaped user input in HTML/templates, innerHTML, dangerouslySetInnerHTML)
+         - Path traversal (user input in file paths without validation)
+         - Template injection (user input in template engines)
+         - LDAP/NoSQL injection
+
+      2. AUTHENTICATION & AUTHORIZATION:
+         - Hardcoded credentials, API keys, tokens, passwords in source code
+         - Weak password hashing (MD5, SHA1, no salt)
+         - Missing authentication on endpoints/routes
+         - Missing authorization checks (IDOR, privilege escalation)
+         - Insecure session management (predictable tokens, no expiry)
+         - JWT issues (no signature verification, weak algorithms, no expiry)
+
+      3. DATA EXPOSURE:
+         - Sensitive data in logs (passwords, tokens, PII)
+         - Verbose error messages exposing internals to users
+         - Sensitive data in URL parameters
+         - Missing rate limiting on sensitive endpoints
+         - CORS misconfiguration (overly permissive origins)
+         - Sensitive files committed (private keys, .env, credentials)
+
+      4. CRYPTOGRAPHY:
+         - Weak algorithms (MD5, SHA1 for security purposes, DES, RC4)
+         - Hardcoded encryption keys or IVs
+         - Missing HTTPS enforcement
+         - Insecure random number generation for security tokens
+
+      5. DEPENDENCY VULNERABILITIES:
+         - Known vulnerable dependencies (check versions against known CVEs)
+         - Outdated dependencies with security patches available
+         - Unused dependencies that increase attack surface
+
+      6. INPUT VALIDATION:
+         - Missing input validation on API endpoints
+         - Missing file upload validation (type, size, content)
+         - Missing request size limits
+         - Regex DoS (catastrophic backtracking)
+
+      7. CONFIGURATION & DEPLOYMENT:
+         - Debug mode enabled in production config
+         - Default credentials in configuration
+         - Insecure default permissions
+         - Missing security headers (CSP, HSTS, X-Frame-Options)
+         - Exposed admin panels or debug endpoints
+
+      Create two files in .agents/tmp/ (create directories if they don't exist):
+
+      1. SECURITY_AUDIT.md — A detailed security audit report:
+         - Executive summary (overall risk level: LOW / MEDIUM / HIGH / CRITICAL)
+         - For each finding:
+           - Title and category (from the list above)
+           - Severity: [CRITICAL], [HIGH], [MEDIUM], or [LOW]
+           - File and line number(s)
+           - Description of the vulnerability
+           - Proof of concept or exploitation scenario
+           - Recommended fix with code example
+         - Sort findings by severity (critical first)
+
+      2. TASKS.md — A task list derived from SECURITY_AUDIT.md:
+         - [ ] 1. [CRITICAL] Short actionable description — file:line
+         - [ ] 2. [HIGH] Short actionable description — file:line
+         - [ ] 3. [MEDIUM] Short actionable description — file:line
+         - [ ] 4. [LOW] Short actionable description — file:line
+         Each task must be a single, independently fixable issue.
+         Sort by severity (critical first).
+
+      If no security issues are found, write "No security issues found." in both files.
+
+  - loop:
+      max_iterations: 50
+      condition:
+        not_contains: "All tasks are done"
+      steps:
+        - name: "fix-security-issues"
+          agent: "claude"
+          prompt: |
+            Read SECURITY_AUDIT.md and TASKS.md from .agents/tmp/.
+
+            MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+
+            Your job is to fix the security vulnerabilities identified in SECURITY_AUDIT.md.
+            Work in the {{path}} project directory.
+
+            Rules:
+            - Fix issues in order of severity: CRITICAL first, then HIGH, then MEDIUM, then LOW.
+            - For each fix:
+              - Understand the vulnerability and its exploitation scenario
+              - Apply the recommended fix from SECURITY_AUDIT.md (or a better alternative if you know one)
+              - Ensure the fix does not break existing functionality
+              - Add input validation, sanitization, or encoding as appropriate
+              - Use parameterized queries instead of string concatenation for SQL
+              - Use proper escaping/encoding for XSS prevention
+              - Move secrets to environment variables if hardcoded
+              - Update dependencies if vulnerable versions are identified
+            - After each fix, verify the code still compiles and tests pass.
+            - Do NOT add new features — only fix security issues.
+            - Do NOT change the public API or behavior unless necessary for the fix.
+            - If a fix requires a breaking change, document it clearly in the commit message.
+
+            Implement only up to {{number}} fixes in this run, then stop.
+            After completing each fix, check it off in .agents/tmp/TASKS.md.
+            After every fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+            and a descriptive message (e.g., "security: fix SQL injection in user query").
+
+            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: security-audit, [current date and time]
+            If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+
+            When you are done, print a summary of which issues you fixed.
+            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
