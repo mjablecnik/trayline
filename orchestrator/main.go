@@ -22,15 +22,11 @@ func usageText() string {
 	return fmt.Sprintf(`%s — sequential AI agent pipeline runner
 
 Usage:
-  %s <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--var key=value ...]
-  %s --pipeline <path> [options]
+  %s <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--restart] [--var key=value ...]
   %s --version
   %s --help
 
-The pipeline can be specified as a positional argument or with --pipeline flag.
-
 Flags:
-  --pipeline string   Path to pipeline YAML file (alternative to positional arg)
   --var key=value     Set or override a pipeline variable (repeatable)
   --dry-run           Print pipeline steps without executing
   --verbose           Stream trayline-agent output to stdout in real time
@@ -44,9 +40,8 @@ Examples:
   %s processes/4-create-code --var specs-name=my-feature
   %s workflows/feature-implementation --var specs-name=my-feature --verbose
   %s tasks/check-build --no-lifecycle
-  %s --pipeline workflow.yaml --dry-run
   %s --version
-`, name, name, name, name, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name)
 }
 
 // varFlags is a repeatable --var flag that accumulates key=value strings.
@@ -70,7 +65,8 @@ func run(args []string) int {
 		fmt.Fprint(os.Stderr, usageText())
 	}
 
-	pipelineFlag := fs.String("pipeline", "", "Path to pipeline YAML file")
+	pipelineFlag := fs.String("pipeline", "", "")
+	// Hidden flag — kept only for internal sub-pipeline calls, not advertised
 	dryRunFlag := fs.Bool("dry-run", false, "Print pipeline steps without executing")
 	verboseFlag := fs.Bool("verbose", false, "Stream trayline-agent output to stdout in real time")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
@@ -89,14 +85,14 @@ func run(args []string) int {
 		return 0
 	}
 
-	// Resolve pipeline path: positional argument takes precedence over --pipeline flag
+	// Resolve pipeline path: positional argument takes precedence over --pipeline flag (hidden)
 	pipelinePath := *pipelineFlag
 	if pipelinePath == "" && fs.NArg() > 0 {
 		pipelinePath = fs.Arg(0)
 	}
 
 	if pipelinePath == "" {
-		fmt.Fprint(os.Stderr, "error: pipeline path is required (positional arg or --pipeline flag)\n\n")
+		fmt.Fprint(os.Stderr, "error: pipeline path is required\n\n")
 		fmt.Fprint(os.Stderr, usageText())
 		return 1
 	}

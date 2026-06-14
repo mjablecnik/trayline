@@ -71,23 +71,11 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/sync.sh" "$@"
     ;;
   run)
-    # Resolve pipeline names to paths — supports both positional and --pipeline flag
+    # Resolve pipeline names to paths
     ARGS=()
     PIPELINE_RESOLVED=false
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --pipeline)
-          shift
-          PIPELINE_REF="${1:-}"
-          if [[ -z "$PIPELINE_REF" ]]; then
-            echo "error: --pipeline requires a value" >&2
-            exit 1
-          fi
-          RESOLVED=$(resolve_pipeline "$PIPELINE_REF")
-          ARGS+=(--pipeline "$RESOLVED")
-          PIPELINE_RESOLVED=true
-          shift
-          ;;
         --*)
           ARGS+=("$1")
           shift

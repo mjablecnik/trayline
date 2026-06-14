@@ -637,7 +637,7 @@ func (e *Executor) runLogTask(stepName string) {
 		}
 	}
 
-	args := []string{"run", "--pipeline", logTaskPath, "--var", "pipeline-name=" + stepName, "--no-lifecycle"}
+	args := []string{"run", logTaskPath, "--var", "pipeline-name=" + stepName, "--no-lifecycle"}
 	cwd, _ := os.Getwd()
 
 	cmd := exec.Command(traylineBin, args...)

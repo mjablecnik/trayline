@@ -136,7 +136,6 @@ _trayline_sync() {
 _trayline_run() {
   _arguments \
     '1:pipeline:_trayline_pipelines' \
-    '--pipeline[Pipeline name or path (alternative to positional)]:pipeline:_trayline_pipelines' \
     '--dry-run[Print steps without executing]' \
     '--verbose[Stream output in real time]' \
     '--log-llm[Log LLM requests and responses to llm-debug.log]' \
