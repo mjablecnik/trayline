@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,6 +25,20 @@ const (
 	colorBold    = "\033[1m"
 	colorDim     = "\033[2m"
 )
+
+// getDepth reads the current nesting depth from TRAYLINE_DEPTH env var.
+func getDepth() int {
+	d, err := strconv.Atoi(os.Getenv("TRAYLINE_DEPTH"))
+	if err != nil {
+		return 0
+	}
+	return d
+}
+
+// indent returns the indentation string for the current depth.
+func indent() string {
+	return strings.Repeat("    ", getDepth())
+}
 
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
@@ -65,7 +80,22 @@ func (r *OSCommandRunner) RunCommand(command string, projectDir string, env []st
 func runSubprocess(name string, args []string, dir string, env []string, verbose bool, stdoutW io.Writer, stderrW io.Writer) (string, int, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
-	cmd.Env = env
+	// Increment TRAYLINE_DEPTH for child processes
+	childDepth := strconv.Itoa(getDepth() + 1)
+	childEnv := make([]string, 0, len(env)+1)
+	depthSet := false
+	for _, e := range env {
+		if strings.HasPrefix(e, "TRAYLINE_DEPTH=") {
+			childEnv = append(childEnv, "TRAYLINE_DEPTH="+childDepth)
+			depthSet = true
+		} else {
+			childEnv = append(childEnv, e)
+		}
+	}
+	if !depthSet {
+		childEnv = append(childEnv, "TRAYLINE_DEPTH="+childDepth)
+	}
+	cmd.Env = childEnv
 
 	var buf bytes.Buffer
 	if verbose {
@@ -140,14 +170,14 @@ func (e *Executor) Run() int {
 	if !e.Restart && e.PipelineName != "" {
 		checkpoint = LoadCheckpoint(e.PipelineName)
 		if checkpoint != nil {
-			fmt.Printf("%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
+			fmt.Printf("%s%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", indent(), colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
 		}
 	}
 
 	var completedSteps []string
 
 	printTotal := func(label string) {
-		fmt.Printf("\n%s%s━━━ %s Total time: %s ━━━%s\n", colorBold, colorGreen, label, time.Since(start).Round(time.Millisecond), colorReset)
+		fmt.Printf("\n%s%s%s━━━ %s Total time: %s ━━━%s\n", indent(), colorBold, colorGreen, label, time.Since(start).Round(time.Millisecond), colorReset)
 	}
 
 	i := 0
@@ -173,14 +203,14 @@ func (e *Executor) Run() int {
 
 		// Skip step if skip field resolves to "true"
 		if step.Skip == "true" {
-			fmt.Printf("\n%s⏭ Skipping step %d/%d:%s %q (skip=true)\n", colorYellow, stepNum, totalSteps, colorReset, step.Name)
+			fmt.Printf("\n%s%s⏭ Skipping step %d/%d:%s %q (skip=true)\n", indent(), colorYellow, stepNum, totalSteps, colorReset, step.Name)
 			i++
 			continue
 		}
 
 		// Skip step if already completed (resume from checkpoint)
 		if checkpoint != nil && checkpoint.IsStepCompleted(step.Name) {
-			fmt.Printf("\n%s⏭ Skipping step %d/%d:%s %q (already completed)\n", colorYellow, stepNum, totalSteps, colorReset, step.Name)
+			fmt.Printf("\n%s%s⏭ Skipping step %d/%d:%s %q (already completed)\n", indent(), colorYellow, stepNum, totalSteps, colorReset, step.Name)
 			completedSteps = append(completedSteps, step.Name)
 			i++
 			continue
@@ -195,7 +225,7 @@ func (e *Executor) Run() int {
 		if exitCode != 0 {
 			// Check if this is a rate limit error
 			if IsRateLimitError(output) {
-				fmt.Printf("\n%s⏸ Rate limit detected on step %q. Saving checkpoint for resume.%s\n", colorYellow, step.Name, colorReset)
+				fmt.Printf("\n%s%s⏸ Rate limit detected on step %q. Saving checkpoint for resume.%s\n", indent(), colorYellow, step.Name, colorReset)
 				SaveCheckpoint(e.PipelineName, completedSteps, step.Name, true)
 				printTotal("Pipeline paused (rate limit).")
 				return 2 // Special exit code for rate limit
@@ -227,7 +257,7 @@ func (e *Executor) Run() int {
 			}
 			if nextIdx == -1 {
 				// Stop pipeline (no-goto + false)
-				fmt.Printf("%s⏹ Pipeline stopped by condition on step %q (LLM returned false)%s\n", colorYellow, step.Name, colorReset)
+				fmt.Printf("%s%s⏹ Pipeline stopped by condition on step %q (LLM returned false)%s\n", indent(), colorYellow, step.Name, colorReset)
 				printTotal("Pipeline complete.")
 				return 0
 			}
@@ -267,7 +297,8 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 		stepType = "agent:" + step.Agent
 	}
 	start := time.Now()
-	fmt.Printf("\n%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s %s[started %s]%s\n", colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset, colorDim, start.Format("15:04:05"), colorReset)
+	ind := indent()
+	fmt.Printf("\n%s%s%s▶ Step %d/%d:%s %s%q%s %s(%s)%s %s[started %s]%s\n", ind, colorBold, colorCyan, stepNum, totalSteps, colorReset, colorBold, step.Name, colorReset, colorDim, stepType, colorReset, colorDim, start.Format("15:04:05"), colorReset)
 	e.debugLog("Executing step %q (%s)", step.Name, stepType)
 
 	cwd, _ := os.Getwd()
@@ -293,19 +324,19 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	end := time.Now()
 	elapsed := end.Sub(start).Round(time.Millisecond)
 	if err != nil {
-		fmt.Printf("  %s✗ %q failed after %s %s[finished %s]%s: %v%s\n", colorRed, step.Name, elapsed, colorDim, end.Format("15:04:05"), colorReset, err, colorReset)
+		fmt.Printf("%s  %s✗ %q failed after %s %s[finished %s]%s: %v%s\n", ind, colorRed, step.Name, elapsed, colorDim, end.Format("15:04:05"), colorReset, err, colorReset)
 		e.debugError(fmt.Sprintf("step %q execution", step.Name), err)
 		return output, exitCode, err
 	}
 	if exitCode != 0 {
-		fmt.Printf("  %s✗ %q (%s) failed (exit %d) after %s %s[finished %s]%s\n", colorRed, step.Name, stepType, exitCode, elapsed, colorDim, end.Format("15:04:05"), colorReset)
+		fmt.Printf("%s  %s✗ %q (%s) failed (exit %d) after %s %s[finished %s]%s\n", ind, colorRed, step.Name, stepType, exitCode, elapsed, colorDim, end.Format("15:04:05"), colorReset)
 		if output != "" {
-			fmt.Printf("  %s  output: %s%s\n", colorRed, output, colorReset)
+			fmt.Printf("%s  %s  output: %s%s\n", ind, colorRed, output, colorReset)
 		}
 		e.debugLog("Step %q failed with exit code %d after %s", step.Name, exitCode, elapsed)
 		e.debugLog("Step %q failed output (%d bytes):\n%s", step.Name, len(output), output)
 	} else {
-		fmt.Printf("  %s✓ %q (%s) succeeded in %s %s[finished %s]%s\n", colorGreen, step.Name, stepType, elapsed, colorDim, end.Format("15:04:05"), colorReset)
+		fmt.Printf("%s  %s✓ %q (%s) succeeded in %s %s[finished %s]%s\n", ind, colorGreen, step.Name, stepType, elapsed, colorDim, end.Format("15:04:05"), colorReset)
 		e.debugLog("Step %q succeeded in %s (output: %d bytes)", step.Name, elapsed, len(output))
 		if len(output) > 0 {
 			preview := output
@@ -398,14 +429,14 @@ func (e *Executor) evaluateCondition(context string, cond *Condition, input stri
 	if cond.Contains != "" {
 		decision := strings.Contains(input, cond.Contains)
 		e.debugLog("%s: contains %q → %v", context, cond.Contains, decision)
-		fmt.Printf("  %s⚡ %s: contains(%q)=%v%s\n", colorMagenta, context, cond.Contains, decision, colorReset)
+		fmt.Printf("%s  %s⚡ %s: contains(%q)=%v%s\n", indent(), colorMagenta, context, cond.Contains, decision, colorReset)
 		return decision, nil
 	}
 
 	if cond.NotContains != "" {
 		decision := !strings.Contains(input, cond.NotContains)
 		e.debugLog("%s: not_contains %q → %v", context, cond.NotContains, decision)
-		fmt.Printf("  %s⚡ %s: not_contains(%q)=%v%s\n", colorMagenta, context, cond.NotContains, decision, colorReset)
+		fmt.Printf("%s  %s⚡ %s: not_contains(%q)=%v%s\n", indent(), colorMagenta, context, cond.NotContains, decision, colorReset)
 		return decision, nil
 	}
 
@@ -426,7 +457,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, elements=%d", loop.MaxIterations, hasLoopCondition, len(loop.Elements)))
 
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
-		fmt.Printf("\n%s%s🔁 Loop iteration %d/%d%s\n", colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
+		fmt.Printf("\n%s%s%s🔁 Loop iteration %d/%d%s\n", indent(), colorBold, colorBlue, iter, loop.MaxIterations, colorReset)
 		e.debugSection(fmt.Sprintf("Loop iteration %d/%d", iter, loop.MaxIterations))
 
 		var lastOutput string
@@ -449,7 +480,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 
 			// Skip step if skip field resolves to "true"
 			if step.Skip == "true" {
-				fmt.Printf("  %s⏭ Skipping %q (skip=true)%s\n", colorYellow, step.Name, colorReset)
+				fmt.Printf("%s  %s⏭ Skipping %q (skip=true)%s\n", indent(), colorYellow, step.Name, colorReset)
 				continue
 			}
 
@@ -484,7 +515,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 					return 1, err
 				}
 				if !decision {
-					fmt.Printf("  %s⏹ Loop exiting: step %q condition returned false%s\n", colorYellow, step.Name, colorReset)
+					fmt.Printf("%s  %s⏹ Loop exiting: step %q condition returned false%s\n", indent(), colorYellow, step.Name, colorReset)
 					e.debugLog("Loop exiting early — step %q condition returned false", step.Name)
 					breakLoop = true
 					break
@@ -523,7 +554,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			}
 
 			if !decision {
-				fmt.Printf("  %s⏹ Loop exiting after iteration %d%s\n", colorYellow, iter, colorReset)
+				fmt.Printf("%s  %s⏹ Loop exiting after iteration %d%s\n", indent(), colorYellow, iter, colorReset)
 				e.debugLog("Loop ended (condition returned false)")
 				return 0, nil
 			}
@@ -532,7 +563,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 		}
 
 		if iter == loop.MaxIterations {
-			fmt.Printf("  %s⚠ WARNING: loop reached max_iterations (%d), continuing pipeline%s\n", colorYellow, loop.MaxIterations, colorReset)
+			fmt.Printf("%s  %s⚠ WARNING: loop reached max_iterations (%d), continuing pipeline%s\n", indent(), colorYellow, loop.MaxIterations, colorReset)
 			e.debugLog("Loop reached max_iterations (%d) — exiting", loop.MaxIterations)
 			return 0, nil
 		}
@@ -619,7 +650,7 @@ func printElements(elements []PipelineElement, cwd string, stepNum *int, indent 
 
 // runLogTask executes the configured log task after a step with log:true.
 func (e *Executor) runLogTask(stepName string) {
-	fmt.Printf("  %s📝 Running log task for %q%s\n", colorDim, stepName, colorReset)
+	fmt.Printf("%s  %s📝 Running log task for %q%s\n", indent(), colorDim, stepName, colorReset)
 
 	// Resolve the log task pipeline path
 	home := os.Getenv("TRAYLINE_HOME")
