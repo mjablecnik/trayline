@@ -161,6 +161,7 @@ trayline/
 | Pipeline | Description |
 |----------|-------------|
 | `tasks/check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
+| `tasks/cleanup` | Discards all git changes, or commits and pushes them. |
 | `tasks/release` | Bumps version, updates CHANGELOG.md, creates git tag. |
 | `tasks/sync-pull` | Pulls from bare repo with conflict resolution. |
 | `tasks/sync-push` | Pushes to bare repo with conflict resolution. |

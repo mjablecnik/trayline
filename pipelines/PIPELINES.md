@@ -19,6 +19,7 @@ Atomic operations that perform a single responsibility. These are the smallest r
 | Task | Description |
 |------|-------------|
 | `check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
+| `cleanup` | Discards all git changes, or commits and pushes them. |
 | `release` | Bumps version, updates CHANGELOG.md, creates git tag. |
 | `sync-pull` | Pulls from bare repo with conflict resolution. |
 | `sync-push` | Pushes to bare repo with conflict resolution. |
