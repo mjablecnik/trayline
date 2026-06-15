@@ -4,8 +4,7 @@ variables:
 
 steps:
   - name: "analyze-security"
-    agent: "claude"
-    model: "opus"
+    agent: "kiro"
     prompt: |
       FIRST: Check if .agents/tmp/TASKS.md already exists.
       If it exists AND contains at least one unchecked task (a line with "- [ ]"),

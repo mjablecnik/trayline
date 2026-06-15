@@ -3,8 +3,7 @@ variables:
 
 steps:
   - name: "update-ai-log"
-    agent: "claude"
-    model: "opus"
+    agent: "kiro"
     prompt: |
       Your job is to add a new entry to AI_LOG.md inside .agents/.
       If AI_LOG.md does not exist, create it with a "# AI Log" heading first.

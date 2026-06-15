@@ -7,8 +7,7 @@ steps:
       max_iterations: 1
       steps:
         - name: "code-review"
-          agent: "claude"
-          model: "opus"
+          agent: "kiro"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
             Analyze the entire codebase in {{path}} folder and perform a code review.
