@@ -172,12 +172,42 @@ _trayline_run() {
     '*--var[Set variable key=value]:variable:_trayline_pipeline_vars'
 }
 
+_trayline_flow() {
+  # Flow supports multiple pipelines separated by --then
+  # Complete pipelines, --var, --then, and global flags
+  local current="${words[CURRENT]}"
+  local prev="${words[CURRENT-1]}"
+
+  if [[ "$prev" == "--var" ]]; then
+    _trayline_pipeline_vars
+    return
+  fi
+
+  if [[ "$prev" == "--then" || $CURRENT -eq 2 ]]; then
+    _trayline_pipelines
+    return
+  fi
+
+  local -a opts
+  opts=(
+    '--then:Separate pipeline segments'
+    '--var:Set variable key=value'
+    '--dry-run:Print steps without executing'
+    '--verbose:Stream output in real time'
+    '--log-llm:Log LLM requests and responses'
+    '--no-lifecycle:Skip lifecycle.yaml before/after steps'
+    '--restart:Ignore checkpoint and start from the beginning'
+  )
+  _describe 'option' opts
+}
+
 _trayline() {
   local -a commands
   commands=(
     'agent:Run an AI agent in Docker sandbox'
     'sync:Sync project with remote server'
-    'run:Run a pipeline (orchestrator)'
+    'run:Run a single pipeline (orchestrator)'
+    'flow:Run multiple pipelines sequentially'
     'install:Re-run installation'
     'version:Print version info'
     'help:Show help'
@@ -194,6 +224,7 @@ _trayline() {
       agent) _trayline_agent ;;
       sync)  _trayline_sync ;;
       run)   _trayline_run ;;
+      flow)  _trayline_flow ;;
       *)     _message 'no more arguments' ;;
     esac
   fi

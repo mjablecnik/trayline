@@ -23,6 +23,7 @@ func usageText() string {
 
 Usage:
   %s <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--restart] [--var key=value ...]
+  %s flow <pipeline> [--then <pipeline> ...] [--dry-run] [--verbose] [--no-lifecycle]
   %s --version
   %s --help
 
@@ -36,12 +37,15 @@ Flags:
   --version           Print version and exit
   --help, -h          Show this help message
 
+Flow (multiple pipelines):
+  %s flow processes/8-code-review --var path=. --then processes/9-improvements --var path=.
+
 Examples:
   %s processes/4-create-code --var specs-name=my-feature
   %s workflows/feature-implementation --var specs-name=my-feature --verbose
   %s tasks/check-build --no-lifecycle
   %s --version
-`, name, name, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name, name, name)
 }
 
 // varFlags is a repeatable --var flag that accumulates key=value strings.
@@ -54,6 +58,11 @@ func (v *varFlags) Set(val string) error {
 }
 
 func main() {
+	// Check for "flow" subcommand before standard flag parsing
+	if len(os.Args) > 1 && os.Args[1] == "flow" {
+		os.Exit(runFlow(os.Args[2:]))
+		return
+	}
 	os.Exit(run(os.Args[1:]))
 }
 

@@ -112,6 +112,25 @@ The orchestrator automatically saves progress after each completed step. If a pi
 - If retry is configured in lifecycle.yaml, the orchestrator waits and retries automatically.
 - If retry is not configured, the pipeline exits and you can re-run it manually later.
 
+## Flow (Ad-hoc Multi-Pipeline)
+
+The `flow` command runs multiple pipelines sequentially without needing a workflow YAML file. Each pipeline gets its own `--var` flags, separated by `--then`.
+
+```bash
+trayline flow <pipeline> [--var key=value ...] [--then <pipeline> [--var key=value ...]] ...
+```
+
+**Behavior:**
+- Pipelines execute in order, left to right.
+- Each segment has its own variables (from the pipeline's YAML defaults + CLI overrides).
+- If any pipeline fails, the flow stops immediately.
+- Lifecycle (sync-pull/sync-push) wraps the entire flow, not each individual pipeline.
+- Global flags (`--verbose`, `--dry-run`, `--no-lifecycle`, `--restart`) apply to all pipelines.
+
+**When to use flow vs workflows:**
+- Use `flow` for one-off, ad-hoc sequences you don't want to codify in a YAML file.
+- Use workflows for repeatable sequences with skip flags and shared variable structure.
+
 ## Usage Examples
 
 ```bash
@@ -132,6 +151,18 @@ trayline run workflows/feature-implementation --var specs-name=my-feature --rest
 
 # Dry run (preview what would execute):
 trayline run workflows/feature-implementation --var specs-name=my-feature --dry-run
+
+# Flow — run multiple pipelines sequentially:
+trayline flow processes/8-code-review --var path=. --var number=5 \
+  --then processes/9-improvements --var path=. --var number=5
+
+# Flow — full custom pipeline:
+trayline flow processes/4-create-code --var specs-name=my-feature --var path=. \
+  --then processes/8-code-review --var specs-name=my-feature --var path=. \
+  --then processes/7-create-tests --var specs-name=my-feature --var path=.
+
+# Flow — dry run to preview:
+trayline flow processes/8-code-review --var path=. --then processes/10-security-audit --var path=. --dry-run
 ```
 
 ## Common Patterns

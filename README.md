@@ -36,6 +36,7 @@ trayline <command> [options]
 |---------|-------------|
 | `agent` | Run an AI agent in a Docker sandbox |
 | `run`   | Run a YAML pipeline (orchestrator) |
+| `flow`  | Run multiple pipelines sequentially (ad-hoc) |
 | `sync`  | Sync project with a remote server via rsync |
 | `install` | Re-run installation |
 | `version` | Print version info |
@@ -84,6 +85,33 @@ Options:
 Pipelines automatically resume from where they left off if interrupted or rate-limited. Use `--restart` to force a fresh start.
 
 See [orchestrator/README.md](orchestrator/README.md) for the full pipeline YAML format.
+
+### flow
+
+Run multiple pipelines sequentially without creating a workflow YAML file. Each pipeline segment gets its own `--var` flags, separated by `--then`.
+
+```
+trayline flow <pipeline> [--var key=value ...] [--then <pipeline> [--var key=value ...]] ...
+```
+
+```bash
+# Code review followed by improvements:
+trayline flow processes/8-code-review --var path=. --var number=5 \
+  --then processes/9-improvements --var path=. --var number=5
+
+# Full custom pipeline:
+trayline flow processes/4-create-code --var specs-name=my-feature --var path=. \
+  --then processes/8-code-review --var specs-name=my-feature --var path=. \
+  --then processes/7-create-tests --var specs-name=my-feature --var path=.
+
+# Preview what would run:
+trayline flow processes/8-code-review --var path=. \
+  --then processes/10-security-audit --var path=. --dry-run
+```
+
+Global flags (`--verbose`, `--dry-run`, `--no-lifecycle`, `--restart`, `--log-llm`) apply to all pipelines in the flow. Lifecycle (sync-pull/push) wraps the entire flow, not each individual pipeline.
+
+Use `flow` for ad-hoc sequences. Use workflows for repeatable sequences with skip flags.
 
 ### sync
 

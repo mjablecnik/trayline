@@ -14,21 +14,23 @@ Usage:
 Commands:
   agent <kiro|claude> [opts] [prompt]   Run an AI agent in Docker sandbox
   sync <push|pull> [--verbose]          Sync project with remote server
-  run --pipeline <name> [opts]          Run a pipeline (orchestrator)
+  run <pipeline> [opts]                 Run a single pipeline (orchestrator)
+  flow <pipeline> [--then <pipeline>]   Run multiple pipelines sequentially
   install                               Re-run installation
   version                               Print version info
   help                                  Show this help
 
-Pipeline resolution (run command):
-  --pipeline ./path/to/file.yaml        Use local file directly
-  --pipeline my-pipeline                Resolve from ${PIPELINES_DIR}/my-pipeline.yaml
+Pipeline resolution (run/flow commands):
+  ./path/to/file.yaml                   Use local file directly
+  my-pipeline                           Resolve from ${PIPELINES_DIR}/my-pipeline.yaml
 
 Examples:
   trayline agent claude "Fix the bug"
   trayline agent kiro -i
   trayline sync push --verbose
-  trayline run --pipeline code-review --verbose
-  trayline run --pipeline ./local.yaml --dry-run
+  trayline run processes/8-code-review --var path=. --verbose
+  trayline run ./local.yaml --dry-run
+  trayline flow processes/8-code-review --var path=. --then processes/9-improvements --var path=.
 EOF
   exit 0
 }
@@ -99,6 +101,33 @@ case "$COMMAND" in
       esac
     done
     exec "${TRAYLINE_HOME}/trayline-run" "${FLAGS[@]}" "$POSITIONAL"
+    ;;
+  flow)
+    # Resolve pipeline names in each --then segment
+    ARGS=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --then)
+          ARGS+=("$1")
+          shift
+          ;;
+        --var)
+          ARGS+=("$1" "$2")
+          shift 2
+          ;;
+        --*)
+          ARGS+=("$1")
+          shift
+          ;;
+        *)
+          # Non-flag positional argument = pipeline name, resolve it
+          RESOLVED=$(resolve_pipeline "$1")
+          ARGS+=("$RESOLVED")
+          shift
+          ;;
+      esac
+    done
+    exec "${TRAYLINE_HOME}/trayline-run" flow "${ARGS[@]}"
     ;;
   install)
     exec "${TRAYLINE_HOME}/../bin/trayline-install"
