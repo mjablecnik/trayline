@@ -2,6 +2,7 @@ variables:
   specs-name: ""
   path: "this"
   number: "5"
+  skip-code-review: "false"
   skip-improvements: "true"
   skip-security-audit: "false"
   skip-seo-audit: "false"
@@ -11,6 +12,7 @@ steps:
     command: "trayline run processes/8-code-review --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
     verbose: true
     log: true
+    skip: "{{skip-code-review}}"
 
   - name: "improvements"
     command: "trayline run processes/9-improvements --var specs-name={{specs-name}} --var path={{path}} --var number={{number}} --no-lifecycle"
