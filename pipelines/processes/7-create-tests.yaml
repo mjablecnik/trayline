@@ -5,7 +5,8 @@ variables:
 
 steps:
   - name: "analyze-test-coverage"
-    agent: "kiro"
+    agent: "claude"
+    model: "opus"
     prompt: |
       FIRST: Check if .agents/tmp/TASKS.md already exists.
       If it exists AND contains at least one unchecked task (a line with "- [ ]"),
@@ -118,7 +119,8 @@ steps:
             If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "verify-tests"
-    agent: "kiro"
+    agent: "claude"
+    model: "opus"
     prompt: |
       This is the verification step. All test creation is done.
       Your job is to run all tests and report the results.
@@ -162,7 +164,8 @@ steps:
       When done, print a summary of what you fixed.
 
   - name: "generate-test-report"
-    agent: "kiro"
+    agent: "claude"
+    model: "opus"
     prompt: |
       Run the full test suite for the {{path}} project one final time.
 
