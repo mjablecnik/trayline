@@ -109,6 +109,7 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 				resolveField(&s.Prompt)
 				resolveField(&s.Command)
 				resolveField(&s.ProjectDir)
+				resolveField(&s.Skip)
 				if s.Condition != nil {
 					resolveField(&s.Condition.Prompt)
 					resolveField(&s.Condition.File)
