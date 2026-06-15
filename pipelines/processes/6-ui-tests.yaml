@@ -213,7 +213,8 @@ steps:
             If all tasks in .agents/tmp/E2E_TASKS.md are now checked off, explicitly say "All tasks are done."
 
   - name: "summarize-tests"
-    agent: "kiro"
+    agent: "claude"
+    model: "opus"
     prompt: |
       This is the final step of the UI test pipeline. Both test generation agents have finished.
       Your job is to verify the final state and create a UI_TEST_REPORT.md summary.
