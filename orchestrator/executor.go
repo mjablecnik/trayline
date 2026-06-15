@@ -298,6 +298,11 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 	stepType := "command"
 	if step.Agent != "" {
 		stepType = "agent:" + step.Agent
+		model := step.Model
+		if model == "" {
+			model = e.Config.OpenRouterModel
+		}
+		stepType += ", model:" + model
 	}
 	start := time.Now()
 	ind := indent()
