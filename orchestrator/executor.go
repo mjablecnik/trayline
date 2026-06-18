@@ -170,7 +170,11 @@ func (e *Executor) Run() int {
 	if !e.Restart && e.PipelineName != "" {
 		checkpoint = LoadCheckpoint(e.PipelineName, e.ResolvedVars)
 		if checkpoint != nil {
-			fmt.Printf("%s%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", indent(), colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
+			if len(checkpoint.CompletedSteps) > 0 {
+				fmt.Printf("%s%s%s⟳ Resuming from checkpoint (last completed: %s)%s\n", indent(), colorBold, colorYellow, checkpoint.CompletedSteps[len(checkpoint.CompletedSteps)-1], colorReset)
+			} else {
+				fmt.Printf("%s%s%s⟳ Resuming from checkpoint (no steps completed yet)%s\n", indent(), colorBold, colorYellow, colorReset)
+			}
 		}
 	}
 
