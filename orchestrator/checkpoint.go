@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-const checkpointDir = ".agents/tmp"
-const flowCheckpointFile = ".agents/tmp/.flow-checkpoint"
+const checkpointDir = ".agents/checkpoints"
+const flowCheckpointFile = ".agents/checkpoints/.flow-checkpoint"
 
 // checkpointPath returns the checkpoint file path for a given pipeline name.
 // Each pipeline gets its own checkpoint file to avoid conflicts between
@@ -32,7 +32,7 @@ func checkpointPath(pipelineName string) string {
 	// Sanitize: replace any remaining slashes or special chars
 	name = strings.ReplaceAll(name, "/", "--")
 	name = strings.ReplaceAll(name, "\\", "--")
-	return filepath.Join(checkpointDir, ".checkpoint-"+name)
+	return filepath.Join(checkpointDir, "checkpoint-"+name)
 }
 
 // Checkpoint stores the state of a pipeline run for resume capability.
@@ -152,12 +152,13 @@ func ClearAllCheckpoints() {
 		return
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".checkpoint-") {
+		if strings.HasPrefix(e.Name(), "checkpoint-") {
 			os.Remove(filepath.Join(checkpointDir, e.Name()))
 		}
 	}
-	// Also remove legacy single checkpoint file
-	os.Remove(filepath.Join(checkpointDir, ".checkpoint"))
+	// Legacy: remove old checkpoint file from .agents/tmp/.
+	// TODO: Remove this after all active projects have migrated to .agents/checkpoints/ (v2.4+).
+	os.Remove(".agents/tmp/.checkpoint")
 }
 
 // SaveFlowCheckpoint writes the current flow state to disk.
@@ -242,25 +243,35 @@ func (cp *Checkpoint) IsStepCompleted(stepName string) bool {
 // This is used by workflow executors to detect if a sub-pipeline has an active checkpoint,
 // allowing the workflow to skip steps that come before the checkpointed sub-pipeline.
 func LoadAllCheckpoints() []*Checkpoint {
+	var checkpoints []*Checkpoint
+
+	// Read from new checkpoint directory
 	entries, err := os.ReadDir(checkpointDir)
-	if err != nil {
-		return nil
+	if err == nil {
+		for _, e := range entries {
+			if !strings.HasPrefix(e.Name(), "checkpoint-") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(checkpointDir, e.Name()))
+			if err != nil {
+				continue
+			}
+			var cp Checkpoint
+			if err := json.Unmarshal(data, &cp); err != nil {
+				continue
+			}
+			checkpoints = append(checkpoints, &cp)
+		}
 	}
 
-	var checkpoints []*Checkpoint
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".checkpoint-") && e.Name() != ".checkpoint" {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(checkpointDir, e.Name()))
-		if err != nil {
-			continue
-		}
+	// Legacy: also check old checkpoint location (.agents/tmp/.checkpoint).
+	// TODO: Remove this after all active projects have migrated to .agents/checkpoints/ (v2.4+).
+	if data, err := os.ReadFile(".agents/tmp/.checkpoint"); err == nil {
 		var cp Checkpoint
-		if err := json.Unmarshal(data, &cp); err != nil {
-			continue
+		if err := json.Unmarshal(data, &cp); err == nil {
+			checkpoints = append(checkpoints, &cp)
 		}
-		checkpoints = append(checkpoints, &cp)
 	}
+
 	return checkpoints
 }
