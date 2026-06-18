@@ -1,5 +1,5 @@
 variables:
-  number: "1"
+  number: "5"
   path: "this"
 
 steps:
