@@ -7,7 +7,8 @@ variables:
 
 steps:
   - name: "analyze-tests"
-    agent: "kiro"
+    agent: "claude"
+    model: "opus"
     prompt: |
       FIRST: Check if .agents/tmp/COMPONENT_TASKS.md or .agents/tmp/E2E_TASKS.md already exist.
       If at least one of them exists AND contains at least one unchecked task (a line with "- [ ]"),
