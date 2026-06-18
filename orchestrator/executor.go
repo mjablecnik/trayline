@@ -174,6 +174,17 @@ func (e *Executor) Run() int {
 		}
 	}
 
+	// If no direct checkpoint exists, check for sub-pipeline checkpoints.
+	// If a command step invokes a pipeline that has an active checkpoint,
+	// skip all steps before it so we resume from the right place.
+	var skipUntilStep string
+	if checkpoint == nil && !e.Restart {
+		skipUntilStep = e.findResumeStepFromSubCheckpoints(allSteps)
+		if skipUntilStep != "" {
+			fmt.Printf("%s%s%s⟳ Sub-pipeline checkpoint found, skipping to step %q%s\n", indent(), colorBold, colorYellow, skipUntilStep, colorReset)
+		}
+	}
+
 	var completedSteps []string
 
 	printTotal := func(label string) {
@@ -214,6 +225,18 @@ func (e *Executor) Run() int {
 			completedSteps = append(completedSteps, step.Name)
 			i++
 			continue
+		}
+
+		// Skip steps before the one with an active sub-pipeline checkpoint
+		if skipUntilStep != "" && step.Name != skipUntilStep {
+			fmt.Printf("\n%s%s⏭ Skipping step %d/%d:%s %q (resuming from sub-pipeline checkpoint)\n", indent(), colorYellow, stepNum, totalSteps, colorReset, step.Name)
+			completedSteps = append(completedSteps, step.Name)
+			i++
+			continue
+		}
+		// Once we reach the target step, clear the skip marker
+		if skipUntilStep != "" && step.Name == skipUntilStep {
+			skipUntilStep = ""
 		}
 
 		output, exitCode, runErr := e.executeStep(step, stepNum, totalSteps)
@@ -272,7 +295,7 @@ func (e *Executor) Run() int {
 	}
 
 	// Pipeline completed successfully — clear checkpoint
-	ClearCheckpoint()
+	ClearCheckpoint(e.PipelineName)
 	printTotal("Pipeline complete.")
 	return 0
 }
@@ -280,6 +303,67 @@ func (e *Executor) Run() int {
 // flattenTopLevelElements returns all top-level pipeline elements in order.
 func (e *Executor) flattenTopLevelElements() []PipelineElement {
 	return e.Pipeline.Elements
+}
+
+// findResumeStepFromSubCheckpoints checks if any command step in this pipeline
+// invokes a sub-pipeline that has an active checkpoint. If found, returns the
+// step name so the executor can skip all steps before it.
+func (e *Executor) findResumeStepFromSubCheckpoints(elements []PipelineElement) string {
+	checkpoints := LoadAllCheckpoints()
+	if len(checkpoints) == 0 {
+		return ""
+	}
+
+	// Build a set of checkpointed pipeline names (last two path components for matching)
+	checkpointedPipelines := make(map[string]bool)
+	for _, cp := range checkpoints {
+		// Extract identifier: e.g. "processes/3-ui-refactor" from full path
+		checkpointedPipelines[cp.Pipeline] = true
+		// Also store the short form for matching against command strings
+		name := cp.Pipeline
+		name = strings.TrimSuffix(name, ".yaml")
+		name = strings.TrimSuffix(name, ".yml")
+		parts := strings.Split(filepath.ToSlash(name), "/")
+		if len(parts) >= 2 {
+			short := parts[len(parts)-2] + "/" + parts[len(parts)-1]
+			checkpointedPipelines[short] = true
+		}
+	}
+
+	// Check each command step to see if it invokes a checkpointed pipeline
+	for _, elem := range elements {
+		if elem.Step == nil || elem.Step.Command == "" {
+			continue
+		}
+		// Parse pipeline name from command like "trayline run processes/3-ui-refactor ..."
+		pipelineName := extractPipelineFromCommand(elem.Step.Command)
+		if pipelineName == "" {
+			continue
+		}
+		if checkpointedPipelines[pipelineName] {
+			return elem.Step.Name
+		}
+	}
+
+	return ""
+}
+
+// extractPipelineFromCommand parses a pipeline reference from a trayline run command string.
+// e.g., "trayline run processes/3-ui-refactor --var path=x --no-lifecycle" -> "processes/3-ui-refactor"
+func extractPipelineFromCommand(command string) string {
+	parts := strings.Fields(command)
+	// Look for "trayline run <pipeline>" or just "run <pipeline>" pattern
+	for i, part := range parts {
+		if part == "run" && i+1 < len(parts) {
+			next := parts[i+1]
+			// Skip if it's a flag
+			if strings.HasPrefix(next, "-") {
+				continue
+			}
+			return next
+		}
+	}
+	return ""
 }
 
 // countTopLevelSteps counts only top-level step elements (not loops, not loop steps).

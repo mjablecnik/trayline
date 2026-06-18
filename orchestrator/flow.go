@@ -203,14 +203,10 @@ func executeFlow(segments []*FlowSegment, cfg *Config, dryRun, verbose, logLLM, 
 			startIdx = fcp.CompletedSegments
 			fmt.Printf("%s%s⟳ Resuming flow from pipeline %d/%d (skipping %d completed)%s\n",
 				colorBold, colorYellow, startIdx+1, len(segments), startIdx, colorReset)
-		} else {
-			// No flow checkpoint — this is a fresh flow run.
-			// Clear any stale pipeline checkpoint from a previous run.
-			ClearCheckpoint()
 		}
 	} else {
 		ClearFlowCheckpoint()
-		ClearCheckpoint()
+		ClearAllCheckpoints()
 	}
 
 	for i := startIdx; i < len(segments); i++ {
