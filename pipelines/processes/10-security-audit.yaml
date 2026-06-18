@@ -99,6 +99,7 @@ steps:
       steps:
         - name: "fix-security-issues"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read SECURITY_AUDIT.md and TASKS.md from .agents/tmp/.
 

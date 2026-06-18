@@ -4,6 +4,7 @@ variables:
 steps:
   - name: "check-build"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       Analyze the project in {{path}} folder and determine what kind of project it is
       (language, framework, build system, package manager, etc.).

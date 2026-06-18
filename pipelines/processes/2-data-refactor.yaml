@@ -96,6 +96,7 @@ steps:
       steps:
         - name: "implement-data-refactor"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read DATA_SPEC.md and TASKS.md from .agents/tmp/.
 

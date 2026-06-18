@@ -45,6 +45,7 @@ steps:
 
         - name: "fix-critical-and-high-tasks"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
             Also read CODE_REVIEW.md and TASKS.md from .agents/tmp/.
@@ -62,6 +63,7 @@ steps:
 
         - name: "fix-medium-tasks"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
             Also read CODE_REVIEW.md and TASKS.md from .agents/tmp/.

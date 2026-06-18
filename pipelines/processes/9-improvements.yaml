@@ -51,6 +51,7 @@ steps:
 
         - name: "apply-critical-and-high-improvements"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
             Also read IMPROVEMENTS.md and TASKS.md from .agents/tmp/.
@@ -71,6 +72,7 @@ steps:
 
         - name: "apply-medium-improvements"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder.
             Also read IMPROVEMENTS.md and TASKS.md from .agents/tmp/.

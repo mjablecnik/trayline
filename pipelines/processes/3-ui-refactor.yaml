@@ -137,6 +137,7 @@ steps:
       steps:
         - name: "refactor-ui"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read REFACTORING.md and TASKS.md from .agents/tmp/.
 

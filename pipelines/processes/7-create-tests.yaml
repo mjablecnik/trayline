@@ -83,6 +83,7 @@ steps:
       steps:
         - name: "implement-tests"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read TEST_SPEC.md and TASKS.md from .agents/tmp/.
             If a .kiro/specs/{{specs-name}} folder exists, read it for additional context.
@@ -143,6 +144,7 @@ steps:
 
   - name: "fix-failing-tests"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       Read .agents/tmp/TEST_RESULTS.md to understand which tests are failing and why.
 

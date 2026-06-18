@@ -65,6 +65,7 @@ steps:
       steps:
         - name: "create-pages"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read PAGES.md and TASKS.md from .agents/tmp/.
             Also open the .design folder and examine the design files for reference.

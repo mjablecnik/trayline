@@ -125,6 +125,7 @@ steps:
       steps:
         - name: "generate-component-tests"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from .agents/tmp/.
 
@@ -163,6 +164,7 @@ steps:
       steps:
         - name: "generate-e2e-tests"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read E2E_TESTS.md and E2E_TASKS.md from .agents/tmp/.
 

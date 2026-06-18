@@ -113,6 +113,7 @@ steps:
       steps:
         - name: "fix-seo-issues"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read SEO_AUDIT.md and TASKS.md from .agents/tmp/.
 

@@ -10,6 +10,7 @@ before:
     command: "git pull agent main --rebase"
   - name: "resolve-pull-conflicts"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       A git rebase failed due to merge conflicts. Check `git status` to see conflicted files.
 
@@ -28,6 +29,7 @@ after:
     command: "git push agent main"
   - name: "resolve-push-conflicts"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       A git push failed (likely non-fast-forward). Fix it:
 

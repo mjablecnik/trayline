@@ -11,6 +11,7 @@ steps:
       steps:
         - name: "create-code"
           agent: "claude"
+          model: "sonnet"
           prompt: |
             Read all files inside the .kiro/specs/{{specs-name}} folder and create the code according to the spec in {{path}} folder.
 

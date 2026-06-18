@@ -4,6 +4,7 @@ variables:
 steps:
   - name: "release"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       You are creating a new release for the project in {{path}}.
 

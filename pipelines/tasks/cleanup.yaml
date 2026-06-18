@@ -14,6 +14,7 @@ steps:
 
   - name: "commit-and-push"
     agent: "claude"
+    model: "sonnet"
     prompt: |
       Review the current git status, commit all changes, and push.
 
