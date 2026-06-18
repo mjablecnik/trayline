@@ -133,7 +133,7 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/../bin/trayline-install"
     ;;
   version)
-    echo "trayline wrapper v2.2.0"
+    echo "trayline wrapper v2.3.0"
     "${TRAYLINE_HOME}/trayline-run" --version 2>/dev/null || true
     ;;
   help|-h|--help)
