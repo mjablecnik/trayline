@@ -195,17 +195,42 @@ func runFlow(args []string) int {
 func executeFlow(segments []*FlowSegment, cfg *Config, dryRun, verbose, logLLM, restart bool) int {
 	start := time.Now()
 
-	for i, seg := range segments {
+	// Load flow checkpoint for resume capability
+	startIdx := 0
+	if !restart {
+		fcp := LoadFlowCheckpoint(segments)
+		if fcp != nil && fcp.CompletedSegments > 0 {
+			startIdx = fcp.CompletedSegments
+			fmt.Printf("%s%s⟳ Resuming flow from pipeline %d/%d (skipping %d completed)%s\n",
+				colorBold, colorYellow, startIdx+1, len(segments), startIdx, colorReset)
+		}
+	} else {
+		ClearFlowCheckpoint()
+	}
+
+	for i := startIdx; i < len(segments); i++ {
+		seg := segments[i]
 		fmt.Printf("\n%s%s━━━ Pipeline %d/%d: %s ━━━%s\n", colorBold, colorBlue, i+1, len(segments), seg.PipelinePath, colorReset)
 
 		exitCode := executeSinglePipeline(seg, cfg, dryRun, verbose, logLLM, restart)
 		if exitCode != 0 {
 			fmt.Printf("\n%s%s✗ Flow failed at pipeline %d/%d: %s%s\n", colorBold, colorRed, i+1, len(segments), seg.PipelinePath, colorReset)
 			fmt.Printf("%s%s━━━ Flow failed. Total time: %s ━━━%s\n", colorBold, colorRed, time.Since(start).Round(time.Millisecond), colorReset)
+			// Save flow checkpoint so we can resume from this pipeline
+			SaveFlowCheckpoint(segments, i)
 			return exitCode
+		}
+
+		// Pipeline succeeded — save flow progress
+		SaveFlowCheckpoint(segments, i+1)
+		// Only clear pipeline-level checkpoint after restart flag is consumed by first pipeline
+		if i == startIdx {
+			restart = false
 		}
 	}
 
+	// Flow completed successfully — clear both checkpoints
+	ClearFlowCheckpoint()
 	fmt.Printf("\n%s%s━━━ Flow complete. %d pipeline(s) succeeded. Total time: %s ━━━%s\n",
 		colorBold, colorGreen, len(segments), time.Since(start).Round(time.Millisecond), colorReset)
 	return 0
