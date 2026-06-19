@@ -32,24 +32,32 @@ _trayline_pipeline_vars() {
   local pipelines_dir="${TRAYLINE_HOME:-${HOME}/.trayline}/pipelines"
   local pipeline_ref=""
 
-  # Find the pipeline reference from the command line
+  # Find the pipeline reference for the CURRENT segment.
+  # In flow mode, segments are separated by --then. We need the pipeline
+  # from the segment where the cursor currently is (not the first one).
   local i
+  local segment_pipeline=""
   for (( i=1; i <= ${#words[@]}; i++ )); do
     case "${words[$i]}" in
-      --pipeline)
-        pipeline_ref="${words[$((i+1))]}"
-        break
+      --then)
+        # New segment starts — reset the pipeline reference
+        segment_pipeline=""
+        ;;
+      --var|--pipeline)
+        # Skip the flag and its value
+        (( i++ ))
         ;;
       --*) ;;
+      run|flow) ;;
       *)
-        # First non-flag after "run" is the positional pipeline arg
-        if [[ $i -gt 1 && "${words[$((i-1))]}" != "--pipeline" && "${words[$i]}" != "run" ]]; then
-          pipeline_ref="${words[$i]}"
-          break
+        # Non-flag argument = pipeline reference for this segment
+        if [[ -z "$segment_pipeline" ]]; then
+          segment_pipeline="${words[$i]}"
         fi
         ;;
     esac
   done
+  pipeline_ref="$segment_pipeline"
 
   [[ -z "$pipeline_ref" ]] && return
 
