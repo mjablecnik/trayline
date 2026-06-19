@@ -103,30 +103,42 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/trayline-run" "${FLAGS[@]}" "$POSITIONAL"
     ;;
   flow)
-    # Resolve pipeline names in each --then segment
+    # Resolve pipeline names in each --then segment.
+    # IMPORTANT: Go's flag package stops parsing flags after the first positional
+    # argument, so we must emit each segment's flags BEFORE its pipeline path.
     ARGS=()
+    SEGMENT_FLAGS=()
+    SEGMENT_PIPELINE=""
+    flush_segment() {
+      if [[ -n "$SEGMENT_PIPELINE" ]]; then
+        ARGS+=("${SEGMENT_FLAGS[@]}" "$SEGMENT_PIPELINE")
+      fi
+      SEGMENT_FLAGS=()
+      SEGMENT_PIPELINE=""
+    }
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --then)
+          flush_segment
           ARGS+=("$1")
           shift
           ;;
         --var)
-          ARGS+=("$1" "$2")
+          SEGMENT_FLAGS+=("$1" "$2")
           shift 2
           ;;
         --*)
-          ARGS+=("$1")
+          SEGMENT_FLAGS+=("$1")
           shift
           ;;
         *)
           # Non-flag positional argument = pipeline name, resolve it
-          RESOLVED=$(resolve_pipeline "$1")
-          ARGS+=("$RESOLVED")
+          SEGMENT_PIPELINE=$(resolve_pipeline "$1")
           shift
           ;;
       esac
     done
+    flush_segment
     exec "${TRAYLINE_HOME}/trayline-run" flow "${ARGS[@]}"
     ;;
   install)
