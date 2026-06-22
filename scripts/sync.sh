@@ -109,17 +109,22 @@ git_push() {
   fi
 
   # Fetch remote state to check for divergence
+  local NEEDS_FORCE=false
   git fetch "$BARE_REPO" main $VERBOSE 2>/dev/null || true
 
   if git rev-parse FETCH_HEAD >/dev/null 2>&1; then
     if ! git merge-base --is-ancestor FETCH_HEAD HEAD 2>/dev/null; then
       if [[ -n "$FORCE" ]]; then
         echo "Warning: remote has commits not in local history. Force-pushing anyway (--force)." >&2
+        NEEDS_FORCE=true
       else
         # History diverged — auto-rebase remote commits under local ones
         echo "History diverged. Rebasing local commits on top of remote before push..."
         if git rebase FETCH_HEAD; then
           echo "Rebase successful."
+          # After rebase, commit hashes changed — need force push.
+          # We just fetched and rebased on top, so force is safe here.
+          NEEDS_FORCE=true
         else
           echo ""
           echo "Rebase conflict detected. Resolve conflicts, then run:"
@@ -132,9 +137,11 @@ git_push() {
     fi
   fi
 
-  # Use --force-with-lease to handle rebased history (commit hashes changed after rebase).
-  local PUSH_FORCE="${FORCE:-"--force-with-lease"}"
-  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE $PUSH_FORCE
+  if $NEEDS_FORCE; then
+    git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE --force
+  else
+    git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE
+  fi
   echo "Pushed to agent bare repo."
 
   # Auto-pull on remote working repo (force reset to match bare repo)
