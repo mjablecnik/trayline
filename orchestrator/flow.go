@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -228,6 +229,11 @@ func executeFlow(segments []*FlowSegment, cfg *Config, dryRun, verbose, logLLM, 
 		if i == startIdx {
 			restart = false
 		}
+
+		// Auto-commit and push between pipelines (not after the last one — lifecycle handles that)
+		if !dryRun && i < len(segments)-1 {
+			syncBetweenPipelines(seg.PipelinePath, verbose)
+		}
 	}
 
 	// Flow completed successfully — clear both checkpoints
@@ -235,6 +241,50 @@ func executeFlow(segments []*FlowSegment, cfg *Config, dryRun, verbose, logLLM, 
 	fmt.Printf("\n%s%s━━━ Flow complete. %d pipeline(s) succeeded. Total time: %s ━━━%s\n",
 		colorBold, colorGreen, len(segments), time.Since(start).Round(time.Millisecond), colorReset)
 	return 0
+}
+
+// syncBetweenPipelines commits all changes and pushes to the agent bare repo between flow segments.
+func syncBetweenPipelines(pipelineName string, verbose bool) {
+	fmt.Printf("\n%s%s⟳ Syncing changes after %s...%s\n", colorBold, colorDim, pipelineName, colorReset)
+
+	runner := &OSCommandRunner{}
+	cwd, _ := os.Getwd()
+	env := os.Environ()
+
+	// Check if there are any changes to commit
+	output, exitCode, err := runner.RunCommand("git status --porcelain", cwd, env, false, io.Discard, io.Discard)
+	if err != nil || exitCode != 0 || strings.TrimSpace(output) == "" {
+		fmt.Printf("  %sNo changes to sync.%s\n", colorDim, colorReset)
+		return
+	}
+
+	// Stage all changes
+	_, exitCode, err = runner.RunCommand("git add -A", cwd, env, verbose, os.Stdout, os.Stderr)
+	if err != nil || exitCode != 0 {
+		fmt.Fprintf(os.Stderr, "  %s⚠ Failed to stage changes%s\n", colorYellow, colorReset)
+		return
+	}
+
+	// Commit with pipeline name
+	commitMsg := fmt.Sprintf("pipeline: %s", pipelineName)
+	_, exitCode, err = runner.RunCommand(fmt.Sprintf("git commit -m %q", commitMsg), cwd, env, verbose, os.Stdout, os.Stderr)
+	if err != nil || exitCode != 0 {
+		fmt.Fprintf(os.Stderr, "  %s⚠ Failed to commit changes%s\n", colorYellow, colorReset)
+		return
+	}
+
+	// Push to agent bare repo
+	_, exitCode, err = runner.RunCommand("git push agent main", cwd, env, verbose, os.Stdout, os.Stderr)
+	if err != nil || exitCode != 0 {
+		// Try force push if diverged (we just committed, so it's safe)
+		_, exitCode, err = runner.RunCommand("git push agent main --force", cwd, env, verbose, os.Stdout, os.Stderr)
+		if err != nil || exitCode != 0 {
+			fmt.Fprintf(os.Stderr, "  %s⚠ Failed to push to agent repo (will retry at end of flow)%s\n", colorYellow, colorReset)
+			return
+		}
+	}
+
+	fmt.Printf("  %s✓ Synced to agent repo%s\n", colorGreen, colorReset)
 }
 
 // executeSinglePipeline runs one pipeline segment (parse, resolve vars, validate, execute).
