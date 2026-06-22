@@ -1,0 +1,25 @@
+steps:
+  - name: "sync-pull"
+    command: "git pull agent main --rebase"
+    condition:
+      contains: "CONFLICT"
+      goto: "resolve-pull-conflicts"
+
+  - name: "pull-done"
+    command: "echo 'Pull complete.'"
+
+  - name: "resolve-pull-conflicts"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      A git rebase failed due to merge conflicts. Check `git status` to see conflicted files.
+
+      For each conflicted file:
+      1. Read both versions (ours and theirs)
+      2. For code files: preserve the intent of both changes, merge them intelligently
+      3. For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+      4. Mark each file as resolved with `git add <file>`
+      5. After all conflicts are resolved, run `git rebase --continue`
+      6. Verify with `git status` that the working tree is clean
+
+      If `git status` shows no conflicts (rebase already completed), just say "No conflicts to resolve."

@@ -1,0 +1,25 @@
+steps:
+  - name: "sync-push"
+    command: "git push agent main"
+    condition:
+      contains: "rejected"
+      goto: "resolve-push-conflicts"
+
+  - name: "push-done"
+    command: "echo 'Push complete.'"
+
+  - name: "resolve-push-conflicts"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      A git push failed (likely non-fast-forward). Fix it:
+
+      1. Run `git pull agent main --rebase`
+      2. If there are merge conflicts, resolve them:
+         - For code files: preserve the intent of both changes
+         - For .agents/MEMORY.md and .agents/AI_LOG.md: keep ALL entries from both sides
+         - After resolving, `git add` each file and `git rebase --continue`
+      3. Once clean, run `git push agent main`
+      4. Confirm the push succeeded.
+
+      If `git status` shows everything is clean and push succeeds on first try, just confirm success.
