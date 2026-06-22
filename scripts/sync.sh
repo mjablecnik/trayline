@@ -108,11 +108,30 @@ git_push() {
     return
   fi
 
-  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE $FORCE
+  # Before pushing, verify we have all remote commits locally.
+  # This prevents accidentally overwriting remote work we haven't pulled yet.
+  git fetch "$BARE_REPO" main $VERBOSE 2>/dev/null || true
+
+  if git rev-parse FETCH_HEAD >/dev/null 2>&1; then
+    if ! git merge-base --is-ancestor FETCH_HEAD HEAD 2>/dev/null; then
+      if [[ -n "$FORCE" ]]; then
+        echo "Warning: remote has commits not in local history. Force-pushing anyway (--force)." >&2
+      else
+        echo "Error: remote has commits that are not in your local branch." >&2
+        echo "Run 'trayline sync pull' first to integrate remote changes." >&2
+        echo "Or use --force to overwrite remote (you WILL lose remote-only commits)." >&2
+        exit 1
+      fi
+    fi
+  fi
+
+  # Use --force-with-lease to handle rebased history (commit hashes changed after rebase).
+  local PUSH_FORCE="${FORCE:-"--force-with-lease"}"
+  git push "$BARE_REPO" "${BRANCH}:main" $VERBOSE $PUSH_FORCE
   echo "Pushed to agent bare repo."
 
-  # Auto-pull on remote working repo
-  ssh "$AGENT_HOST" "cd ${AGENT_PROJECTS}/${DIR_NAME} && git pull agent main" 2>/dev/null && \
+  # Auto-pull on remote working repo (force reset to match bare repo)
+  ssh "$AGENT_HOST" "cd ${AGENT_PROJECTS}/${DIR_NAME} && git fetch agent main && git reset --hard agent/main" 2>/dev/null && \
     echo "Remote working repo updated." || \
     echo "Warning: could not auto-pull on remote (agent may be working)."
 }
@@ -142,9 +161,37 @@ git_pull() {
     exit 1
   fi
 
-  git pull "$BARE_REPO" "main:${BRANCH}" --rebase $VERBOSE
+  # Fetch first, then rebase. This handles diverged history gracefully
+  # (unlike git pull with refspec which requires fast-forward).
+  git fetch "$BARE_REPO" main $VERBOSE
 
-  if [[ $? -ne 0 ]]; then
+  # Check if rebase is needed
+  local LOCAL_HEAD=$(git rev-parse HEAD)
+  local REMOTE_HEAD=$(git rev-parse FETCH_HEAD)
+
+  if [[ "$LOCAL_HEAD" == "$REMOTE_HEAD" ]]; then
+    echo "Already up to date."
+    return
+  fi
+
+  # Check if local is ahead (nothing to pull)
+  if git merge-base --is-ancestor FETCH_HEAD HEAD 2>/dev/null; then
+    echo "Local is ahead of remote. Nothing to pull."
+    return
+  fi
+
+  # Check if remote is ahead (simple fast-forward)
+  if git merge-base --is-ancestor HEAD FETCH_HEAD 2>/dev/null; then
+    git reset --hard FETCH_HEAD
+    echo "Fast-forwarded to remote."
+    return
+  fi
+
+  # History diverged — rebase local commits on top of remote
+  echo "History diverged. Rebasing local commits on top of remote..."
+  if git rebase FETCH_HEAD; then
+    echo "Pulled and rebased from agent bare repo."
+  else
     echo ""
     echo "Rebase conflict detected. Resolve conflicts, then run:"
     echo "  git rebase --continue"
@@ -152,8 +199,6 @@ git_pull() {
     echo "  git rebase --abort"
     exit 1
   fi
-
-  echo "Pulled from agent bare repo."
 }
 
 git_setup() {
