@@ -108,8 +108,7 @@ git_push() {
     return
   fi
 
-  # Before pushing, verify we have all remote commits locally.
-  # This prevents accidentally overwriting remote work we haven't pulled yet.
+  # Fetch remote state to check for divergence
   git fetch "$BARE_REPO" main $VERBOSE 2>/dev/null || true
 
   if git rev-parse FETCH_HEAD >/dev/null 2>&1; then
@@ -117,10 +116,18 @@ git_push() {
       if [[ -n "$FORCE" ]]; then
         echo "Warning: remote has commits not in local history. Force-pushing anyway (--force)." >&2
       else
-        echo "Error: remote has commits that are not in your local branch." >&2
-        echo "Run 'trayline sync pull' first to integrate remote changes." >&2
-        echo "Or use --force to overwrite remote (you WILL lose remote-only commits)." >&2
-        exit 1
+        # History diverged — auto-rebase remote commits under local ones
+        echo "History diverged. Rebasing local commits on top of remote before push..."
+        if git rebase FETCH_HEAD; then
+          echo "Rebase successful."
+        else
+          echo ""
+          echo "Rebase conflict detected. Resolve conflicts, then run:"
+          echo "  git rebase --continue && trayline sync push"
+          echo "Or abort with:"
+          echo "  git rebase --abort"
+          exit 1
+        fi
       fi
     fi
   fi
