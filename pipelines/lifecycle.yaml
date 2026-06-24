@@ -25,6 +25,20 @@ before:
       If `git status` shows no conflicts (rebase already completed), just say "No conflicts to resolve."
 
 after:
+  - name: "commit-remaining"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      Check if there are any uncommitted changes in the working directory using `git status`.
+
+      If there are uncommitted changes:
+      1. Stage all changes with `git add -A`
+      2. Create a commit with author Martin Jablečník <martin.jablecnik@email.cz>
+         Use a descriptive commit message based on what files changed (e.g., "chore: update MEMORY.md" or "chore: commit remaining pipeline changes")
+      3. Confirm the commit was created.
+
+      If the working tree is already clean, just say "Nothing to commit."
+
   - name: "sync-push"
     command: "git push agent main"
   - name: "resolve-push-conflicts"
