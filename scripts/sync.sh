@@ -240,6 +240,8 @@ git_setup() {
   ssh "$AGENT_HOST" "
     if [ ! -d ${AGENT_PROJECTS}/${DIR_NAME} ]; then
       git clone ${AGENT_REPOS}/${DIR_NAME}.git ${AGENT_PROJECTS}/${DIR_NAME}
+      cd ${AGENT_PROJECTS}/${DIR_NAME}
+      git remote rename origin agent
       echo 'Created working repo: ${AGENT_PROJECTS}/${DIR_NAME}'
     else
       echo 'Working repo already exists: ${AGENT_PROJECTS}/${DIR_NAME}'
