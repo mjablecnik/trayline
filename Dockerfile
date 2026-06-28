@@ -31,6 +31,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && cp /root/.local/bin/uv /usr/local/bin/ \
     && cp /root/.local/bin/uvx /usr/local/bin/
 
+# Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # Flutter
 ARG FLUTTER_VERSION=3.38.5
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
@@ -73,10 +77,13 @@ RUN npx playwright install chromium
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
+RUN cp -r /root/.cargo /home/agent/.cargo && cp -r /root/.rustup /home/agent/.rustup
 RUN chown -R agent:agent /home/agent /opt/flutter 
 
-ENV PATH="/home/agent/.bun/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
+ENV PATH="/home/agent/.cargo/bin:/home/agent/.bun/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
+ENV CARGO_HOME="/home/agent/.cargo"
+ENV RUSTUP_HOME="/home/agent/.rustup"
 ENV HOME="/home/agent"
 
 # Workspace – mount point for project files
