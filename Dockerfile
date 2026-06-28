@@ -77,13 +77,18 @@ RUN npx playwright install chromium
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
-RUN cp -r /root/.cargo /home/agent/.cargo && cp -r /root/.rustup /home/agent/.rustup
-RUN chown -R agent:agent /home/agent /opt/flutter 
+# Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
+RUN chmod -R a+rX /opt/flutter \
+    && mkdir -p /home/agent/.pub-cache \
+    && cp -r /root/.cargo /home/agent/.cargo \
+    && cp -r /root/.rustup /home/agent/.rustup \
+    && chown -R agent:agent /home/agent
 
 ENV PATH="/home/agent/.cargo/bin:/home/agent/.bun/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
 ENV CARGO_HOME="/home/agent/.cargo"
 ENV RUSTUP_HOME="/home/agent/.rustup"
+ENV PUB_CACHE="/home/agent/.pub-cache"
 ENV HOME="/home/agent"
 
 # Workspace – mount point for project files
