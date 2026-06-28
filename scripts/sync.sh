@@ -3,7 +3,13 @@ set -euo pipefail
 
 CONFIG_FILE="${HOME}/.trayline/config"
 EXCLUDE_FROM="${HOME}/.trayline/.rsyncignore"
-DIR_NAME="${PWD##*/}"
+
+# Find git repository root (works from any subdirectory)
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "Error: not inside a git repository." >&2
+  exit 1
+}
+DIR_NAME="${GIT_ROOT##*/}"
 
 # Load config
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -89,6 +95,9 @@ for arg in "$@"; do
 done
 
 [[ -z "$ACTION" ]] && { echo "Error: specify push, pull, or setup" >&2; usage; }
+
+# Always operate from the git repository root
+cd "$GIT_ROOT"
 
 # ─── GIT MODE ───────────────────────────────────────────────────────────────────
 
