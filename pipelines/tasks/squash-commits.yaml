@@ -1,0 +1,77 @@
+variables:
+  pipeline-name: "unknown"
+
+steps:
+  - name: "squash-commits"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      Your job is to reorganize LOCAL unpushed commits into clean, logical groups.
+      The result should be 1-5 well-structured commits that tell a clear story.
+
+      STEP 1 — CHECK IF REORGANIZATION IS NEEDED:
+
+      Run: git log agent/main..HEAD --oneline
+
+      - If there are 0 or 1 commits → nothing to do, say "Nothing to reorganize" and STOP.
+      - If there are 2+ commits → proceed.
+
+      STEP 2 — ANALYZE THE CHANGES:
+
+      Run: git log agent/main..HEAD --format="%H %s"
+      Run: git diff agent/main..HEAD --stat
+
+      Understand what was done. Look at:
+      - Which files changed together (same module, same feature)
+      - What type of work each change represents (feature, test, refactor, fix, config)
+      - Whether changes are logically independent or part of the same unit
+
+      STEP 3 — PLAN COMMIT GROUPS:
+
+      Group the changes into 1-5 logical commits. Rules:
+      - Changes to the same feature/module go together
+      - Tests for a feature go WITH the feature (not separate) unless they are standalone test additions
+      - Config/setup changes can be their own commit if distinct from feature work
+      - Pure refactoring that doesn't change behavior = separate commit
+      - If everything is one cohesive feature → 1 commit is fine
+      - If there are clearly distinct concerns (e.g., component tests vs e2e tests) → split them
+
+      Print your plan before executing:
+      "Plan: N commits"
+      "1. feat: ... (files: ...)"
+      "2. test: ... (files: ...)"
+
+      STEP 4 — EXECUTE REORGANIZATION:
+
+      Run:
+        git reset --soft agent/main
+        git reset HEAD
+
+      Now all changes are unstaged. For each planned commit (in logical order):
+        git add <files for this group>
+        git commit -m "<type>: <summary>" --author="Martin Jablečník <martin.jablecnik@email.cz>"
+
+      Commit message format:
+      - First line: conventional commit (feat/fix/refactor/test/chore: short summary)
+      - Body (optional, after blank line): bullet list of specific changes if the commit is complex
+
+      STEP 5 — UPDATE CHANGELOG.md (if it exists):
+
+      If CHANGELOG.md exists in the project root:
+      - Find or create "## [Unreleased]" section
+      - Add entries under appropriate subsections (Added/Changed/Fixed/Removed)
+      - Derive entries from the commits you just created
+      - Do NOT create a new version number
+      - Commit the CHANGELOG.md update: git add CHANGELOG.md && git commit -m "chore: update CHANGELOG.md" --author="Martin Jablečník <martin.jablecnik@email.cz>"
+
+      If CHANGELOG.md does not exist, skip this step.
+
+      STEP 6 — VERIFY:
+
+      Run: git log agent/main..HEAD --oneline
+
+      Print the final commit list. Confirm all changes are accounted for by checking:
+        git diff agent/main..HEAD --stat
+      (should show the same files as before the reorganization)
+
+      Pipeline: {{pipeline-name}}

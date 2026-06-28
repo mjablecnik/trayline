@@ -39,8 +39,12 @@ after:
 
       If the working tree is already clean, just say "Nothing to commit."
 
+  - name: "squash-commits"
+    command: "trayline run tasks/squash-commits --var pipeline-name={{pipeline-name}} --no-lifecycle"
+
   - name: "sync-push"
     command: "git push agent main"
+
   - name: "resolve-push-conflicts"
     agent: "claude"
     model: "sonnet"
