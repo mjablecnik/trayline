@@ -310,9 +310,27 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 
 		// Exit code 2 = rate limit. Retry if configured.
 		if exitCode == 2 && lc.Retry.OnRateLimit && attempt < maxAttempts {
-			fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Waiting %d minutes before retry...%s\n",
-				colorBold, colorYellow, attempt, maxAttempts, lc.Retry.WaitMinutes, colorReset)
-			time.Sleep(waitDuration)
+			// Check if we can parse a specific reset time from the output
+			var sleepDuration time.Duration
+			resetTime := ParseResetTime(executor.RateLimitOutput)
+			if !resetTime.IsZero() {
+				// Wait until reset time + 10 minute buffer
+				sleepDuration = time.Until(resetTime) + 10*time.Minute
+				if sleepDuration <= 0 {
+					sleepDuration = waitDuration // fallback if somehow in the past
+				}
+				fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Reset at %s UTC — waiting until %s UTC...%s\n",
+					colorBold, colorYellow, attempt, maxAttempts,
+					resetTime.Format("15:04"),
+					resetTime.Add(10*time.Minute).Format("15:04"),
+					colorReset)
+			} else {
+				sleepDuration = waitDuration
+				fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Waiting %d minutes before retry...%s\n",
+					colorBold, colorYellow, attempt, maxAttempts, int(sleepDuration.Minutes()), colorReset)
+			}
+			time.Sleep(sleepDuration)
+			executor.RateLimitOutput = "" // clear for next attempt
 			fmt.Printf("\n%s%s⟳ Retrying pipeline (attempt %d/%d)...%s\n",
 				colorBold, colorCyan, attempt+1, maxAttempts, colorReset)
 			continue

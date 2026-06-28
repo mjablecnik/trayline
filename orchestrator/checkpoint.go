@@ -68,6 +68,7 @@ var rateLimitPatterns = []string{
 	"token limit",
 	"usage limit",
 	"request limit",
+	"session limit",
 	"overloaded",
 }
 
@@ -80,6 +81,87 @@ func IsRateLimitError(output string) bool {
 		}
 	}
 	return false
+}
+
+// ParseResetTime extracts a reset time from rate limit output.
+// Supports patterns like "resets 2am (UTC)", "resets 3:30pm (UTC)", "resets 14:00 (UTC)".
+// Returns zero time if no reset time is found.
+func ParseResetTime(output string) time.Time {
+	lower := strings.ToLower(output)
+
+	// Pattern: "resets <time> (utc)" or "resets <time> utc"
+	idx := strings.Index(lower, "resets ")
+	if idx == -1 {
+		// Try "reset at <time>"
+		idx = strings.Index(lower, "reset at ")
+		if idx != -1 {
+			idx += len("reset at ")
+		}
+	} else {
+		idx += len("resets ")
+	}
+
+	if idx == -1 {
+		return time.Time{}
+	}
+
+	// Extract the time portion (up to next parenthesis, comma, period, or end)
+	rest := strings.TrimSpace(lower[idx:])
+	// Remove surrounding context — take until we hit something non-time-like
+	var timeStr string
+	for i, ch := range rest {
+		if ch == '(' || ch == ',' || ch == '.' || ch == '\n' || ch == ';' {
+			timeStr = strings.TrimSpace(rest[:i])
+			break
+		}
+		if i > 20 {
+			// Safety limit
+			timeStr = strings.TrimSpace(rest[:i])
+			break
+		}
+	}
+	if timeStr == "" {
+		timeStr = strings.TrimSpace(rest)
+		if len(timeStr) > 20 {
+			timeStr = timeStr[:20]
+		}
+	}
+
+	// Remove "utc" suffix if present (when not in parentheses)
+	timeStr = strings.TrimSuffix(timeStr, "utc")
+	timeStr = strings.TrimSpace(timeStr)
+
+	// Try parsing various formats
+	now := time.Now().UTC()
+	var parsed time.Time
+
+	formats := []string{
+		"3pm",
+		"3:04pm",
+		"3 pm",
+		"3:04 pm",
+		"3am",
+		"3:04am",
+		"3 am",
+		"3:04 am",
+		"15:04",
+		"15",
+	}
+
+	for _, format := range formats {
+		t, err := time.Parse(format, timeStr)
+		if err == nil {
+			// Build the target time today in UTC
+			parsed = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, time.UTC)
+			// If parsed time is in the past, it means tomorrow
+			if parsed.Before(now) {
+				parsed = parsed.Add(24 * time.Hour)
+			}
+			return parsed
+		}
+	}
+
+	return time.Time{}
 }
 
 // SaveCheckpoint writes the current pipeline state to disk.

@@ -128,9 +128,10 @@ type Executor struct {
 	Verbose       bool
 	Runner        CommandRunner
 	ResolvedVars  map[string]string // for dry-run display
-	LogTask       string            // pipeline to run after steps with log:true
-	PipelineName  string            // name of the pipeline (for checkpoint)
-	Restart       bool              // if true, ignore checkpoint and start fresh
+	LogTask          string            // pipeline to run after steps with log:true
+	PipelineName     string            // name of the pipeline (for checkpoint)
+	Restart          bool              // if true, ignore checkpoint and start fresh
+	RateLimitOutput  string            // output from the step that hit rate limit (for reset time parsing)
 }
 // setLLMContext sets context on the LLM logger if logging is enabled.
 // debugLog writes a message to the LLM debug log if logging is enabled.
@@ -254,6 +255,7 @@ func (e *Executor) Run() int {
 			if IsRateLimitError(output) {
 				fmt.Printf("\n%s%s⏸ Rate limit detected on step %q. Saving checkpoint for resume.%s\n", indent(), colorYellow, step.Name, colorReset)
 				SaveCheckpoint(e.PipelineName, e.ResolvedVars, completedSteps, step.Name, true)
+				e.RateLimitOutput = output
 				printTotal("Pipeline paused (rate limit).")
 				return 2 // Special exit code for rate limit
 			}
