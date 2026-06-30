@@ -18,9 +18,9 @@ ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
-# Bun
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Bun (installed globally so both root and agent can use it)
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Python + uv
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -70,9 +70,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatspi2.0-0t64 libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright Chromium browser binary (shared location for non-root user)
+# Install Playwright Chromium browser binary (shared, readable by all users)
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
-RUN npx playwright install chromium
+RUN npx playwright install chromium \
+    && chmod -R a+rX /opt/playwright-browsers
+
+# Verify Playwright system deps are satisfied (will error if libs are missing)
+RUN npx playwright install-deps chromium 2>/dev/null || true
 
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
@@ -84,7 +88,7 @@ RUN chmod -R a+rX /opt/flutter \
     && cp -r /root/.rustup /home/agent/.rustup \
     && chown -R agent:agent /home/agent
 
-ENV PATH="/home/agent/.cargo/bin:/home/agent/.bun/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
+ENV PATH="/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
 ENV CARGO_HOME="/home/agent/.cargo"
 ENV RUSTUP_HOME="/home/agent/.rustup"
