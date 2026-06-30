@@ -8,7 +8,14 @@ steps:
     agent: "claude"
     model: "opus"
     prompt: |
-      FIRST: Check if .agents/tmp/TASKS.md already exists.
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - .agents/tmp/ is for temporary files of the current pipeline run
+      - .agents/ root is for persistent files that survive across runs
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+      FIRST: Check if .agents/tmp/TASKS.md already exists (in cwd).
       If it exists AND contains at least one unchecked task (a line with "- [ ]"),
       then a previous run was interrupted before completing. Skip all analysis
       and just say "Skipping analysis — resuming from existing TASKS.md".
@@ -20,7 +27,7 @@ steps:
       If a .kiro/specs/{{specs-name}} folder exists, read all files inside it for additional context
       about the project's intended behavior and architecture.
 
-      If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
+      If AI_LOG.md exists inside .agents/ (in cwd), read it to understand what changed since the last
       test pipeline run. Focus analysis on new or changed code rather than re-scanning everything.
 
       SCOPE — Focus on these test types:
@@ -44,7 +51,7 @@ steps:
       4. For uncovered code, determine what tests are needed and their priority.
       5. Identify existing tests that are broken, outdated, or testing deleted code.
 
-      Create two files in .agents/tmp/ (create directories if they don't exist):
+      Create two files in .agents/tmp/ (in cwd — create directories if they don't exist):
 
       1. TEST_SPEC.md — A detailed test specification:
          - Detected test tooling and conventions
@@ -85,10 +92,17 @@ steps:
           agent: "claude"
           model: "sonnet"
           prompt: |
-            Read TEST_SPEC.md and TASKS.md from .agents/tmp/.
+            IMPORTANT — FILE PATH RULES:
+            Your current working directory (cwd) is the PROJECT ROOT.
+            All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+            - .agents/tmp/ is for temporary files of the current pipeline run
+            - .agents/ root is for persistent files (MEMORY.md, reports)
+            Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+            Read TEST_SPEC.md and TASKS.md from .agents/tmp/ (in cwd).
             If a .kiro/specs/{{specs-name}} folder exists, read it for additional context.
 
-            MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+            MEMORY: If MEMORY.md exists inside .agents/ (in cwd), read it first for known issues and solutions.
 
             Your job is to create, fix, or remove tests in the {{path}} project.
 
@@ -108,10 +122,10 @@ steps:
             - Follow the project's existing code style, linting rules, and conventions.
 
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in .agents/tmp/TASKS.md.
+            After completing each task, check it off in .agents/tmp/TASKS.md (in cwd).
             After every batch of passing tests, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
-            If you encounter a non-obvious problem and solve it, add it to MEMORY.md inside .agents/.
+            If you encounter a non-obvious problem and solve it, add it to .agents/MEMORY.md (in cwd).
             Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
@@ -123,6 +137,12 @@ steps:
     agent: "claude"
     model: "opus"
     prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - Write results to .agents/tmp/TEST_RESULTS.md (in cwd)
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
       This is the verification step. All test creation is done.
       Your job is to run all tests and report the results.
 
@@ -132,7 +152,7 @@ steps:
       - Record which tests pass and which fail.
 
       STEP 2 — WRITE RESULTS:
-      Create (or overwrite) .agents/tmp/TEST_RESULTS.md with:
+      Create (or overwrite) .agents/tmp/TEST_RESULTS.md (in cwd, the project root) with:
       - Total tests, passing, failing
       - For each failure: test name, file, brief error description
       - If ALL tests pass, write "All tests pass." at the top.
@@ -146,9 +166,16 @@ steps:
     agent: "claude"
     model: "sonnet"
     prompt: |
-      Read .agents/tmp/TEST_RESULTS.md to understand which tests are failing and why.
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - .agents/tmp/TEST_RESULTS.md is in cwd
+      - .agents/MEMORY.md is in cwd
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
 
-      MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues and solutions.
+      Read .agents/tmp/TEST_RESULTS.md (in cwd) to understand which tests are failing and why.
+
+      MEMORY: If .agents/MEMORY.md exists (in cwd), read it first for known issues and solutions.
 
       Fix all failing tests. For each failure:
       - Read the test file and the source code it tests
@@ -159,7 +186,7 @@ steps:
 
       After fixing all failures, run the entire test suite to confirm nothing else broke.
 
-      If you encounter and solve a non-obvious problem, add it to MEMORY.md inside .agents/.
+      If you encounter and solve a non-obvious problem, add it to .agents/MEMORY.md (in cwd).
       Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: create-tests, [current date and time]
 
       After every fix, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
@@ -169,9 +196,15 @@ steps:
     agent: "claude"
     model: "opus"
     prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - Write report to .agents/UNIT_TEST_REPORT.md (in cwd, persistent)
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
       Run the full test suite for the {{path}} project one final time.
 
-      Create (or overwrite) UNIT_TEST_REPORT.md inside .agents/ with this structure:
+      Create (or overwrite) .agents/UNIT_TEST_REPORT.md (in cwd) with this structure:
 
       # Test Report
       Created: [current date and time when this report is first generated]

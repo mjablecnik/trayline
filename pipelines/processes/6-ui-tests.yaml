@@ -10,7 +10,14 @@ steps:
     agent: "claude"
     model: "opus"
     prompt: |
-      FIRST: Check if .agents/tmp/COMPONENT_TASKS.md or .agents/tmp/E2E_TASKS.md already exist.
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - .agents/tmp/ is for temporary files of the current pipeline run
+      - .agents/ root is for persistent files (MEMORY.md, reports)
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+      FIRST: Check if .agents/tmp/COMPONENT_TASKS.md or .agents/tmp/E2E_TASKS.md already exist (in cwd).
       If at least one of them exists AND contains at least one unchecked task (a line with "- [ ]"),
       then a previous run was interrupted before completing. Skip all analysis
       and just say "Skipping analysis — resuming from existing task files".
@@ -27,7 +34,7 @@ steps:
       - Check if Storybook, Ladle, Histoire, or a similar component catalog is installed
         (look for .storybook/, package.json dependencies, storybook config files)
       - If NEITHER an E2E framework NOR a component catalog is found, create a file
-        called TEST_ABORT.md in .agents/tmp/ with the message: "No E2E testing framework
+        called .agents/tmp/TEST_ABORT.md with the message: "No E2E testing framework
         (Playwright/Cypress) and no component catalog (Storybook/Ladle/Histoire) detected.
         Install at least one before running this pipeline." Then STOP — do not proceed further.
       - If only one tool is found, proceed with just that tool's analysis.
@@ -46,13 +53,13 @@ steps:
       - Run existing tests to check which pass and which fail
       - Map which pages/components have test coverage and which don't
       - Identify orphaned tests (tests for functionality/components that no longer exist)
-      - If UI_TEST_REPORT.md exists inside .agents/ from a previous run, read it for context
-      - If AI_LOG.md exists inside .agents/, read it to understand what changed since the last
+      - If .agents/UI_TEST_REPORT.md exists from a previous run, read it for context
+      - If .agents/AI_LOG.md exists, read it to understand what changed since the last
         test pipeline run (new pages, new components, refactoring, etc.). Use this to focus
         analysis on what's new or changed rather than rescanning everything from scratch.
 
       STEP 4 — CREATE ANALYSIS DOCUMENTS:
-      Create the following files in .agents/tmp/ (create directories if they don't exist):
+      Create the following files in .agents/tmp/ (in cwd — create directories if they don't exist):
 
       If a component catalog (Storybook/Ladle/Histoire) is detected, create:
       COMPONENT_TESTS.md containing:
@@ -127,7 +134,13 @@ steps:
           agent: "claude"
           model: "sonnet"
           prompt: |
-            Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from .agents/tmp/.
+            IMPORTANT — FILE PATH RULES:
+            Your current working directory (cwd) is the PROJECT ROOT.
+            All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+            - .agents/tmp/ is for temporary files of the current pipeline run
+            Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+            Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from .agents/tmp/ (in cwd).
 
             If COMPONENT_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If COMPONENT_TASKS.md says "All component tests are up to date. No changes needed.",
@@ -151,11 +164,11 @@ steps:
 
             Only work on tasks listed in COMPONENT_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in .agents/tmp/COMPONENT_TASKS.md.
+            After completing each task, check it off in .agents/tmp/COMPONENT_TASKS.md (in cwd).
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in .agents/tmp/COMPONENT_TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/COMPONENT_TASKS.md (in cwd) are now checked off, explicitly say "All tasks are done."
 
   - loop:
       max_iterations: 50
@@ -166,7 +179,14 @@ steps:
           agent: "claude"
           model: "sonnet"
           prompt: |
-            Read E2E_TESTS.md and E2E_TASKS.md from .agents/tmp/.
+            IMPORTANT — FILE PATH RULES:
+            Your current working directory (cwd) is the PROJECT ROOT.
+            All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+            - .agents/tmp/ is for temporary files of the current pipeline run
+            - .agents/MEMORY.md is persistent (in cwd root of .agents/)
+            Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+            Read E2E_TESTS.md and E2E_TASKS.md from .agents/tmp/ (in cwd).
 
             If E2E_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
             If E2E_TASKS.md says "All E2E tests are up to date. No changes needed.",
@@ -174,9 +194,9 @@ steps:
 
             Your job is to create, fix, or remove E2E tests for pages in {{path}}.
 
-            MEMORY: If MEMORY.md exists inside .agents/, read it for known issues — especially
+            MEMORY: If .agents/MEMORY.md exists (in cwd), read it for known issues — especially
             around mocking, dev server configuration, or framework quirks that affect testing.
-            If you encounter and solve a non-obvious testing problem, add it to MEMORY.md inside .agents/.
+            If you encounter and solve a non-obvious testing problem, add it to .agents/MEMORY.md (in cwd).
             Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: ui-tests, [current date and time]
 
             Rules:
@@ -209,16 +229,23 @@ steps:
 
             Only work on tasks listed in E2E_TASKS.md.
             Implement only up to {{number}} tasks in this run, then stop.
-            After completing each task, check it off in .agents/tmp/E2E_TASKS.md.
+            After completing each task, check it off in .agents/tmp/E2E_TASKS.md (in cwd).
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in .agents/tmp/E2E_TASKS.md are now checked off, explicitly say "All tasks are done."
+            If all tasks in .agents/tmp/E2E_TASKS.md (in cwd) are now checked off, explicitly say "All tasks are done."
 
   - name: "summarize-tests"
     agent: "claude"
     model: "opus"
     prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - .agents/tmp/ is for temporary files (will be deleted after this run)
+      - .agents/UI_TEST_REPORT.md is persistent (in cwd root of .agents/)
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
       This is the final step of the UI test pipeline. Both test generation agents have finished.
       Your job is to verify the final state and create a UI_TEST_REPORT.md summary.
 
@@ -235,7 +262,7 @@ steps:
       - Identify any gaps (pages or components without tests).
 
       STEP 3 — CREATE UI_TEST_REPORT.md:
-      Create (or overwrite) UI_TEST_REPORT.md inside .agents/
+      Create (or overwrite) .agents/UI_TEST_REPORT.md (in cwd, persistent)
       with the following structure:
 
       # Test Report
