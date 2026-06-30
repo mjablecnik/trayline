@@ -1,0 +1,19 @@
+variables:
+  path: "this"
+  skip-seo-audit: true
+
+steps:
+  - name: "refactoring"
+    command: "trayline run workflows/refactoring --var skip-improvements=true --var skip-code-review=false --var path={{path}} --var number=5 --var skip-seo-audit={{skip-seo-audit}} --var skip-security-audit=false --no-lifecycle"
+    verbose: true
+    log: true
+
+  - name: "write-tests"
+    command: "trayline run workflows/write-tests --var path={{path}} --var number=5 --no-lifecycle"
+    verbose: true
+    log: true
+
+  - name: "check-build"
+    command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"
+    verbose: true
+    log: true
