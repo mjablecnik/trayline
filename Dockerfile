@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl wget unzip git ca-certificates gnupg xz-utils \
     clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev \
+    ffmpeg libimage-exiftool-perl \
     && rm -rf /var/lib/apt/lists/*
 
 # Go
