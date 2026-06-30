@@ -1,0 +1,112 @@
+variables:
+  path: "this"
+
+steps:
+  - name: "sync-docs"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      Analyze the project in {{path}} folder and synchronize its documentation
+      with the current state of the codebase.
+
+      MEMORY: If MEMORY.md exists inside .agents/, read it first for known issues
+      and their solutions.
+
+      Your goal is to ensure README.md and DOCS.md are accurate, complete, and reflect
+      the current state of the code. A developer reading the docs should be able to
+      understand, set up, and run the project without surprises.
+
+      DOCUMENTATION LOCATION:
+      - README.md — always in the project root ({{path}})
+      - DOCS.md — in the project root ({{path}}), required when the project has 3+ environment
+        variables, exposes an API, or has non-trivial configuration/architecture
+
+      LANGUAGE:
+      All documentation must be written in English.
+
+      README.md MUST CONTAIN (in this order):
+      1. Project name (H1) and one-line description
+      2. Description — what problem it solves, key features (bullet list)
+      3. Prerequisites — required runtime, tools, minimum versions
+      4. Installation / Setup — clone, install dependencies, .env configuration
+      5. Usage / Running — how to start locally, Docker usage if applicable
+      6. Documentation link — link to DOCS.md (if DOCS.md exists)
+      7. Author — Martin Jablečník, website: www.jablecnik.com, GitHub: @mjablecnik
+      8. Show your support — "Give a ⭐️ if this project helped you!"
+      9. License — copyright and license type
+
+      DOCS.md MUST CONTAIN (when applicable):
+      1. Environment Variables — table/list of all env vars, description, required/optional
+      2. Project Structure — directory tree with brief descriptions
+      3. Deployment — how to deploy to production (scripts, Fly.io, Docker, etc.)
+      4. API Documentation — endpoints, request/response format, auth (if the project has an API)
+      5. Testing — how to run tests, specific tests, coverage
+      6. Troubleshooting — common issues, FAQ, debug tips
+
+      SKIP DOCS.md if the project is a simple script, has fewer than 3 env vars, and no API.
+
+      CLAUDE.md — always in the project root ({{path}}):
+      This file is for AI agents (Claude), NOT for humans. It should contain everything
+      an AI agent needs to work effectively with this project. Keep it concise and actionable.
+
+      CLAUDE.md MUST CONTAIN:
+      1. Project overview — one-line description, tech stack, framework
+      2. Key commands — build, test, lint, run, deploy (exact commands, copy-pasteable)
+      3. Project structure — brief directory layout with what lives where
+      4. Conventions — naming, file organization, patterns used in this project
+      5. Important notes — gotchas, known quirks, things that are easy to break
+      6. Reference — "For detailed documentation see DOCS.md" (if DOCS.md exists)
+
+      CLAUDE.md MUST NOT contain:
+      - Author info, license, support sections (that's for README)
+      - Verbose explanations — keep everything terse and factual
+      - Information that duplicates DOCS.md — just reference it
+
+      STEPS:
+      1. Read the entire codebase in {{path}} to understand current state:
+         - What the project does, its tech stack, dependencies
+         - Available scripts (package.json scripts, Makefile, scripts/ directory)
+         - Environment variables (from .env.example or code)
+         - API endpoints (if any)
+         - Docker setup (if any)
+         - Test setup (if any)
+         - Project structure
+
+      2. Read existing README.md (if it exists) and compare with actual project state.
+         Identify:
+         - Outdated information (references to removed features, old commands, wrong versions)
+         - Missing sections (required sections not present)
+         - Incorrect instructions (commands that won't work, wrong file paths)
+         - Missing environment variables or configuration steps
+
+      3. Read existing DOCS.md (if it exists) and do the same comparison.
+         Also determine if DOCS.md is needed but missing, or exists but is no longer needed.
+
+      4. Read existing CLAUDE.md (if it exists) and compare with actual project state.
+         Ensure commands are correct, structure matches reality, conventions are accurate.
+
+      5. Fix all issues found:
+         - Update outdated information to match current code
+         - Add missing sections
+         - Remove references to non-existent code, files, or features
+         - Ensure all commands actually work
+         - Ensure all env vars from .env.example are documented
+         - Ensure project structure section matches actual directory layout
+         - If README.md doesn't exist, create it from scratch
+         - If DOCS.md is needed but doesn't exist, create it
+         - If CLAUDE.md doesn't exist, create it from scratch
+         - If CLAUDE.md exists, update commands, structure, and conventions to match current state
+
+      Rules:
+      - Do NOT change the project's code — only documentation files.
+      - Do NOT invent features or capabilities the project doesn't have.
+      - Every command you put in docs must actually work if someone runs it.
+      - Keep it concise — no filler text, no obvious statements.
+      - Use code blocks for commands and file paths.
+      - If the project has a LICENSE file, reference its type. If not, use MIT as default.
+
+      After making changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      and message "docs: sync README.md, DOCS.md, and CLAUDE.md with current codebase".
+
+      If documentation is already up to date, say "Documentation is up to date. No changes needed."
+    verbose: true

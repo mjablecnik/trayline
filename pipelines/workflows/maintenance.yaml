@@ -17,3 +17,8 @@ steps:
     command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"
     verbose: true
     log: true
+
+  - name: "sync-docs"
+    command: "trayline run tasks/sync-docs --var path={{path}} --no-lifecycle"
+    verbose: true
+    log: true
