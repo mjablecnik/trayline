@@ -59,6 +59,27 @@ fi
 # ---------------------------------------------------------------------------
 # Build the server image.
 # ---------------------------------------------------------------------------
+APP_PORT="${APP_PORT:-8080}"
+
+# ---------------------------------------------------------------------------
+# Check that APP_PORT is not already in use (skip if trayline-server occupies
+# it — that container will be removed shortly).
+# ---------------------------------------------------------------------------
+if ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep -q ":${APP_PORT}" || \
+   netstat -tlnp 2>/dev/null | grep -q ":${APP_PORT} "; then
+  # Allow the port to be held by the existing trayline-server container only.
+  HOLDER=$(ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep ":${APP_PORT}" || \
+           netstat -tlnp 2>/dev/null | grep ":${APP_PORT} " || true)
+  if echo "$HOLDER" | grep -q "docker-proxy\|trayline-server"; then
+    echo "Port ${APP_PORT} is held by the existing trayline-server — it will be replaced."
+  else
+    echo "ERROR: Port ${APP_PORT} is already in use by another process:" >&2
+    echo "$HOLDER" >&2
+    echo "Set a different APP_PORT in .env or stop the conflicting process." >&2
+    exit 1
+  fi
+fi
+
 bash scripts/build.sh
 
 # ---------------------------------------------------------------------------
@@ -72,9 +93,18 @@ fi
 # ---------------------------------------------------------------------------
 # Start the server container.
 # ---------------------------------------------------------------------------
-APP_PORT="${APP_PORT:-8080}"
 WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
 WORKSPACE_HOST_DIR="${WORKSPACE_HOST_DIR:?WORKSPACE_HOST_DIR must be set in .env}"
+
+# ---------------------------------------------------------------------------
+# Ensure workspace directory exists on the host.
+# ---------------------------------------------------------------------------
+if [ ! -d "$WORKSPACE_HOST_DIR" ]; then
+  echo "Creating workspace directory: $WORKSPACE_HOST_DIR"
+  mkdir -p "$WORKSPACE_HOST_DIR"
+else
+  echo "Workspace directory already exists: $WORKSPACE_HOST_DIR"
+fi
 
 docker run -d \
   --name trayline-server \
