@@ -406,10 +406,10 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	switch agent {
 	case "kiro":
 		if m.config.KiroHostDir != "" {
-			binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro:ro")
+			binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro")
 		}
 		if m.config.KiroCredsHostDir != "" {
-			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli:ro")
+			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
 		}
 	case "claude":
 		if m.config.ClaudeHostDir != "" {
