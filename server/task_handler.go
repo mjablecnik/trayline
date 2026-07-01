@@ -152,7 +152,11 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *Task) {
 			t.Error = err.Error()
 		case result.ExitCode != 0:
 			t.Status = TaskFailed
+			// Prefer stderr; fall back to stdout (some CLIs write errors there).
 			t.Error = result.Stderr
+			if t.Error == "" {
+				t.Error = result.Stdout
+			}
 			if t.Error == "" {
 				t.Error = fmt.Sprintf("container exited with non-zero code %d", result.ExitCode)
 			}
