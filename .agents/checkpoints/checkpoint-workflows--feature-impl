@@ -1,0 +1,16 @@
+{
+  "pipeline": "/home/martin/.trayline/pipelines/workflows/feature-impl.yaml",
+  "variables": {
+    "path": "this",
+    "skip-code-review": "false",
+    "skip-create-tests": "false",
+    "skip-ui-tests": "true",
+    "specs-name": "agent-api-server"
+  },
+  "completed_steps": [
+    "create-code"
+  ],
+  "next_step": "",
+  "timestamp": "2026-07-01T08:39:17+02:00",
+  "rate_limited": false
+}
