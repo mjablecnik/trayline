@@ -1,0 +1,15 @@
+{
+  "pipeline": "/home/martin/.trayline/pipelines/processes/7-create-tests.yaml",
+  "variables": {
+    "number": "5",
+    "path": "this",
+    "specs-name": "agent-api-server"
+  },
+  "completed_steps": [
+    "analyze-test-coverage",
+    "verify-tests"
+  ],
+  "next_step": "",
+  "timestamp": "2026-07-01T09:52:59+02:00",
+  "rate_limited": false
+}

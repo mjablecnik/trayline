@@ -42,6 +42,30 @@
 - Solution: Add `TryAcquireSlot() bool` (non-blocking) to ContainerManager. Call it in `HandleChat` BEFORE upgrade; return 503 if denied. Remove slot acquisition from `StartChatContainer` (caller now owns the slot). Track `slotAcquired` bool in recovery path for correct `ReleaseChatSlot` on cleanup.
 - Source: code-review-fix, 2026-07-01
 
+## parseSegment requires flags before pipeline path positional arg
+- Project: orchestrator
+- Problem: `parseSegment(["proc/p1", "--var", "a=1"])` gives vars={} because Go's `flag.FlagSet.Parse` stops at the first non-flag argument ("proc/p1"). Flags after the path are silently treated as extra positional args.
+- Solution: For tests and correct usage, pass `--var` flags BEFORE the positional path: `["--var", "a=1", "proc/p1"]`. The common CLI pattern `pipeline --var k=v` is broken by this limitation. Tests assert this behavior without fixing it.
+- Source: create-tests, 2026-07-01
+
+## checkIdleSessions does not remove sessions from store
+- Project: server
+- Problem: `checkIdleSessions` cancels the session's `CancelFunc` and closes `Conn`, but does NOT call `store.Remove`. Session removal only happens in the HandleChat goroutine that watches `<-ctx.Done()`. Tests of `checkIdleSessions` should assert context cancellation, not store eviction.
+- Solution: Tests use `context.WithCancel` and check `ctx.Done()` to verify termination, not store membership.
+- Source: create-tests, 2026-07-01
+
+## limitWriter returns len(truncated_p) not original len(p)
+- Project: server
+- Problem: `limitWriter.Write` slices `p` to `p[:remaining]` before writing, so `len(p)` at return is the truncated length, not the original. Violates the io.Writer contract (short write without error), but callers (stdcopy) ignore the return value.
+- Solution: Tests assert `n == len(truncated_p)` (current behavior) with a comment noting the contract deviation.
+- Source: create-tests, 2026-07-01
+
+## Checkpoint tests must change working directory (not inject path)
+- Project: orchestrator
+- Problem: `checkpointDir` and `flowCheckpointFile` are hardcoded constants relative to CWD. Tests cannot inject a temp path via env vars or arguments.
+- Solution: Use `os.Chdir(t.TempDir())` + `t.Cleanup(func() { os.Chdir(orig) })`. Do NOT call `t.Parallel()` in these tests to avoid concurrent CWD mutations.
+- Source: create-tests, 2026-07-01
+
 ## streamOutput done-per-turn via idle timeout
 - Project: server
 - Problem: `streamOutput` only sent `{"type":"done"}` when the container exited (scanner loop end). For interactive sessions, the container never exits between turns so clients never got turn boundaries.

@@ -1,5 +1,14 @@
 # AI Log
 
+## 2026-07-01 07:53 — manual
+- Project: server + orchestrator (agent-api-server, Go)
+- Added a full suite of unit/integration/edge-case tests across both Go modules, derived from `TEST_SPEC.md` and tracked in `TASKS.md` (Phases 0–3).
+- Phase 0: removed stale `pgregory.net/rapid` failure-seed artifacts under `server/testdata/rapid/`.
+- Phase 1 (HIGH): created `server/state_recover_sessions_test.go`, `server/session_idle_test.go`, `orchestrator/checkpoint_ratelimit_test.go`, `orchestrator/checkpoint_test.go`, `orchestrator/flow_test.go`, and extended `server/container_test.go` (RunOneShot/waitAndCapture/limitWriter).
+- Phase 2 (MEDIUM): added `server/health_test.go`, `server/router_test.go`, `orchestrator/llm_logger_test.go`; extended `state_test.go` (recoverTasks), `session_handler_test.go` (isContextCompaction), `ratelimit_test.go` (clientIP/cleanup), `task_handler_test.go` (executeTask), and `orchestrator/executor_test.go`.
+- Phase 3 (LOW): added `server/task_store_test.go`, `server/session_store_test.go`; extended `logger_test.go`, `config_test.go` (defaults), and orchestrator usage-text tests.
+- Result: 326 tests passing (200 orchestrator + 126 server), 0 failures; no external services required (Docker/LLM/filesystem mocked).
+
 ## 2026-07-01 07:05 — manual
 - Project: server (agent-api-server, Go)
 - Conducted a full code review of the `server/` Go module against the `agent-api-server` spec (build, vet, and tests passing), documented in `CODE_REVIEW.md` with 10 severity-ranked issues.
