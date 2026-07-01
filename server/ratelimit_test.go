@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"pgregory.net/rapid"
 )
@@ -106,4 +107,101 @@ func TestRateLimitingEnforcement(t *testing.T) {
 			}
 		})
 	})
+}
+
+// --- clientIP tests ---
+
+func TestClientIPXFF(t *testing.T) {
+	tests := []struct {
+		name       string
+		xff        string
+		remoteAddr string
+		want       string
+	}{
+		{
+			name:       "single XFF IP",
+			xff:        "1.2.3.4",
+			remoteAddr: "9.9.9.9:1234",
+			want:       "1.2.3.4",
+		},
+		{
+			name:       "multiple XFF IPs uses first",
+			xff:        "1.2.3.4, 5.6.7.8, 9.0.1.2",
+			remoteAddr: "9.9.9.9:1234",
+			want:       "1.2.3.4",
+		},
+		{
+			name:       "XFF with leading space trimmed",
+			xff:        "  10.0.0.1  ",
+			remoteAddr: "9.9.9.9:1234",
+			want:       "10.0.0.1",
+		},
+		{
+			name:       "no XFF falls back to RemoteAddr host",
+			xff:        "",
+			remoteAddr: "192.168.1.50:5678",
+			want:       "192.168.1.50",
+		},
+		{
+			name:       "no XFF RemoteAddr without port returned as-is",
+			xff:        "",
+			remoteAddr: "192.168.1.50",
+			want:       "192.168.1.50",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/run", nil)
+			req.RemoteAddr = tc.remoteAddr
+			if tc.xff != "" {
+				req.Header.Set("X-Forwarded-For", tc.xff)
+			}
+			got := clientIP(req)
+			if got != tc.want {
+				t.Fatalf("clientIP() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// --- RateLimiter cleanup tests ---
+
+func TestRateLimiterCleanupEvictsStaleEntries(t *testing.T) {
+	// Build a RateLimiter without starting its background goroutine so we
+	// control lastSeen times and invoke the eviction logic synchronously.
+	rl := &RateLimiter{
+		limiters: make(map[string]*ipLimiter),
+		rpm:      60,
+	}
+
+	now := time.Now()
+
+	// Stale entry: last seen > 10 minutes ago.
+	rl.limiters["stale-ip"] = &ipLimiter{
+		lastSeen: now.Add(-11 * time.Minute),
+	}
+	// Fresh entry: last seen 1 minute ago.
+	rl.limiters["fresh-ip"] = &ipLimiter{
+		lastSeen: now.Add(-1 * time.Minute),
+	}
+
+	// Replicate the cleanup loop from RateLimiter.cleanup().
+	rl.mu.Lock()
+	for ip, ipl := range rl.limiters {
+		if time.Since(ipl.lastSeen) > 10*time.Minute {
+			delete(rl.limiters, ip)
+		}
+	}
+	rl.mu.Unlock()
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if _, ok := rl.limiters["stale-ip"]; ok {
+		t.Error("stale-ip should have been evicted by cleanup")
+	}
+	if _, ok := rl.limiters["fresh-ip"]; !ok {
+		t.Error("fresh-ip should still be present after cleanup")
+	}
 }

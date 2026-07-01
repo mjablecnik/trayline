@@ -199,3 +199,36 @@ func TestTerminateSessionNoConn(t *testing.T) {
 		t.Fatalf("unexpected status: %v", result)
 	}
 }
+
+// --- isContextCompaction unit tests ---
+
+func TestIsContextCompaction(t *testing.T) {
+	trueInputs := []string{
+		"context compacted",
+		"Context Compacted",
+		"CONTEXT COMPACTED",
+		"compacting context",
+		"Compacting Context",
+		"now compacting context for session",
+		"[info] context compacted (tokens saved: 5000)",
+	}
+	for _, input := range trueInputs {
+		if !isContextCompaction(input) {
+			t.Errorf("expected isContextCompaction(%q) = true, got false", input)
+		}
+	}
+
+	falseInputs := []string{
+		"",
+		"ordinary output line",
+		"context saved",
+		"compaction done",
+		"context: processing",
+		"hello world",
+	}
+	for _, input := range falseInputs {
+		if isContextCompaction(input) {
+			t.Errorf("expected isContextCompaction(%q) = false, got true", input)
+		}
+	}
+}

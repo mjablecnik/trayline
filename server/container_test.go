@@ -26,6 +26,17 @@ type mockContainerClient struct {
 	startOrder  []string                 // ordered list of containerIDs in the order ContainerStart was called
 	createErr   error                    // if set, ContainerCreate returns this error
 	startErr    error                    // if set, ContainerStart returns this error
+	// Extended fields for RunOneShot/waitAndCapture/limitWriter tests.
+	autoComplete bool   // if true, close done channel immediately on ContainerCreate
+	autoExitCode int    // exit code sent by ContainerWait when autoComplete is true
+	logContent   []byte // content returned by ContainerLogs (nil → empty buffer)
+	waitErr      error  // if set, ContainerWait goroutine sends this error instead of waiting
+	stopCount    int32  // incremented on each ContainerStop call
+	removeCount  int32  // incremented on each ContainerRemove call
+	// Fields for InspectContainer and ContainerAttach control.
+	inspectResult dockertypes.ContainerJSON // returned by ContainerInspect when inspectErr is nil
+	inspectErr    error                     // if set, ContainerInspect returns this error
+	attachErr     error                     // if set, ContainerAttach returns this error
 }
 
 func newMockContainerClient() *mockContainerClient {
@@ -42,7 +53,11 @@ func (m *mockContainerClient) ContainerCreate(_ context.Context, _ *container.Co
 	defer m.mu.Unlock()
 	m.nextID++
 	id := fmt.Sprintf("mock-container-%d", m.nextID)
-	m.containers[id] = make(chan struct{})
+	doneCh := make(chan struct{})
+	m.containers[id] = doneCh
+	if m.autoComplete {
+		close(doneCh)
+	}
 	return container.CreateResponse{ID: id}, nil
 }
 
@@ -62,16 +77,22 @@ func (m *mockContainerClient) ContainerWait(ctx context.Context, containerID str
 
 	m.mu.Lock()
 	done := m.containers[containerID]
+	wErr := m.waitErr
+	exitCode := m.autoExitCode
 	m.mu.Unlock()
 
 	go func() {
+		if wErr != nil {
+			errCh <- wErr
+			return
+		}
 		if done == nil {
 			errCh <- fmt.Errorf("unknown container %s", containerID)
 			return
 		}
 		select {
 		case <-done:
-			respCh <- container.WaitResponse{StatusCode: 0}
+			respCh <- container.WaitResponse{StatusCode: int64(exitCode)}
 		case <-ctx.Done():
 			errCh <- ctx.Err()
 		}
@@ -80,25 +101,39 @@ func (m *mockContainerClient) ContainerWait(ctx context.Context, containerID str
 }
 
 func (m *mockContainerClient) ContainerLogs(_ context.Context, _ string, _ dockertypes.ContainerLogsOptions) (io.ReadCloser, error) {
+	m.mu.Lock()
+	content := m.logContent
+	m.mu.Unlock()
+	if content != nil {
+		return io.NopCloser(bytes.NewBuffer(content)), nil
+	}
 	return io.NopCloser(&bytes.Buffer{}), nil
 }
 
 func (m *mockContainerClient) ContainerAttach(_ context.Context, _ string, _ dockertypes.ContainerAttachOptions) (dockertypes.HijackedResponse, error) {
+	if m.attachErr != nil {
+		return dockertypes.HijackedResponse{}, m.attachErr
+	}
 	c1, c2 := net.Pipe()
 	_ = c2
 	return dockertypes.NewHijackedResponse(c1, ""), nil
 }
 
 func (m *mockContainerClient) ContainerStop(_ context.Context, _ string, _ container.StopOptions) error {
+	atomic.AddInt32(&m.stopCount, 1)
 	return nil
 }
 
 func (m *mockContainerClient) ContainerRemove(_ context.Context, _ string, _ dockertypes.ContainerRemoveOptions) error {
+	atomic.AddInt32(&m.removeCount, 1)
 	return nil
 }
 
 func (m *mockContainerClient) ContainerInspect(_ context.Context, _ string) (dockertypes.ContainerJSON, error) {
-	return dockertypes.ContainerJSON{}, nil
+	if m.inspectErr != nil {
+		return dockertypes.ContainerJSON{}, m.inspectErr
+	}
+	return m.inspectResult, nil
 }
 
 func (m *mockContainerClient) ContainerKill(_ context.Context, _ string, _ string) error {
@@ -468,4 +503,195 @@ func TestPropertyFIFODequeuing(t *testing.T) {
 			}
 		}
 	})
+}
+
+// --- limitWriter tests ---
+
+func TestLimitWriter_BelowLimit(t *testing.T) {
+	var buf bytes.Buffer
+	lw := &limitWriter{w: &buf, limit: 10}
+	n, err := lw.Write([]byte("hello"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != 5 {
+		t.Errorf("expected n=5, got %d", n)
+	}
+	if buf.String() != "hello" {
+		t.Errorf("expected 'hello', got %q", buf.String())
+	}
+}
+
+func TestLimitWriter_AtLimit(t *testing.T) {
+	var buf bytes.Buffer
+	lw := &limitWriter{w: &buf, limit: 5}
+	n, err := lw.Write([]byte("hello"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != 5 {
+		t.Errorf("expected n=5, got %d", n)
+	}
+	if buf.String() != "hello" {
+		t.Errorf("expected all 5 bytes written at limit, got %q", buf.String())
+	}
+}
+
+func TestLimitWriter_PastLimit(t *testing.T) {
+	var buf bytes.Buffer
+	lw := &limitWriter{w: &buf, limit: 5}
+	// Write 10 bytes; only the first 5 should pass through.
+	n, err := lw.Write([]byte("0123456789"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Current behavior: returns len(truncated_p) == 5 (not the original 10).
+	// The caller (stdcopy) ignores the return value (_, _), so this doesn't break anything.
+	if n != 5 {
+		t.Errorf("expected n=5 (bytes actually written after truncation), got %d", n)
+	}
+	if buf.String() != "01234" {
+		t.Errorf("expected first 5 bytes %q, got %q", "01234", buf.String())
+	}
+}
+
+func TestLimitWriter_SubsequentWriteIgnoredAfterLimit(t *testing.T) {
+	var buf bytes.Buffer
+	lw := &limitWriter{w: &buf, limit: 5}
+	lw.Write([]byte("hello"))    // fills the limit
+	n, err := lw.Write([]byte("world")) // should be silently discarded
+	if err != nil {
+		t.Fatalf("unexpected error on post-limit write: %v", err)
+	}
+	if n != 5 {
+		t.Errorf("expected n=5 (len of discarded input), got %d", n)
+	}
+	if buf.String() != "hello" {
+		t.Errorf("buffer should still be 'hello', got %q", buf.String())
+	}
+}
+
+// --- RunOneShot tests ---
+
+func newOneShotManager(t *testing.T, mock *mockContainerClient, maxSlots int) *ContainerManager {
+	t.Helper()
+	cfg := &Config{
+		MaxConcurrentTasks: maxSlots,
+		TaskTimeout:        5 * time.Second,
+		WorkspaceHostDir:   t.TempDir(),
+	}
+	return NewContainerManager(mock, cfg, NewLogger(""))
+}
+
+func TestRunOneShot_HappyPathExitZero(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	mgr := newOneShotManager(t, mock, 1)
+
+	result, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.ExitCode)
+	}
+}
+
+func TestRunOneShot_NonZeroExitPropagated(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	mock.autoExitCode = 2
+	mgr := newOneShotManager(t, mock, 1)
+
+	result, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 2 {
+		t.Errorf("expected exit code 2, got %d", result.ExitCode)
+	}
+}
+
+func TestRunOneShot_ContainerCreateFails_SlotReleased(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.createErr = fmt.Errorf("disk full")
+	mgr := newOneShotManager(t, mock, 1)
+
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err == nil {
+		t.Fatal("expected error when ContainerCreate fails")
+	}
+	if mgr.AvailableSlots() != 1 {
+		t.Errorf("expected slot released after create failure, got %d available", mgr.AvailableSlots())
+	}
+}
+
+func TestRunOneShot_ContainerStartFails_SlotReleased(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.startErr = fmt.Errorf("start failed")
+	mgr := newOneShotManager(t, mock, 1)
+
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err == nil {
+		t.Fatal("expected error when ContainerStart fails")
+	}
+	if mgr.AvailableSlots() != 1 {
+		t.Errorf("expected slot released after start failure, got %d available", mgr.AvailableSlots())
+	}
+}
+
+func TestRunOneShot_SlotReleasedAfterSuccess(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	mgr := newOneShotManager(t, mock, 2)
+
+	if mgr.AvailableSlots() != 2 {
+		t.Fatalf("expected 2 slots initially")
+	}
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mgr.AvailableSlots() != 2 {
+		t.Errorf("expected both slots returned after success, got %d", mgr.AvailableSlots())
+	}
+}
+
+func TestRunOneShot_TaskTimeout(t *testing.T) {
+	mock := newMockContainerClient()
+	// Container never completes — task timeout should fire.
+	cfg := &Config{
+		MaxConcurrentTasks: 1,
+		TaskTimeout:        50 * time.Millisecond,
+		WorkspaceHostDir:   t.TempDir(),
+	}
+	mgr := NewContainerManager(mock, cfg, NewLogger(""))
+
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err == nil {
+		t.Fatal("expected error when task times out")
+	}
+	if mgr.AvailableSlots() != 1 {
+		t.Errorf("expected slot released after timeout, got %d", mgr.AvailableSlots())
+	}
+}
+
+func TestRunOneShot_StopAndRemoveCalledOnSuccess(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	mgr := newOneShotManager(t, mock, 1)
+
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if atomic.LoadInt32(&mock.stopCount) == 0 {
+		t.Error("expected ContainerStop to be called")
+	}
+	if atomic.LoadInt32(&mock.removeCount) == 0 {
+		t.Error("expected ContainerRemove to be called")
+	}
 }

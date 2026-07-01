@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -522,5 +523,233 @@ func TestCancelQueuedTask(t *testing.T) {
 	// ctx should have been cancelled.
 	if ctx.Err() == nil {
 		t.Fatal("expected context to be cancelled")
+	}
+}
+
+// --- executeTask direct tests ---
+
+// newExecuteTaskHandler builds a TaskHandler with a ContainerManager backed by the given mock.
+func newExecuteTaskHandler(t *testing.T, mock *mockContainerClient) (*TaskStore, *TaskHandler) {
+	t.Helper()
+	cfg := &Config{
+		MaxConcurrentTasks: 2,
+		TaskTimeout:        5 * time.Second,
+		WorkspaceHostDir:   t.TempDir(),
+	}
+	store := NewTaskStore()
+	cm := NewContainerManager(mock, cfg, NewLogger(""))
+	h := NewTaskHandler(store, cm, NewLogger(""))
+	return store, h
+}
+
+// addAndRun creates a task, adds it to the store, runs executeTask in a goroutine,
+// and waits for it to complete (Done closed).
+func addAndRun(t *testing.T, h *TaskHandler, store *TaskStore, task *Task) {
+	t.Helper()
+	store.Add(task)
+	go h.executeTask(context.Background(), task)
+	select {
+	case <-task.Done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("executeTask did not complete within timeout")
+	}
+}
+
+// TestExecuteTask_HappyPath verifies that a successful container run produces a
+// completed task with Done closed.
+func TestExecuteTask_HappyPath(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true // container exits immediately with code 0
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:        "et-happy",
+		Status:    TaskQueued,
+		Agent:     "claude",
+		Prompt:    "hello",
+		CreatedAt: time.Now(),
+		Done:      make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskCompleted {
+		t.Errorf("expected TaskCompleted, got %s", got.Status)
+	}
+	if got.CompletedAt == nil {
+		t.Error("expected CompletedAt set")
+	}
+}
+
+// TestExecuteTask_NonZeroExit verifies that a non-zero container exit code produces a
+// failed task with a non-empty error.
+func TestExecuteTask_NonZeroExit(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	mock.autoExitCode = 1
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:        "et-nz",
+		Status:    TaskQueued,
+		Agent:     "claude",
+		Prompt:    "fail me",
+		CreatedAt: time.Now(),
+		Done:      make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskFailed {
+		t.Errorf("expected TaskFailed, got %s", got.Status)
+	}
+	if got.Error == "" {
+		t.Error("expected non-empty Error for non-zero exit")
+	}
+}
+
+// TestExecuteTask_ContainerCreateError verifies that a container creation failure
+// produces a failed task.
+func TestExecuteTask_ContainerCreateError(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.createErr = fmt.Errorf("docker disk full")
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:        "et-cre",
+		Status:    TaskQueued,
+		Agent:     "claude",
+		Prompt:    "hello",
+		CreatedAt: time.Now(),
+		Done:      make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskFailed {
+		t.Errorf("expected TaskFailed after create error, got %s", got.Status)
+	}
+}
+
+// TestExecuteTask_AlreadyCancelled verifies that a task already in Cancelled status
+// exits executeTask immediately without transitioning to Running.
+func TestExecuteTask_AlreadyCancelled(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:        "et-pre-cancel",
+		Status:    TaskCancelled, // already cancelled before executeTask runs
+		Agent:     "claude",
+		Prompt:    "never runs",
+		CreatedAt: time.Now(),
+		Done:      make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskCancelled {
+		t.Errorf("expected TaskCancelled, got %s", got.Status)
+	}
+}
+
+// TestExecuteTask_JSONFormat verifies that output_format "json" causes validateOutputFormat
+// to be invoked: Valid is set to &false when output is empty (not valid JSON).
+func TestExecuteTask_JSONFormat(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:           "et-json",
+		Status:       TaskQueued,
+		Agent:        "claude",
+		Prompt:       "return json",
+		OutputFormat: "json",
+		CreatedAt:    time.Now(),
+		Done:         make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskCompleted {
+		t.Errorf("expected TaskCompleted, got %s", got.Status)
+	}
+	if got.Valid == nil {
+		t.Error("expected Valid to be set when OutputFormat is 'json'")
+	}
+	// Empty stdout is not valid JSON → Valid == false.
+	if *got.Valid != false {
+		t.Errorf("expected Valid=false for empty output with json format, got %v", *got.Valid)
+	}
+}
+
+// TestExecuteTask_TextFormat verifies that output_format "text" sets Valid=&true
+// (plain text always passes validation).
+func TestExecuteTask_TextFormat(t *testing.T) {
+	mock := newMockContainerClient()
+	mock.autoComplete = true
+	store, h := newExecuteTaskHandler(t, mock)
+
+	task := &Task{
+		ID:           "et-text",
+		Status:       TaskQueued,
+		Agent:        "claude",
+		Prompt:       "return text",
+		OutputFormat: "text",
+		CreatedAt:    time.Now(),
+		Done:         make(chan struct{}),
+	}
+	addAndRun(t, h, store, task)
+
+	got := store.Get(task.ID)
+	if got.Status != TaskCompleted {
+		t.Errorf("expected TaskCompleted, got %s", got.Status)
+	}
+	if got.Valid == nil {
+		t.Error("expected Valid to be set when OutputFormat is 'text'")
+	}
+	if !*got.Valid {
+		t.Error("expected Valid=true for text format")
+	}
+}
+
+// TestExecuteTask_DoneChannelCloses verifies that the Done channel is closed for all
+// terminal states (completed, failed, already-cancelled).
+func TestExecuteTask_DoneChannelCloses(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		status      TaskStatus
+		createErr   error
+		autoComplete bool
+	}{
+		{"completed", TaskQueued, nil, true},
+		{"failed-create", TaskQueued, fmt.Errorf("err"), false},
+		{"pre-cancelled", TaskCancelled, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := newMockContainerClient()
+			mock.autoComplete = tc.autoComplete
+			mock.createErr = tc.createErr
+			store, h := newExecuteTaskHandler(t, mock)
+
+			task := &Task{
+				ID:        "et-done-" + tc.name,
+				Status:    tc.status,
+				Agent:     "claude",
+				Prompt:    "p",
+				CreatedAt: time.Now(),
+				Done:      make(chan struct{}),
+			}
+			addAndRun(t, h, store, task)
+
+			// Done already closed by addAndRun; verify non-blocking receive.
+			select {
+			case <-task.Done:
+			default:
+				t.Error("expected Done channel closed")
+			}
+		})
 	}
 }

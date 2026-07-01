@@ -103,3 +103,33 @@ func TestRedactEmptySecret(t *testing.T) {
 		t.Fatalf("redact with empty secret should return input unchanged, got: %q", result)
 	}
 }
+
+func TestRequestIDFromContext_Missing(t *testing.T) {
+	id := RequestIDFromContext(context.Background())
+	if id != "" {
+		t.Errorf("expected empty string for context with no request ID, got %q", id)
+	}
+}
+
+func TestRequestIDFromContext_Present(t *testing.T) {
+	ctx := WithRequestID(context.Background(), "req-123")
+	id := RequestIDFromContext(ctx)
+	if id != "req-123" {
+		t.Errorf("expected req-123, got %q", id)
+	}
+}
+
+func TestLogEmptyRequestID(t *testing.T) {
+	// Log with a context that has no request ID — the entry must have an empty requestId field.
+	cl := &captureLogger{}
+	cl.log(context.Background(), "info", "hello")
+
+	line := strings.TrimSpace(cl.buf.String())
+	var entry map[string]string
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("log entry is not valid JSON: %v", err)
+	}
+	if entry["requestId"] != "" {
+		t.Errorf("expected empty requestId for background context, got %q", entry["requestId"])
+	}
+}

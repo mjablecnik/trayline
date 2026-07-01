@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	dockertypes "github.com/docker/docker/api/types"
 	"pgregory.net/rapid"
 )
 
@@ -222,6 +224,158 @@ func TestStateRecover_QueuedTaskFailed(t *testing.T) {
 	}
 	if task.CompletedAt == nil {
 		t.Error("expected CompletedAt to be set after recovery")
+	}
+}
+
+// TestStateRecover_RunningTask_ExitZero verifies that a running task whose container
+// exited with code 0 is marked completed with the captured stdout.
+func TestStateRecover_RunningTask_ExitZero(t *testing.T) {
+	dir := t.TempDir()
+	mock := newMockContainerClient()
+	// Container is not running (already exited) so CaptureContainerOutput reads logs.
+	mock.inspectResult = dockertypes.ContainerJSON{
+		ContainerJSONBase: &dockertypes.ContainerJSONBase{
+			State: &dockertypes.ContainerState{Running: false, ExitCode: 0},
+		},
+	}
+	cfg := &Config{MaxConcurrentTasks: 1, TaskTimeout: 5 * time.Second, WorkspaceHostDir: t.TempDir()}
+	cm := NewContainerManager(mock, cfg, NewLogger(""))
+	sm := &StateManager{stateDir: dir, taskStore: NewTaskStore(), sessionStore: NewSessionStore(), cm: cm}
+
+	now := time.Now().UTC()
+	state := serverState{
+		Tasks: []persistedTask{
+			{ID: "run-0", Status: TaskRunning, Agent: "claude", ContainerID: "ctr-0", CreatedAt: now},
+		},
+	}
+	data, _ := json.Marshal(state)
+	os.WriteFile(filepath.Join(dir, stateFileName), data, 0o644)
+
+	if err := sm.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover() error: %v", err)
+	}
+
+	task := sm.taskStore.Get("run-0")
+	if task == nil {
+		t.Fatal("task not found after recovery")
+	}
+	if task.Status != TaskCompleted {
+		t.Errorf("expected TaskCompleted, got %s", task.Status)
+	}
+	if task.CompletedAt == nil {
+		t.Error("expected CompletedAt set")
+	}
+	select {
+	case <-task.Done:
+	default:
+		t.Error("expected Done channel closed")
+	}
+}
+
+// TestStateRecover_RunningTask_ExitNonZero verifies that a running task whose container
+// exited with a non-zero code is marked failed.
+func TestStateRecover_RunningTask_ExitNonZero(t *testing.T) {
+	dir := t.TempDir()
+	mock := newMockContainerClient()
+	mock.inspectResult = dockertypes.ContainerJSON{
+		ContainerJSONBase: &dockertypes.ContainerJSONBase{
+			State: &dockertypes.ContainerState{Running: false, ExitCode: 2},
+		},
+	}
+	cfg := &Config{MaxConcurrentTasks: 1, TaskTimeout: 5 * time.Second, WorkspaceHostDir: t.TempDir()}
+	cm := NewContainerManager(mock, cfg, NewLogger(""))
+	sm := &StateManager{stateDir: dir, taskStore: NewTaskStore(), sessionStore: NewSessionStore(), cm: cm}
+
+	now := time.Now().UTC()
+	state := serverState{
+		Tasks: []persistedTask{
+			{ID: "run-2", Status: TaskRunning, Agent: "claude", ContainerID: "ctr-2", CreatedAt: now},
+		},
+	}
+	data, _ := json.Marshal(state)
+	os.WriteFile(filepath.Join(dir, stateFileName), data, 0o644)
+
+	if err := sm.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover() error: %v", err)
+	}
+
+	task := sm.taskStore.Get("run-2")
+	if task == nil {
+		t.Fatal("task not found after recovery")
+	}
+	if task.Status != TaskFailed {
+		t.Errorf("expected TaskFailed, got %s", task.Status)
+	}
+	if task.Error == "" {
+		t.Error("expected non-empty Error for non-zero exit")
+	}
+}
+
+// TestStateRecover_RunningTask_ContainerInspectError verifies that a running task whose
+// container cannot be inspected is marked failed with a clear message.
+func TestStateRecover_RunningTask_ContainerInspectError(t *testing.T) {
+	dir := t.TempDir()
+	mock := newMockContainerClient()
+	mock.inspectErr = fmt.Errorf("container not found")
+	cfg := &Config{MaxConcurrentTasks: 1, TaskTimeout: 5 * time.Second, WorkspaceHostDir: t.TempDir()}
+	cm := NewContainerManager(mock, cfg, NewLogger(""))
+	sm := &StateManager{stateDir: dir, taskStore: NewTaskStore(), sessionStore: NewSessionStore(), cm: cm}
+
+	now := time.Now().UTC()
+	state := serverState{
+		Tasks: []persistedTask{
+			{ID: "run-err", Status: TaskRunning, Agent: "claude", ContainerID: "ctr-gone", CreatedAt: now},
+		},
+	}
+	data, _ := json.Marshal(state)
+	os.WriteFile(filepath.Join(dir, stateFileName), data, 0o644)
+
+	if err := sm.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover() error: %v", err)
+	}
+
+	task := sm.taskStore.Get("run-err")
+	if task == nil {
+		t.Fatal("task not found after recovery")
+	}
+	if task.Status != TaskFailed {
+		t.Errorf("expected TaskFailed after inspect error, got %s", task.Status)
+	}
+	if task.Error == "" {
+		t.Error("expected non-empty Error for inspect failure")
+	}
+}
+
+// TestStateRecover_RunningTask_MissingContainerID verifies that a running task with no
+// container ID is marked failed without attempting a Docker call.
+func TestStateRecover_RunningTask_MissingContainerID(t *testing.T) {
+	dir := t.TempDir()
+	sm := &StateManager{
+		stateDir:     dir,
+		taskStore:    NewTaskStore(),
+		sessionStore: NewSessionStore(),
+		cm:           NewContainerManager(newMockContainerClient(), &Config{MaxConcurrentTasks: 1, TaskTimeout: 5 * time.Second, WorkspaceHostDir: t.TempDir()}, nil),
+	}
+
+	now := time.Now().UTC()
+	state := serverState{
+		Tasks: []persistedTask{
+			{ID: "run-noct", Status: TaskRunning, Agent: "claude", ContainerID: "", CreatedAt: now},
+		},
+	}
+	data, _ := json.Marshal(state)
+	os.WriteFile(filepath.Join(dir, stateFileName), data, 0o644)
+
+	if err := sm.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover() error: %v", err)
+	}
+
+	task := sm.taskStore.Get("run-noct")
+	if task == nil {
+		t.Fatal("task not found")
+	}
+	if task.Status != TaskFailed {
+		t.Errorf("expected TaskFailed for missing container ID, got %s", task.Status)
 	}
 }
 

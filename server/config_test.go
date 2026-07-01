@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"pgregory.net/rapid"
 )
@@ -128,6 +129,41 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		_, err := LoadConfig()
 		if err == nil {
 			t.Fatal("expected error when WORKSPACE_HOST_DIR is missing")
+		}
+	})
+
+	t.Run("defaults applied when optional vars unset", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("SESSION_TIMEOUT", "")
+		t.Setenv("TASK_TIMEOUT", "")
+		t.Setenv("RATE_LIMIT", "")
+		t.Setenv("STATE_DIR", "")
+		os.Unsetenv("SESSION_TIMEOUT")
+		os.Unsetenv("TASK_TIMEOUT")
+		os.Unsetenv("RATE_LIMIT")
+		os.Unsetenv("STATE_DIR")
+		os.Unsetenv("MAX_CONCURRENT_TASKS")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error for minimal valid env, got: %v", err)
+		}
+		if cfg.SessionTimeout != 24*time.Hour {
+			t.Errorf("expected SESSION_TIMEOUT default 24h, got %v", cfg.SessionTimeout)
+		}
+		if cfg.TaskTimeout != 10*time.Minute {
+			t.Errorf("expected TASK_TIMEOUT default 10m, got %v", cfg.TaskTimeout)
+		}
+		if cfg.RateLimit != 60 {
+			t.Errorf("expected RATE_LIMIT default 60, got %d", cfg.RateLimit)
+		}
+		if cfg.StateDir != "/tmp/trayline-server" {
+			t.Errorf("expected STATE_DIR default /tmp/trayline-server, got %q", cfg.StateDir)
+		}
+		if cfg.MaxConcurrentTasks != 2 {
+			t.Errorf("expected MAX_CONCURRENT_TASKS default 2, got %d", cfg.MaxConcurrentTasks)
 		}
 	})
 }
