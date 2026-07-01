@@ -163,6 +163,10 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *Task) {
 		default:
 			t.Status = TaskCompleted
 			t.Result = result.Stdout
+			// kiro-cli outputs progress and ANSI sequences mixed into stdout — strip them.
+			if task.Agent == "kiro" {
+				t.Result = stripANSI(result.Stdout)
+			}
 			if t.OutputFormat != "" {
 				valid := validateOutputFormat(t.OutputFormat, result.Stdout)
 				t.Valid = &valid

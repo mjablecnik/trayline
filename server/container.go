@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -212,7 +213,7 @@ func (m *ContainerManager) PendingCount() int {
 func buildOneShotCmd(agent, prompt, model, system string) []string {
 	switch agent {
 	case "kiro":
-		cmd := []string{"kiro-cli", "chat", "--trust-all-tools", "--no-interactive", prompt}
+		cmd := []string{"kiro-cli", "chat", "--trust-all-tools", "--no-interactive", "--wrap", "never", prompt}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
 		}
@@ -390,7 +391,8 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 
 // buildContainerEnv constructs the environment variable list for agent containers.
 func (m *ContainerManager) buildContainerEnv() []string {
-	return []string{dockerHostEnv}
+	// NO_COLOR=1 disables ANSI colour output in CLIs that respect the no-color.org standard.
+	return []string{dockerHostEnv, "NO_COLOR=1"}
 }
 
 // buildContainerBinds constructs the volume bind list for agent containers.
@@ -512,4 +514,12 @@ func (lw *limitWriter) Write(p []byte) (int, error) {
 	n, err := lw.w.Write(p)
 	lw.n += n
 	return len(p), err
+}
+
+// ansiRe matches ANSI/VT100 escape sequences (colours, cursor movement, etc.)
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[^[]`)
+
+// stripANSI removes all ANSI escape sequences from s.
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
 }
