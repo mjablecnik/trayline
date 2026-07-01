@@ -279,7 +279,7 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 	defer m.releaseSlot()
 
 	cmd := buildOneShotCmd(agent, prompt, model, system)
-	containerID, err := m.createAndStartContainer(timeoutCtx, cmd, false)
+	containerID, err := m.createAndStartContainer(timeoutCtx, agent, cmd, false)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 // The caller must also call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
 func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
-	containerID, err := m.createAndStartContainer(ctx, cmd, true)
+	containerID, err := m.createAndStartContainer(ctx, agent, cmd, true)
 	if err != nil {
 		return "", err
 	}
@@ -388,14 +388,47 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 	}, nil
 }
 
-// createAndStartContainer creates and starts a container with the given command.
-func (m *ContainerManager) createAndStartContainer(ctx context.Context, cmd []string, interactive bool) (string, error) {
-	mountBind := m.config.WorkspaceHostDir + ":" + workspaceMount
+// buildContainerEnv constructs the environment variable list for agent containers.
+func (m *ContainerManager) buildContainerEnv() []string {
+	return []string{dockerHostEnv}
+}
 
+// buildContainerBinds constructs the volume bind list for agent containers.
+// The workspace is always mounted. Agent-specific credential directories are
+// mounted read-only when configured, mirroring trayline-agent CLI behaviour:
+//
+//	kiro:   ~/.kiro  +  ~/.local/share/kiro-cli
+//	claude: ~/.claude + ~/.claude.json
+func (m *ContainerManager) buildContainerBinds(agent string) []string {
+	const agentHome = "/home/agent"
+	binds := []string{m.config.WorkspaceHostDir + ":" + workspaceMount}
+
+	switch agent {
+	case "kiro":
+		if m.config.KiroHostDir != "" {
+			binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro:ro")
+		}
+		if m.config.KiroCredsHostDir != "" {
+			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli:ro")
+		}
+	case "claude":
+		if m.config.ClaudeHostDir != "" {
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude:ro")
+		}
+		if m.config.ClaudeConfigHostFile != "" {
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json:ro")
+		}
+	}
+
+	return binds
+}
+
+// createAndStartContainer creates and starts a container with the given command.
+func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent string, cmd []string, interactive bool) (string, error) {
 	cfg := &container.Config{
 		Image:       sandboxImage,
 		Cmd:         cmd,
-		Env:         []string{dockerHostEnv},
+		Env:         m.buildContainerEnv(),
 		Tty:         false,
 		AttachStdin: interactive,
 		OpenStdin:   interactive,
@@ -403,7 +436,7 @@ func (m *ContainerManager) createAndStartContainer(ctx context.Context, cmd []st
 	}
 
 	hostCfg := &container.HostConfig{
-		Binds:      []string{mountBind},
+		Binds:      m.buildContainerBinds(agent),
 		AutoRemove: false,
 	}
 

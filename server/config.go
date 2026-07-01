@@ -20,6 +20,18 @@ type Config struct {
 	TaskTimeout        time.Duration
 	RateLimit          int
 	StateDir           string
+
+	// Agent credential directories on the host — mounted read-only into every agent
+	// container, mirroring what trayline-agent does for interactive CLI invocations.
+
+	// KiroHostDir is the host path to ~/.kiro (workspace config, steering files).
+	KiroHostDir string
+	// KiroCredsHostDir is the host path to ~/.local/share/kiro-cli (auth token).
+	KiroCredsHostDir string
+	// ClaudeHostDir is the host path to ~/.claude (session data).
+	ClaudeHostDir string
+	// ClaudeConfigHostFile is the host path to ~/.claude.json (global config/token).
+	ClaudeConfigHostFile string
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -113,6 +125,15 @@ func LoadConfig() (*Config, error) {
 	if cfg.StateDir == "" {
 		cfg.StateDir = "/tmp/trayline-server"
 	}
+
+	// Agent credential mounts — mirrors what trayline-agent does on the CLI.
+	// All are optional; if unset the corresponding mount is simply skipped.
+	// Kiro: ~/.kiro (workspace config) and ~/.local/share/kiro-cli (auth token)
+	cfg.KiroHostDir = os.Getenv("KIRO_HOST_DIR")
+	cfg.KiroCredsHostDir = os.Getenv("KIRO_CREDS_HOST_DIR")
+	// Claude: ~/.claude (session data) and ~/.claude.json (global config/token)
+	cfg.ClaudeHostDir = os.Getenv("CLAUDE_HOST_DIR")
+	cfg.ClaudeConfigHostFile = os.Getenv("CLAUDE_CONFIG_HOST_FILE")
 
 	return cfg, nil
 }
