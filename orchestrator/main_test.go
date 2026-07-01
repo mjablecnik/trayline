@@ -204,3 +204,27 @@ steps:
 		}
 	})
 }
+
+func TestUsageTextNonEmpty(t *testing.T) {
+	text := usageText()
+	if text == "" {
+		t.Fatal("usageText returned empty string")
+	}
+	for _, keyword := range []string{"flow", "--dry-run", "--var", "--version"} {
+		if !strings.Contains(text, keyword) {
+			t.Errorf("usageText does not mention %q", keyword)
+		}
+	}
+}
+
+func TestFlowUsageTextNonEmpty(t *testing.T) {
+	text := flowUsageText()
+	if text == "" {
+		t.Fatal("flowUsageText returned empty string")
+	}
+	for _, keyword := range []string{"flow", "--then", "--dry-run", "--var"} {
+		if !strings.Contains(text, keyword) {
+			t.Errorf("flowUsageText does not mention %q", keyword)
+		}
+	}
+}

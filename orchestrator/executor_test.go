@@ -913,3 +913,114 @@ func TestVerboseMode_StreamsOutput(t *testing.T) {
 	}
 }
 
+// --- extractPipelineFromCommand tests ---
+
+func TestExtractPipelineFromCommand(t *testing.T) {
+	cases := []struct {
+		command string
+		want    string
+	}{
+		{"trayline run processes/3-ui-refactor", "processes/3-ui-refactor"},
+		{"trayline run processes/3-ui-refactor --var path=x --no-lifecycle", "processes/3-ui-refactor"},
+		{"trayline run pipelines/deploy.yaml", "pipelines/deploy.yaml"},
+		// run followed immediately by a flag → current behavior returns "" (flag stops parsing)
+		{"trayline run --restart processes/resume", ""},
+		// no "run" keyword
+		{"trayline check something", ""},
+		{"echo hello", ""},
+		{"", ""},
+		// "run" with no following arg
+		{"trayline run", ""},
+	}
+
+	for _, tc := range cases {
+		got := extractPipelineFromCommand(tc.command)
+		if got != tc.want {
+			t.Errorf("extractPipelineFromCommand(%q) = %q, want %q", tc.command, got, tc.want)
+		}
+	}
+}
+
+// --- findResumeStepFromSubCheckpoints tests ---
+
+// changeDirForExecutorTest changes CWD to a temp dir; must not be used with t.Parallel.
+func changeDirForExecutorTest(t *testing.T) {
+	t.Helper()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+}
+
+// TestFindResumeStepFromSubCheckpoints_MatchFound verifies that when a command step
+// invokes a checkpointed pipeline, its step name is returned.
+func TestFindResumeStepFromSubCheckpoints_MatchFound(t *testing.T) {
+	changeDirForExecutorTest(t)
+
+	// Save a checkpoint for "processes/3-ui-refactor".
+	if err := SaveCheckpoint("processes/3-ui-refactor", map[string]string{}, []string{"step-a"}, "step-b", false); err != nil {
+		t.Fatalf("SaveCheckpoint error: %v", err)
+	}
+
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Step: &Step{Name: "prep", Command: "echo preparing"}},
+			{Step: &Step{Name: "run-sub", Command: "trayline run processes/3-ui-refactor --var x=1"}},
+			{Step: &Step{Name: "post", Command: "echo done"}},
+		},
+	}
+
+	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
+	if got != "run-sub" {
+		t.Errorf("expected step 'run-sub', got %q", got)
+	}
+}
+
+// TestFindResumeStepFromSubCheckpoints_NoCheckpoint verifies that an empty string is
+// returned when no sub-pipeline checkpoint exists.
+func TestFindResumeStepFromSubCheckpoints_NoCheckpoint(t *testing.T) {
+	changeDirForExecutorTest(t)
+	// No checkpoints saved in this temp dir.
+
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Step: &Step{Name: "step1", Command: "trayline run processes/some-pipeline"}},
+		},
+	}
+
+	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
+	if got != "" {
+		t.Errorf("expected empty string when no checkpoints exist, got %q", got)
+	}
+}
+
+// TestFindResumeStepFromSubCheckpoints_AgentStepSkipped verifies that steps with
+// no Command (agent steps) are skipped.
+func TestFindResumeStepFromSubCheckpoints_AgentStepSkipped(t *testing.T) {
+	changeDirForExecutorTest(t)
+
+	if err := SaveCheckpoint("processes/llm-task", map[string]string{}, nil, "", false); err != nil {
+		t.Fatalf("SaveCheckpoint error: %v", err)
+	}
+
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			// Agent step — has no Command, should be skipped.
+			{Step: &Step{Name: "llm-agent", Agent: "claude", Prompt: "processes/llm-task"}},
+		},
+	}
+
+	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
+	if got != "" {
+		t.Errorf("expected empty string for agent step (no Command), got %q", got)
+	}
+}
+
