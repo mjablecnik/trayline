@@ -17,3 +17,33 @@
 - Problem: `rapid.StringMatching("[^0-9]+")` can produce strings with null bytes (e.g. `"\x00\x01+"`). `os.Setenv` on Linux returns an error for such strings but the test didn't check it, so the env var kept its previous valid value and `LoadConfig()` returned nil instead of an error, failing the property test.
 - Solution: Guard the `os.Setenv` call with `if err := os.Setenv(...); err != nil { t.Skip(...) }`, matching the pattern already used in the `invalid MAX_CONCURRENT_TASKS` subtest.
 - Source: check-build, 2026-07-01
+
+## State persistence exists but is never called on state changes
+- Project: server
+- Problem: `StateManager.Save()` is implemented and wired into `main.go`, but no handler ever calls it on task/session state changes (and the one `Save()` in `Recover()` is skipped on a fresh start). The recovery logic (Req 19) is therefore dead code — nothing is ever written to `state.json` at runtime. Build and tests still pass because persistence has no unit coverage tying saves to mutations.
+- Solution: Inject `StateManager` into the task and session handlers and call `Save()` after every mutation (add/status-change/create/terminate). When reviewing "atomic write + recovery" specs, always verify the save is actually *triggered*, not just implemented.
+- Source: code-review, 2026-07-01 07:10
+
+## WebSocket capacity check must happen before the upgrade
+- Project: server
+- Problem: `HandleChat` upgrades the WebSocket first, then blocks on a semaphore (`acquireSlot`) when at MAX_CONCURRENT_TASKS. Once upgraded, an HTTP 503 can no longer be returned (Req 14.5), so at-capacity clients hang silently instead of being rejected.
+- Solution: Check for a free slot (non-blocking) BEFORE `upgrader.Upgrade`; return 503 JSON if none. Same pattern applies to any pre-upgrade validation that needs an HTTP status code.
+- Source: code-review, 2026-07-01 07:10
+
+## Recovered chat sessions must re-attach stdin/stdout and set ctx/cancel
+- Project: server
+- Problem: `recoverSessions` restores only session metadata (no `Stdin`, no `Ctx`/`CancelFunc`, no `streamOutput` goroutine). Recovered sessions can't forward messages, stream output, be terminated, or time out — they leak (Req 19.6, 12.3, 20.1).
+- Solution: On recovery of a running-container session, mirror `HandleChat`: WithCancel context, `AttachChatContainer`, store `Stdin`, start `streamOutput` + the `<-ctx.Done()` cleanup goroutine. `StateManager` needs a `sessionH *SessionHandler` field (set via `SetSessionHandler`) so `recoverSessions` can call `sessionH.streamOutput`. Wire this in `main.go` before calling `Recover`.
+- Source: code-review-fix, 2026-07-01
+
+## StartChatContainer must not acquire slot — pre-acquire before WebSocket upgrade
+- Project: server
+- Problem: The old `StartChatContainer` called `acquireSlot` (blocking). `HandleChat` upgraded the WebSocket first, then called it — so when at capacity, the WebSocket was already upgraded and HTTP 503 could no longer be sent. Clients hung silently.
+- Solution: Add `TryAcquireSlot() bool` (non-blocking) to ContainerManager. Call it in `HandleChat` BEFORE upgrade; return 503 if denied. Remove slot acquisition from `StartChatContainer` (caller now owns the slot). Track `slotAcquired` bool in recovery path for correct `ReleaseChatSlot` on cleanup.
+- Source: code-review-fix, 2026-07-01
+
+## streamOutput done-per-turn via idle timeout
+- Project: server
+- Problem: `streamOutput` only sent `{"type":"done"}` when the container exited (scanner loop end). For interactive sessions, the container never exits between turns so clients never got turn boundaries.
+- Solution: Use a goroutine+channel pattern: producer reads scanner lines into a buffered channel. Consumer selects on `lineCh` vs `time.After(500ms)`. When idle for 500ms after the last output line, send `done`. Channel closure (container exit) also sends a final `done`.
+- Source: code-review-fix, 2026-07-01
