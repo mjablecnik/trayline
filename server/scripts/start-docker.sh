@@ -110,6 +110,7 @@ docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
   --env-file .env \
+  -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -p "${APP_PORT}:${APP_PORT}" \
   trayline-server
