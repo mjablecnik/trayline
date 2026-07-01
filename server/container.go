@@ -34,6 +34,7 @@ type ContainerClient interface {
 	ContainerRemove(ctx context.Context, containerID string, options dockertypes.ContainerRemoveOptions) error
 	ContainerInspect(ctx context.Context, containerID string) (dockertypes.ContainerJSON, error)
 	ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error)
+	ContainerKill(ctx context.Context, containerID string, signal string) error
 }
 
 // dockerClientAdapter wraps the real Docker client to implement ContainerClient,
@@ -72,6 +73,10 @@ func (a *dockerClientAdapter) ContainerInspect(ctx context.Context, containerID 
 
 func (a *dockerClientAdapter) ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
 	return a.cli.ContainerWait(ctx, containerID, condition)
+}
+
+func (a *dockerClientAdapter) ContainerKill(ctx context.Context, containerID string, signal string) error {
+	return a.cli.ContainerKill(ctx, containerID, signal)
 }
 
 // NewDockerClient creates a Docker client adapter connected to the daemon via the environment.
@@ -184,6 +189,18 @@ func (m *ContainerManager) AvailableSlots() int {
 	return m.slots
 }
 
+// TryAcquireSlot non-blocking acquires one concurrency slot.
+// Returns true if the slot was acquired; caller must call ReleaseChatSlot when done.
+func (m *ContainerManager) TryAcquireSlot() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.slots > 0 {
+		m.slots--
+		return true
+	}
+	return false
+}
+
 // PendingCount returns the number of tasks waiting for a slot.
 func (m *ContainerManager) PendingCount() int {
 	m.mu.Lock()
@@ -281,17 +298,14 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 	return result, nil
 }
 
-// StartChatContainer acquires a slot and starts a persistent interactive container.
-// The caller must call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
-func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string, createdAt time.Time) (string, error) {
-	if err := m.acquireSlot(ctx, createdAt); err != nil {
-		return "", fmt.Errorf("at capacity, cannot start chat container: %w", err)
-	}
-
+// StartChatContainer starts a persistent interactive container.
+// The caller must have pre-acquired a slot via TryAcquireSlot before calling this.
+// On failure the slot is NOT released — the caller is responsible for calling ReleaseChatSlot.
+// The caller must also call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
+func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
 	containerID, err := m.createAndStartContainer(ctx, cmd, true)
 	if err != nil {
-		m.releaseSlot()
 		return "", err
 	}
 	return containerID, nil
@@ -323,6 +337,11 @@ func (m *ContainerManager) StopAndRemoveContainer(ctx context.Context, container
 // InspectContainer returns information about a container (used for state recovery).
 func (m *ContainerManager) InspectContainer(ctx context.Context, containerID string) (dockertypes.ContainerJSON, error) {
 	return m.client.ContainerInspect(ctx, containerID)
+}
+
+// KillContainer sends a signal to a running container.
+func (m *ContainerManager) KillContainer(ctx context.Context, containerID, signal string) error {
+	return m.client.ContainerKill(ctx, containerID, signal)
 }
 
 // CaptureContainerOutput reads up to 1MB of stdout/stderr from a container that

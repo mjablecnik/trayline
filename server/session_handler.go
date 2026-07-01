@@ -22,15 +22,26 @@ var upgrader = websocket.Upgrader{
 
 // SessionHandler handles WebSocket chat session endpoints.
 type SessionHandler struct {
-	store  *SessionStore
-	cm     *ContainerManager
-	logger *Logger
-	config *Config
+	store    *SessionStore
+	cm       *ContainerManager
+	logger   *Logger
+	config   *Config
+	stateMgr *StateManager // set after construction via field assignment
 }
 
 // NewSessionHandler creates a SessionHandler.
 func NewSessionHandler(store *SessionStore, cm *ContainerManager, logger *Logger, config *Config) *SessionHandler {
 	return &SessionHandler{store: store, cm: cm, logger: logger, config: config}
+}
+
+// saveState persists server state to disk, logging any error.
+func (h *SessionHandler) saveState(ctx context.Context) {
+	if h.stateMgr == nil {
+		return
+	}
+	if err := h.stateMgr.Save(); err != nil && h.logger != nil {
+		h.logger.Error(ctx, "state save error: "+err.Error())
+	}
 }
 
 // HandleChat handles WS /chat: validates params, upgrades connection, starts container, begins I/O.
@@ -46,8 +57,18 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	model := r.URL.Query().Get("model")
 	system := r.URL.Query().Get("system")
 
+	// Check capacity BEFORE upgrading WebSocket so we can still return HTTP 503 (Req 14.5).
+	if !h.cm.TryAcquireSlot() {
+		writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "SERVICE_UNAVAILABLE",
+			Message: "server is at capacity, try again later",
+		})
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		h.cm.ReleaseChatSlot()
 		h.logger.Error(r.Context(), "websocket upgrade failed: "+err.Error())
 		return
 	}
@@ -69,12 +90,16 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		CancelFunc:    cancel,
 	}
 	h.store.Add(sess)
+	h.logger.Info(r.Context(), fmt.Sprintf("session %s created (agent: %s)", sessionID, agent))
+	h.saveState(r.Context())
 
-	containerID, err := h.cm.StartChatContainer(ctx, agent, model, system, now)
+	// Slot was pre-acquired above; StartChatContainer does not acquire another.
+	containerID, err := h.cm.StartChatContainer(ctx, agent, model, system)
 	if err != nil {
 		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to start agent container: " + err.Error()})
 		conn.Close()
 		cancel()
+		h.cm.ReleaseChatSlot()
 		h.store.Remove(sessionID)
 		return
 	}
@@ -106,6 +131,7 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		h.cm.StopAndRemoveContainer(context.Background(), containerID)
 		h.cm.ReleaseChatSlot()
 		h.store.Remove(sessionID)
+		h.saveState(context.Background())
 	}()
 }
 
@@ -184,6 +210,8 @@ func (h *SessionHandler) HandleTerminateSession(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	h.logger.Info(r.Context(), fmt.Sprintf("session %s terminated: user-initiated", id))
+
 	sess.ConnMu.Lock()
 	if sess.Conn != nil {
 		h.writeWS(sess.Conn, WSServerMessage{Type: "terminated"})
@@ -195,6 +223,8 @@ func (h *SessionHandler) HandleTerminateSession(w http.ResponseWriter, r *http.R
 	if sess.CancelFunc != nil {
 		sess.CancelFunc()
 	}
+
+	h.saveState(r.Context())
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"session_id": id,
@@ -221,8 +251,10 @@ func (h *SessionHandler) StartIdleTimeoutChecker(ctx context.Context) {
 func (h *SessionHandler) checkIdleSessions() {
 	timeout := h.config.SessionTimeout
 	now := time.Now()
+	terminated := false
 	for _, sess := range h.store.All() {
 		if now.Sub(sess.LastMessageAt) > timeout {
+			h.logger.Info(context.Background(), fmt.Sprintf("session %s terminated: timeout", sess.ID))
 			sess.ConnMu.Lock()
 			if sess.Conn != nil {
 				h.writeWS(sess.Conn, WSServerMessage{Type: "terminated"})
@@ -233,7 +265,11 @@ func (h *SessionHandler) checkIdleSessions() {
 			if sess.CancelFunc != nil {
 				sess.CancelFunc()
 			}
+			terminated = true
 		}
+	}
+	if terminated {
+		h.saveState(context.Background())
 	}
 }
 
@@ -259,7 +295,12 @@ func (h *SessionHandler) writeWSToSession(sessionID string, msg WSServerMessage)
 	}
 }
 
+// idleTurnTimeout is the quiet period after the last output line before emitting "done".
+// Clients rely on "done" to know when the agent has finished a turn (Req 8.9).
+const idleTurnTimeout = 500 * time.Millisecond
+
 // streamOutput reads from the attached container and sends output/done to the WebSocket.
+// It emits {"type":"done"} after each agent turn is detected via an idle-output timeout.
 func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, attached dockertypes.HijackedResponse) {
 	pr, pw := io.Pipe()
 
@@ -269,22 +310,59 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 		stdcopy.StdCopy(pw, pw, attached.Reader)
 	}()
 
-	// Stop reading if the context is cancelled.
+	// Close the pipe reader when the context is cancelled so the scanner goroutine exits.
 	go func() {
 		<-ctx.Done()
 		pr.Close()
 	}()
 
-	scanner := bufio.NewScanner(pr)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if isContextCompaction(line) {
-			h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
+	lineCh := make(chan string, 32)
+	go func() {
+		defer close(lineCh)
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			lineCh <- scanner.Text()
 		}
-		h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
-	}
+	}()
 
-	h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+	// pendingDone tracks whether the agent has produced output since the last "done".
+	// When true, a "done" should be sent after idleTurnTimeout of no new output.
+	pendingDone := false
+	for {
+		if pendingDone {
+			select {
+			case line, ok := <-lineCh:
+				if !ok {
+					// Container exited — flush pending done and exit.
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+					return
+				}
+				if isContextCompaction(line) {
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
+				}
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				// Reset: new output arrived, keep pendingDone = true (idle timer restarts on next loop).
+			case <-time.After(idleTurnTimeout):
+				// No output for idleTurnTimeout — agent finished this turn.
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+				pendingDone = false
+			}
+		} else {
+			select {
+			case line, ok := <-lineCh:
+				if !ok {
+					// Container exited with no pending output.
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+					return
+				}
+				if isContextCompaction(line) {
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
+				}
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				pendingDone = true
+			}
+		}
+	}
 }
 
 // readClient reads WebSocket messages from the client and processes them.
@@ -333,10 +411,13 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 				fmt.Fprintf(sess.Stdin, "%s\n", msg.Prompt)
 			}
 		case "interrupt":
-			if sess.Stdin != nil {
-				fmt.Fprintf(sess.Stdin, "\x03")
+			if sess.ContainerID != "" {
+				if err := h.cm.KillContainer(ctx, sess.ContainerID, "SIGINT"); err != nil {
+					h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to send interrupt: " + err.Error()})
+				}
 			}
 		case "terminate":
+			h.logger.Info(ctx, fmt.Sprintf("session %s terminated: user-initiated", sessionID))
 			h.writeWS(conn, WSServerMessage{Type: "terminated"})
 			conn.Close()
 			if sess.CancelFunc != nil {

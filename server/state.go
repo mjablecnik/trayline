@@ -52,6 +52,7 @@ type StateManager struct {
 	sessionStore *SessionStore
 	cm           *ContainerManager
 	logger       *Logger
+	sessionH     *SessionHandler // set via SetSessionHandler before Recover is called
 }
 
 // NewStateManager creates a StateManager.
@@ -63,6 +64,12 @@ func NewStateManager(stateDir string, tasks *TaskStore, sessions *SessionStore, 
 		cm:           cm,
 		logger:       logger,
 	}
+}
+
+// SetSessionHandler injects the session handler used to re-attach recovered sessions.
+// Must be called before Recover.
+func (sm *StateManager) SetSessionHandler(h *SessionHandler) {
+	sm.sessionH = h
 }
 
 // EnsureStateDir verifies that the state directory exists and is writable,
@@ -254,7 +261,21 @@ func (sm *StateManager) recoverSessions(ctx context.Context, psessions []persist
 			continue
 		}
 
-		// Container still running — re-register the session as active (no WebSocket yet).
+		// Container still running — re-attach stdin/stdout and restore the session.
+		sessCtx, cancel := context.WithCancel(context.Background())
+
+		attached, err := sm.cm.AttachChatContainer(sessCtx, ps.ContainerID)
+		if err != nil {
+			cancel()
+			if sm.logger != nil {
+				sm.logger.Info(ctx, fmt.Sprintf("session %s: failed to re-attach container %s after restart: %v", ps.ID, ps.ContainerID, err))
+			}
+			continue
+		}
+
+		// Track slot usage: each running container occupies one concurrency slot.
+		slotAcquired := sm.cm.TryAcquireSlot()
+
 		sess := &Session{
 			ID:            ps.ID,
 			Agent:         ps.Agent,
@@ -264,8 +285,28 @@ func (sm *StateManager) recoverSessions(ctx context.Context, psessions []persist
 			LastMessageAt: ps.LastMessageAt,
 			ContainerID:   ps.ContainerID,
 			Active:        true,
+			Ctx:           sessCtx,
+			CancelFunc:    cancel,
+			Stdin:         attached.Conn,
 		}
 		sm.sessionStore.Add(sess)
+
+		// Stream container output to any reconnected WebSocket client.
+		if sm.sessionH != nil {
+			go sm.sessionH.streamOutput(sessCtx, ps.ID, attached)
+		}
+
+		go func(sessID, containerID string, releaseSlot bool) {
+			<-sessCtx.Done()
+			attached.Close()
+			sm.cm.StopAndRemoveContainer(context.Background(), containerID)
+			if releaseSlot {
+				sm.cm.ReleaseChatSlot()
+			}
+			sm.sessionStore.Remove(sessID)
+			_ = sm.Save()
+		}(ps.ID, ps.ContainerID, slotAcquired)
+
 		if sm.logger != nil {
 			sm.logger.Info(ctx, fmt.Sprintf("session %s: container %s re-attached after restart", ps.ID, ps.ContainerID))
 		}

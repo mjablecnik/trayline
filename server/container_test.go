@@ -101,6 +101,10 @@ func (m *mockContainerClient) ContainerInspect(_ context.Context, _ string) (doc
 	return dockertypes.ContainerJSON{}, nil
 }
 
+func (m *mockContainerClient) ContainerKill(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
 // completeContainer signals that a mock container has finished executing.
 func (m *mockContainerClient) completeContainer(containerID string) {
 	m.mu.Lock()

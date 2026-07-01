@@ -17,14 +17,25 @@ const (
 
 // TaskHandler handles one-shot task REST endpoints.
 type TaskHandler struct {
-	store  *TaskStore
-	cm     *ContainerManager
-	logger *Logger
+	store    *TaskStore
+	cm       *ContainerManager
+	logger   *Logger
+	stateMgr *StateManager // set after construction via field assignment
 }
 
 // NewTaskHandler creates a TaskHandler.
 func NewTaskHandler(store *TaskStore, cm *ContainerManager, logger *Logger) *TaskHandler {
 	return &TaskHandler{store: store, cm: cm, logger: logger}
+}
+
+// saveState persists server state to disk, logging any error.
+func (h *TaskHandler) saveState(ctx context.Context) {
+	if h.stateMgr == nil {
+		return
+	}
+	if err := h.stateMgr.Save(); err != nil && h.logger != nil {
+		h.logger.Error(ctx, "state save error: "+err.Error())
+	}
 }
 
 // HandlePostRun handles POST /run: validates the request, creates a queued task,
@@ -75,6 +86,7 @@ func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 		Done:         make(chan struct{}),
 	}
 	h.store.Add(task)
+	h.saveState(r.Context())
 
 	go h.executeTask(ctx, task)
 
@@ -107,6 +119,8 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *Task) {
 	if !proceed {
 		return
 	}
+	h.logger.Info(context.Background(), fmt.Sprintf("task %s status: running", task.ID))
+	h.saveState(context.Background())
 
 	effectivePrompt := task.Prompt
 	if task.OutputFormat != "" {
@@ -123,8 +137,10 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *Task) {
 	result, err := h.cm.RunOneShot(ctx, task.Agent, effectivePrompt, task.Model, task.System, task.CreatedAt)
 
 	now := time.Now()
+	var finalStatus TaskStatus
 	h.store.Update(task.ID, func(t *Task) {
 		if isTerminalStatus(t.Status) {
+			finalStatus = t.Status
 			return // Already set by cancel handler.
 		}
 		t.CompletedAt = &now
@@ -148,7 +164,10 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *Task) {
 				t.Valid = &valid
 			}
 		}
+		finalStatus = t.Status
 	})
+	h.logger.Info(context.Background(), fmt.Sprintf("task %s status: %s", task.ID, finalStatus))
+	h.saveState(context.Background())
 }
 
 // isTerminalStatus reports whether a task status is in a terminal (non-progressing) state.
@@ -255,6 +274,8 @@ func (h *TaskHandler) HandleCancelRun(w http.ResponseWriter, r *http.Request) {
 	if cancelFn != nil {
 		cancelFn()
 	}
+
+	h.saveState(r.Context())
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"id":     id,

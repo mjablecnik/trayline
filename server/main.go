@@ -44,14 +44,20 @@ func main() {
 	cm := NewContainerManager(dockerClient, cfg, logger)
 	stateMgr := NewStateManager(cfg.StateDir, taskStore, sessionStore, cm, logger)
 
+	taskH := NewTaskHandler(taskStore, cm, logger)
+	taskH.stateMgr = stateMgr
+
+	health := &HealthHandler{}
+	sessionH := NewSessionHandler(sessionStore, cm, logger, cfg)
+	sessionH.stateMgr = stateMgr
+
+	// Wire sessionH into stateMgr before recovery so recovered sessions can stream output.
+	stateMgr.SetSessionHandler(sessionH)
+
 	if err := stateMgr.Recover(ctx); err != nil {
 		logger.Error(ctx, "state recovery error: "+err.Error())
 		// Non-fatal: continue with whatever state was recovered.
 	}
-
-	taskH := NewTaskHandler(taskStore, cm, logger)
-	health := &HealthHandler{}
-	sessionH := NewSessionHandler(sessionStore, cm, logger, cfg)
 
 	// Background idle-timeout checker for sessions.
 	sessionH.StartIdleTimeoutChecker(ctx)
@@ -88,11 +94,29 @@ func main() {
 			}
 		}
 
+		// Cancel all active one-shot tasks so their containers start shutting down.
+		activeTasks := taskStore.All()
+		for _, t := range activeTasks {
+			if !isTerminalStatus(t.Status) && t.CancelFunc != nil {
+				t.CancelFunc()
+			}
+		}
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			logger.Error(ctx, "server shutdown error: "+err.Error())
+		}
+
+		// Wait for active task goroutines to finish container cleanup within the grace window.
+		for _, t := range activeTasks {
+			if t.Done != nil {
+				select {
+				case <-t.Done:
+				case <-shutdownCtx.Done():
+				}
+			}
 		}
 	}()
 
