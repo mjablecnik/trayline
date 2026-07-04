@@ -71,3 +71,9 @@
 - Problem: `streamOutput` only sent `{"type":"done"}` when the container exited (scanner loop end). For interactive sessions, the container never exits between turns so clients never got turn boundaries.
 - Solution: Use a goroutine+channel pattern: producer reads scanner lines into a buffered channel. Consumer selects on `lineCh` vs `time.After(500ms)`. When idle for 500ms after the last output line, send `done`. Channel closure (container exit) also sends a final `done`.
 - Source: code-review-fix, 2026-07-01
+
+## stateTestMock in store/state_test.go was incomplete
+- Project: server
+- Problem: `stateTestMock` was missing `ContainerAttach`, `ContainerStop`, `ContainerRemove`, `ContainerWait`, `ContainerKill` methods, and `ContainerCreate`/`ContainerLogs` had wrong signatures (used `interface{}` instead of real Docker types). This caused the entire `server/store` test package to fail to compile.
+- Solution: Added all missing methods with correct Docker SDK type signatures and changed `ContainerLogs` to return `io.NopCloser(strings.NewReader(""))` (not `io.NopCloser(nil)`, which panics when stdcopy reads it).
+- Source: check-build, 2026-07-04

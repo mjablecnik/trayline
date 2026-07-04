@@ -6,8 +6,8 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
 
 ## Tasks
 
-- [ ] 1. Set up project structure and core interfaces
-  - [ ] 1.1 Initialize Go module and project skeleton
+- [x] 1. Set up project structure and core interfaces
+  - [x] 1.1 Initialize Go module and project skeleton
     - Create `client/` directory with `go.mod` (module name: `trayline-client`)
     - Add dependencies: `github.com/gorilla/websocket`, `github.com/joho/godotenv`, `pgregory.net/rapid`
     - Create `.env.example` with `TRAYLINE_SERVER_URL` and `TRAYLINE_API_TOKEN` placeholders
@@ -15,13 +15,13 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Create `bin/` directory (gitignored)
     - _Requirements: 1.1, 1.2, 1.5_
 
-  - [ ] 1.2 Define data model types
+  - [x] 1.2 Define data model types
     - Create type definitions in a new file or within `api.go`: `Config`, `RunRequest`, `RunResponse`, `RunAcceptedResponse`, `TaskSummary`, `SessionSummary`, `ErrorResponse`, `WSClientMessage`, `WSServerMessage`
     - Use JSON struct tags matching the server's API contract
     - _Requirements: 5.1, 6.1, 7.1, 3.4_
 
-- [ ] 2. Implement configuration resolution
-  - [ ] 2.1 Implement config resolver (`config.go`)
+- [x] 2. Implement configuration resolution
+  - [x] 2.1 Implement config resolver (`config.go`)
     - Load `.env` file silently using `godotenv.Load()` (no error if missing)
     - Resolve server URL with priority: `--server` flag → `TRAYLINE_SERVER_URL` env → `.env` → default `http://localhost:8080`
     - Resolve token with priority: `--token` flag → `TRAYLINE_API_TOKEN` env → `.env` → error (exit code 2)
@@ -31,22 +31,22 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Return typed `Config` struct or descriptive error
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 9.5_
 
-  - [ ]* 2.2 Write property test: Configuration resolution follows priority chain
+  - [x]* 2.2 Write property test: Configuration resolution follows priority chain
     - **Property 1: Configuration resolution follows priority chain**
     - Generate random combinations of flag, env var, .env file, and absent values using `rapid`
     - Assert resolved value always equals highest-priority present source
     - Assert error returned when no token source is present
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.5**
 
-  - [ ]* 2.3 Write property test: URL validation and normalization
+  - [x]* 2.3 Write property test: URL validation and normalization
     - **Property 2: URL validation and normalization**
     - Generate URLs with various schemes (http, https, ftp, missing) and trailing slashes
     - Assert only `http://` and `https://` schemes are accepted
     - Assert trailing slashes are stripped from accepted URLs
     - **Validates: Requirements 1.4, 1.6**
 
-- [ ] 3. Implement API client layer
-  - [ ] 3.1 Implement HTTP/WebSocket client (`api.go`)
+- [x] 3. Implement API client layer
+  - [x] 3.1 Implement HTTP/WebSocket client (`api.go`)
     - Create `APIClient` struct wrapping `net/http.Client` with auth header injection
     - Implement `Health()` method: GET `/health` with 5s timeout
     - Implement `PostRun()` method: POST `/run` with 30s timeout
@@ -60,7 +60,7 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Support verbose mode: log method, URL, status, timing to stderr
     - _Requirements: 2.1, 3.1, 3.13, 3.14, 5.1, 6.1, 6.2, 6.3, 7.1, 7.3, 9.7_
 
-  - [ ]* 3.2 Write unit tests for API client
+  - [x]* 3.2 Write unit tests for API client
     - Use `httptest.Server` to mock REST endpoints
     - Test auth header injection on all requests
     - Test timeout behavior (5s health, 30s general)
@@ -68,8 +68,8 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Test verbose output format
     - _Requirements: 2.1, 2.2, 2.3, 3.13, 3.14_
 
-- [ ] 4. Implement output formatter
-  - [ ] 4.1 Implement formatting functions (`format.go`)
+- [x] 4. Implement output formatter
+  - [x] 4.1 Implement formatting functions (`format.go`)
     - Implement TTY detection for stdout/stderr
     - Implement `NO_COLOR` environment variable check (any value including empty disables color)
     - Implement color functions: green (success), red (error), yellow (warning), cyan (info)
@@ -80,32 +80,32 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Inject `isTerminal` function for testability
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-  - [ ]* 4.2 Write property test: Table formatter produces aligned columns
+  - [x]* 4.2 Write property test: Table formatter produces aligned columns
     - **Property 5: Table formatter produces aligned columns with all fields**
     - Generate random lists of table rows with varying field lengths
     - Assert all columns start at the same character position across rows
     - Assert every row contains all specified fields
     - **Validates: Requirements 6.1, 7.1, 8.4**
 
-  - [ ]* 4.3 Write property test: Color output control
+  - [x]* 4.3 Write property test: Color output control
     - **Property 6: Color output is disabled when NO_COLOR is set or output is non-TTY**
     - Generate messages with random content and vary NO_COLOR/TTY state
     - Assert no ANSI escape sequences when NO_COLOR set or non-TTY
     - Assert correct color codes per message type when colors enabled
     - **Validates: Requirements 8.1, 8.2, 8.3**
 
-  - [ ]* 4.4 Write property test: Column value truncation
+  - [x]* 4.4 Write property test: Column value truncation
     - **Property 7: Column value truncation at 36 characters**
     - Generate strings of varying lengths (0 to 200 chars)
     - Assert strings >36 chars are truncated to exactly 36 with trailing `…`
     - Assert strings ≤36 chars appear unmodified
     - **Validates: Requirements 8.6**
 
-- [ ] 5. Checkpoint - Ensure all tests pass
+- [x] 5. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement command dispatch and help system
-  - [ ] 6.1 Implement subcommand definitions and dispatch (`commands.go`)
+- [x] 6. Implement command dispatch and help system
+  - [x] 6.1 Implement subcommand definitions and dispatch (`commands.go`)
     - Define all subcommands: `health`, `chat`, `run`, `tasks`, `task`, `cancel`, `sessions`, `terminate`
     - Parse global flags: `--server`, `--token`, `--quiet`, `--verbose`, `--help`, `--version`
     - Implement `--help` / `-h` output: program name, description, usage syntax, subcommand list, global flags, examples
@@ -115,15 +115,15 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Dispatch to appropriate handler function
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7_
 
-  - [ ] 6.2 Implement main entry point (`main.go`)
+  - [x] 6.2 Implement main entry point (`main.go`)
     - Set up signal handling (SIGINT, SIGTERM)
     - Call config resolution
     - Call command dispatch
     - Wire exit codes from handlers
     - _Requirements: 10.1, 10.2_
 
-- [ ] 7. Implement chat command (WebSocket)
-  - [ ] 7.1 Implement interactive chat handler (`chat.go`)
+- [x] 7. Implement chat command (WebSocket)
+  - [x] 7.1 Implement interactive chat handler (`chat.go`)
     - Establish WebSocket connection to `/chat` with agent, model, system as query params
     - Support reconnection via `--session` flag → connect to `/chat/{id}`
     - Add Bearer token to WebSocket upgrade request headers
@@ -144,7 +144,7 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Handle HTTP 409 (session in use) → error, exit 1
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 4.1, 4.2, 4.3, 4.4, 10.3, 10.4, 10.5_
 
-  - [ ]* 7.2 Write property test: WebSocket URL construction
+  - [x]* 7.2 Write property test: WebSocket URL construction
     - **Property 3: WebSocket URL construction includes provided parameters**
     - Generate random agent, model, and system values (including empty strings)
     - Assert agent always present as query parameter
@@ -152,14 +152,14 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Assert all values are URL-encoded
     - **Validates: Requirements 3.1, 3.2, 3.3**
 
-  - [ ]* 7.3 Write property test: Empty input filtering
+  - [x]* 7.3 Write property test: Empty input filtering
     - **Property 4: Empty input lines are filtered**
     - Generate whitespace-only strings and strings with non-whitespace content
     - Assert whitespace-only inputs are discarded (no message sent)
     - Assert inputs with non-whitespace characters are sent as messages
     - **Validates: Requirements 3.5**
 
-  - [ ]* 7.4 Write unit tests for chat handler
+  - [x]* 7.4 Write unit tests for chat handler
     - Use `httptest.Server` with WebSocket upgrader to mock server
     - Test full session lifecycle: connect → session_started → send → output → done → /quit
     - Test reconnection flow: session_resumed
@@ -167,8 +167,8 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Test signal state transitions (first SIGINT → interrupt, second → exit)
     - _Requirements: 3.4, 3.6, 3.7, 3.8, 3.11, 3.12, 4.2, 4.3, 4.4, 10.3, 10.4_
 
-- [ ] 8. Implement run command (REST)
-  - [ ] 8.1 Implement one-shot task handler (`run.go`)
+- [x] 8. Implement run command (REST)
+  - [x] 8.1 Implement one-shot task handler (`run.go`)
     - Send POST `/run` with prompt, agent, optional model/system/format
     - Handle HTTP 200 (immediate result): display result to stdout, status and elapsed time to stderr
     - Handle HTTP 202 (accepted): print task ID to stderr, poll `GET /run/{id}` every 2s
@@ -180,7 +180,7 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Handle server errors during initial request or polling, exit 1
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12_
 
-  - [ ]* 8.2 Write unit tests for run handler
+  - [x]* 8.2 Write unit tests for run handler
     - Use `httptest.Server` to mock `/run` and `/run/{id}` endpoints
     - Test immediate 200 response (display result + elapsed time)
     - Test 202 → polling → completed flow
@@ -190,8 +190,8 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Test polling timeout behavior
     - _Requirements: 5.5, 5.6, 5.7, 5.8, 5.9, 5.11, 5.12_
 
-- [ ] 9. Implement task and session management commands
-  - [ ] 9.1 Implement task management commands
+- [x] 9. Implement task and session management commands
+  - [x] 9.1 Implement task management commands
     - `tasks`: GET `/runs`, display table (ID, status, agent, creation time)
     - `task <id>`: GET `/run/{id}`, display detailed task info
     - `cancel <id>`: POST `/run/{id}/cancel`, display updated status
@@ -201,7 +201,7 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Handle server errors → error message, non-zero exit
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-  - [ ] 9.2 Implement session management commands
+  - [x] 9.2 Implement session management commands
     - `sessions`: GET `/sessions`, display table (session ID, agent, model, created, last message)
     - Handle empty sessions list → informational message
     - `terminate <id>`: POST `/sessions/{id}/terminate`, display terminated status
@@ -210,7 +210,7 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Handle server unreachable → error, non-zero exit
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-  - [ ]* 9.3 Write unit tests for task and session commands
+  - [x]* 9.3 Write unit tests for task and session commands
     - Test tasks list table output formatting
     - Test task detail display with all fields
     - Test cancel success and conflict scenarios
@@ -218,11 +218,11 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Test terminate success and not-found scenarios
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 7.1, 7.2, 7.3, 7.5_
 
-- [ ] 10. Checkpoint - Ensure all tests pass
+- [x] 10. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Implement build scripts and shell completion
-  - [ ] 11.1 Create build and install scripts
+- [x] 11. Implement build scripts and shell completion
+  - [x] 11.1 Create build and install scripts
     - Create `client/scripts/build.sh`: compile binary to `client/bin/trayline-client`
     - Use Script Portability pattern (`SCRIPT_DIR` / `PROJECT_DIR` / `cd`)
     - Use `set -euo pipefail`
@@ -230,14 +230,14 @@ Build a Go CLI tool (`trayline-client`) in the `client/` directory that provides
     - Make scripts executable
     - _Requirements: 9.1, 9.3_
 
-  - [ ] 11.2 Create zsh completion script
+  - [x] 11.2 Create zsh completion script
     - Create `client/completions/_trayline-client`
     - Complete all subcommands: health, chat, run, tasks, task, cancel, sessions, terminate
     - Complete global flags: --server, --token, --quiet, --verbose, --help, --version
     - Complete subcommand-specific flags (e.g., --agent, --model, --system for chat/run)
     - _Requirements: 9.1, 9.2_
 
-- [ ] 12. Final checkpoint - Ensure all tests pass
+- [x] 12. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
