@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"pgregory.net/rapid"
 
 	"server/core"
@@ -264,8 +268,31 @@ func newMockForStateTest(running bool, exitCode int, inspectErr, attachErr error
 	return &stateTestMock{running: running, exitCode: exitCode, inspectErr: inspectErr, attachErr: attachErr}
 }
 
-func (m *stateTestMock) ContainerCreate(_ context.Context, _ interface{}, _ interface{}, _ interface{}, _ string) (interface{}, error) {
-	return nil, nil
+func (m *stateTestMock) ContainerCreate(_ context.Context, _ *container.Config, _ *container.HostConfig, _ *network.NetworkingConfig, _ string) (container.CreateResponse, error) {
+	return container.CreateResponse{}, nil
+}
+
+func (m *stateTestMock) ContainerStart(_ context.Context, _ string, _ dockertypes.ContainerStartOptions) error {
+	return nil
+}
+
+func (m *stateTestMock) ContainerLogs(_ context.Context, _ string, _ dockertypes.ContainerLogsOptions) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (m *stateTestMock) ContainerAttach(_ context.Context, _ string, _ dockertypes.ContainerAttachOptions) (dockertypes.HijackedResponse, error) {
+	if m.attachErr != nil {
+		return dockertypes.HijackedResponse{}, m.attachErr
+	}
+	return dockertypes.HijackedResponse{}, nil
+}
+
+func (m *stateTestMock) ContainerStop(_ context.Context, _ string, _ container.StopOptions) error {
+	return nil
+}
+
+func (m *stateTestMock) ContainerRemove(_ context.Context, _ string, _ dockertypes.ContainerRemoveOptions) error {
+	return nil
 }
 
 func (m *stateTestMock) ContainerInspect(_ context.Context, _ string) (dockertypes.ContainerJSON, error) {
@@ -279,14 +306,14 @@ func (m *stateTestMock) ContainerInspect(_ context.Context, _ string) (dockertyp
 	}, nil
 }
 
-// stateTestMock must implement docker.ContainerClient — use the real mock from docker package via embedding trick.
-// Since we can't import docker_test, we implement the full interface here.
-
-func (m *stateTestMock) ContainerStart(_ context.Context, _ string, _ dockertypes.ContainerStartOptions) error {
-	return nil
+func (m *stateTestMock) ContainerWait(_ context.Context, _ string, _ container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+	respCh := make(chan container.WaitResponse, 1)
+	errCh := make(chan error, 1)
+	return respCh, errCh
 }
-func (m *stateTestMock) ContainerLogs(_ context.Context, _ string, _ dockertypes.ContainerLogsOptions) (interface{}, error) {
-	return nil, nil
+
+func (m *stateTestMock) ContainerKill(_ context.Context, _ string, _ string) error {
+	return nil
 }
 
 // --- Helpers ---
