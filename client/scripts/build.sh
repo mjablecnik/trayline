@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_DIR}"
+
+echo "Building trayline-client..."
+go build -o bin/trayline-client .
+echo "Binary written to ${PROJECT_DIR}/bin/trayline-client"

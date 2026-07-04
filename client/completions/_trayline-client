@@ -1,0 +1,77 @@
+#compdef trayline-client
+
+_trayline_client() {
+    local state
+
+    _arguments -C \
+        '--server[Trayline server URL]:URL:' \
+        '--token[Bearer authentication token]:TOKEN:' \
+        '--quiet[Suppress informational messages on stderr]' \
+        '--verbose[Print HTTP method, URL, status, and timing on stderr]' \
+        '--help[Show help message and exit]' \
+        '-h[Show help message and exit]' \
+        '--version[Show version information and exit]' \
+        '-v[Show version information and exit]' \
+        '1:subcommand:->subcommand' \
+        '*::args:->args' \
+        && return 0
+
+    case "${state}" in
+        subcommand)
+            local subcommands
+            subcommands=(
+                'health:Check server connectivity'
+                'chat:Start or reconnect to an interactive chat session'
+                'run:Execute a one-shot task and wait for the result'
+                'tasks:List all tasks'
+                'task:Show task details'
+                'cancel:Cancel a running task'
+                'sessions:List active sessions'
+                'terminate:Terminate a session'
+            )
+            _describe 'subcommand' subcommands
+            ;;
+        args)
+            case "${words[1]}" in
+                chat)
+                    _arguments \
+                        '--agent[Agent to use (kiro or claude)]:AGENT:(kiro claude)' \
+                        '--model[Model override]:MODEL:' \
+                        '--system[System prompt override]:PROMPT:' \
+                        '--session[Reconnect to an existing session ID]:ID:' \
+                        '--help[Show help for this subcommand]' \
+                        '-h[Show help for this subcommand]'
+                    ;;
+                run)
+                    _arguments \
+                        '--agent[Agent to use (kiro or claude)]:AGENT:(kiro claude)' \
+                        '--prompt[Prompt text to send]:TEXT:' \
+                        '--model[Model override]:MODEL:' \
+                        '--system[System prompt override]:PROMPT:' \
+                        '--format[Output format]:FORMAT:(json text markdown)' \
+                        '--help[Show help for this subcommand]' \
+                        '-h[Show help for this subcommand]'
+                    ;;
+                task|cancel)
+                    _arguments \
+                        '--help[Show help for this subcommand]' \
+                        '-h[Show help for this subcommand]' \
+                        '1:task ID:'
+                    ;;
+                terminate)
+                    _arguments \
+                        '--help[Show help for this subcommand]' \
+                        '-h[Show help for this subcommand]' \
+                        '1:session ID:'
+                    ;;
+                health|tasks|sessions)
+                    _arguments \
+                        '--help[Show help for this subcommand]' \
+                        '-h[Show help for this subcommand]'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_trayline_client "$@"
