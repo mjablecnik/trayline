@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"pgregory.net/rapid"
 )
 
-// captureLogger wraps Logger to write to a buffer instead of stdout.
 type captureLogger struct {
 	buf      bytes.Buffer
 	apiToken string
@@ -21,7 +20,6 @@ func (c *captureLogger) log(ctx context.Context, level, message string) {
 	if c.apiToken != "" {
 		message = redact(message, c.apiToken)
 	}
-
 	entry := map[string]string{
 		"timestamp": "2026-01-01T00:00:00Z",
 		"level":     level,
@@ -33,8 +31,6 @@ func (c *captureLogger) log(ctx context.Context, level, message string) {
 	c.buf.WriteByte('\n')
 }
 
-// Property 14: Log entries are valid JSON with required fields
-// Feature: agent-api-server, Property 14: Log entries valid JSON with required fields
 func TestLogEntriesAreValidJSONWithRequiredFields(t *testing.T) {
 	apiToken := "super-secret-token"
 	logger := NewLogger(apiToken)
@@ -46,18 +42,12 @@ func TestLogEntriesAreValidJSONWithRequiredFields(t *testing.T) {
 
 		ctx := WithRequestID(context.Background(), requestID)
 
-		// Capture output by redirecting stdout temporarily.
-		// Since we can't easily redirect stdout in a test, we test the redact function
-		// and the log entry structure directly.
-
-		// Test that the API token is never included in the message.
 		msgWithToken := message + " token=" + apiToken
 		redacted := redact(msgWithToken, apiToken)
 		if strings.Contains(redacted, apiToken) {
 			t.Fatalf("redact failed: output still contains API token")
 		}
 
-		// Test that log entries are valid JSON.
 		cl := &captureLogger{apiToken: apiToken}
 		cl.log(ctx, level, message)
 
@@ -120,7 +110,6 @@ func TestRequestIDFromContext_Present(t *testing.T) {
 }
 
 func TestLogEmptyRequestID(t *testing.T) {
-	// Log with a context that has no request ID — the entry must have an empty requestId field.
 	cl := &captureLogger{}
 	cl.log(context.Background(), "info", "hello")
 

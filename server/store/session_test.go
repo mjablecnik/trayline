@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"sync"
@@ -42,18 +42,18 @@ func TestSessionStore_UpdateFound(t *testing.T) {
 	sess := &Session{ID: "s3", Agent: "claude", CreatedAt: time.Now(), LastMessageAt: time.Now()}
 	s.Add(sess)
 
-	ok := s.Update("s3", func(sess *Session) { sess.Agent = "gpt4" })
+	ok := s.Update("s3", func(sess *Session) { sess.Agent = "kiro" })
 	if !ok {
 		t.Fatal("expected Update to return true for existing session")
 	}
-	if s.Get("s3").Agent != "gpt4" {
-		t.Errorf("expected agent gpt4 after update, got %q", s.Get("s3").Agent)
+	if s.Get("s3").Agent != "kiro" {
+		t.Errorf("expected agent kiro after update, got %q", s.Get("s3").Agent)
 	}
 }
 
 func TestSessionStore_UpdateNotFound(t *testing.T) {
 	s := NewSessionStore()
-	ok := s.Update("missing", func(sess *Session) { sess.Agent = "gpt4" })
+	ok := s.Update("missing", func(sess *Session) { sess.Agent = "kiro" })
 	if ok {
 		t.Error("expected Update to return false for unknown id")
 	}

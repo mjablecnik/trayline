@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"os"
@@ -9,11 +9,8 @@ import (
 	"pgregory.net/rapid"
 )
 
-// Property 1: Config validation rejects invalid values
-// Feature: agent-api-server, Property 1: Config validation rejects invalid values
 func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		// Generate an invalid APP_PORT
 		invalidPort := rapid.OneOf(
 			rapid.StringMatching(`[^0-9]+`),
 			rapid.Just("0"),
@@ -136,10 +133,6 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		t.Setenv("APP_PORT", "8080")
 		t.Setenv("API_TOKEN", "test-token")
 		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
-		t.Setenv("SESSION_TIMEOUT", "")
-		t.Setenv("TASK_TIMEOUT", "")
-		t.Setenv("RATE_LIMIT", "")
-		t.Setenv("STATE_DIR", "")
 		os.Unsetenv("SESSION_TIMEOUT")
 		os.Unsetenv("TASK_TIMEOUT")
 		os.Unsetenv("RATE_LIMIT")

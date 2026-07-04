@@ -11,16 +11,21 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"server/api"
+	"server/core"
+	"server/docker"
+	"server/store"
 )
 
 func main() {
-	cfg, err := LoadConfig()
+	cfg, err := core.LoadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
 		os.Exit(1)
 	}
 
-	logger := NewLogger(cfg.APIToken)
+	logger := core.NewLogger(cfg.APIToken)
 	ctx := context.Background()
 
 	if err := ensureWorkspaceDir(cfg.WorkspaceDir); err != nil {
@@ -28,28 +33,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := EnsureStateDir(cfg.StateDir); err != nil {
+	if err := store.EnsureStateDir(cfg.StateDir); err != nil {
 		logger.Error(ctx, "state directory error: "+err.Error())
 		os.Exit(1)
 	}
 
-	dockerClient, err := NewDockerClient()
+	dockerClient, err := docker.NewDockerClient()
 	if err != nil {
 		logger.Error(ctx, "docker client error: "+err.Error())
 		os.Exit(1)
 	}
 
-	taskStore := NewTaskStore()
-	sessionStore := NewSessionStore()
-	cm := NewContainerManager(dockerClient, cfg, logger)
-	stateMgr := NewStateManager(cfg.StateDir, taskStore, sessionStore, cm, logger)
+	taskStore := store.NewTaskStore()
+	sessionStore := store.NewSessionStore()
+	cm := docker.NewContainerManager(dockerClient, cfg, logger)
+	stateMgr := store.NewStateManager(cfg.StateDir, taskStore, sessionStore, cm, logger)
 
-	taskH := NewTaskHandler(taskStore, cm, logger)
-	taskH.stateMgr = stateMgr
+	taskH := api.NewTaskHandler(taskStore, cm, logger, stateMgr)
 
-	health := &HealthHandler{}
-	sessionH := NewSessionHandler(sessionStore, cm, logger, cfg)
-	sessionH.stateMgr = stateMgr
+	health := &api.HealthHandler{}
+	sessionH := api.NewSessionHandler(sessionStore, cm, logger, cfg, stateMgr)
 
 	// Wire sessionH into stateMgr before recovery so recovered sessions can stream output.
 	stateMgr.SetSessionHandler(sessionH)
@@ -62,8 +65,8 @@ func main() {
 	// Background idle-timeout checker for sessions.
 	sessionH.StartIdleTimeoutChecker(ctx)
 
-	rl := NewRateLimiter(cfg.RateLimit)
-	router := NewRouter(health, taskH, sessionH, cfg.APIToken, rl, logger)
+	rl := api.NewRateLimiter(cfg.RateLimit)
+	router := api.NewRouter(health, taskH, sessionH, cfg.APIToken, rl, logger)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
@@ -80,7 +83,7 @@ func main() {
 		health.SetShuttingDown()
 
 		// Notify all active WebSocket sessions before shutdown.
-		terminatedMsg, _ := json.Marshal(WSServerMessage{Type: "terminated"})
+		terminatedMsg, _ := json.Marshal(api.WSServerMessage{Type: "terminated"})
 		for _, sess := range sessionStore.All() {
 			sess.ConnMu.Lock()
 			if sess.Conn != nil {
@@ -97,7 +100,7 @@ func main() {
 		// Cancel all active one-shot tasks so their containers start shutting down.
 		activeTasks := taskStore.All()
 		for _, t := range activeTasks {
-			if !isTerminalStatus(t.Status) && t.CancelFunc != nil {
+			if !store.IsTerminal(t.Status) && t.CancelFunc != nil {
 				t.CancelFunc()
 			}
 		}
@@ -109,7 +112,6 @@ func main() {
 			logger.Error(ctx, "server shutdown error: "+err.Error())
 		}
 
-		// Wait for active task goroutines to finish container cleanup within the grace window.
 		for _, t := range activeTasks {
 			if t.Done != nil {
 				select {

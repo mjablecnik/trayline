@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"fmt"
@@ -62,7 +62,6 @@ func TestTaskStore_AllCountMatchesInserts(t *testing.T) {
 
 func TestTaskStore_EvictsOldestAt101(t *testing.T) {
 	s := NewTaskStore()
-	// Insert 101 tasks; oldest is "task-0"
 	for i := 0; i < 101; i++ {
 		s.Add(&Task{
 			ID:        fmt.Sprintf("task-%d", i),
@@ -75,9 +74,9 @@ func TestTaskStore_EvictsOldestAt101(t *testing.T) {
 		t.Errorf("expected 100 tasks after eviction, got %d", len(s.All()))
 	}
 	if s.Get("task-0") != nil {
-		t.Error("expected oldest task (task-0) to be evicted, but it is still present")
+		t.Error("expected oldest task (task-0) to be evicted")
 	}
 	if s.Get("task-100") == nil {
-		t.Error("expected newest task (task-100) to be present after eviction")
+		t.Error("expected newest task (task-100) to be present")
 	}
 }

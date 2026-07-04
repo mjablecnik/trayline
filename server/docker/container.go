@@ -1,4 +1,4 @@
-package main
+package docker
 
 import (
 	"bytes"
@@ -15,10 +15,12 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+
+	"server/core"
 )
 
 const (
-	sandboxImage   = "trayline-sandbox"
+	SandboxImage   = "trayline-sandbox"
 	sandboxNetwork = "trayline-net"
 	dockerHostEnv  = "DOCKER_HOST=tcp://trayline-proxy:2375"
 	workspaceMount = "/workspace"
@@ -100,8 +102,8 @@ type pendingItem struct {
 // ContainerManager manages agent container lifecycle and enforces concurrency limits.
 type ContainerManager struct {
 	client ContainerClient
-	config *Config
-	logger *Logger
+	config *core.Config
+	logger *core.Logger
 
 	mu      sync.Mutex
 	slots   int            // available concurrency slots
@@ -109,7 +111,7 @@ type ContainerManager struct {
 }
 
 // NewContainerManager creates a ContainerManager with the given concurrency limit.
-func NewContainerManager(client ContainerClient, config *Config, logger *Logger) *ContainerManager {
+func NewContainerManager(client ContainerClient, config *core.Config, logger *core.Logger) *ContainerManager {
 	return &ContainerManager{
 		client: client,
 		config: config,
@@ -301,7 +303,6 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 
 // StartChatContainer starts a persistent interactive container.
 // The caller must have pre-acquired a slot via TryAcquireSlot before calling this.
-// On failure the slot is NOT released — the caller is responsible for calling ReleaseChatSlot.
 // The caller must also call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
 func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
@@ -348,7 +349,6 @@ func (m *ContainerManager) KillContainer(ctx context.Context, containerID, signa
 // CaptureContainerOutput reads up to 1MB of stdout/stderr from a container that
 // may already have exited. Used during startup recovery.
 func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, containerID string) (*ContainerResult, error) {
-	// If container is still running, wait for it to finish first.
 	info, err := m.client.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot inspect container: %w", err)
@@ -362,7 +362,6 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 		return result, nil
 	}
 
-	// Container already exited — just get the logs.
 	logReader, err := m.client.ContainerLogs(ctx, containerID, dockertypes.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -391,16 +390,10 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 
 // buildContainerEnv constructs the environment variable list for agent containers.
 func (m *ContainerManager) buildContainerEnv() []string {
-	// NO_COLOR=1 disables ANSI colour output in CLIs that respect the no-color.org standard.
 	return []string{dockerHostEnv, "NO_COLOR=1"}
 }
 
 // buildContainerBinds constructs the volume bind list for agent containers.
-// The workspace is always mounted. Agent-specific credential directories are
-// mounted read-only when configured, mirroring trayline-agent CLI behaviour:
-//
-//	kiro:   ~/.kiro  +  ~/.local/share/kiro-cli
-//	claude: ~/.claude + ~/.claude.json
 func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	const agentHome = "/home/agent"
 	binds := []string{m.config.WorkspaceHostDir + ":" + workspaceMount}
@@ -428,7 +421,7 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 // createAndStartContainer creates and starts a container with the given command.
 func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent string, cmd []string, interactive bool) (string, error) {
 	cfg := &container.Config{
-		Image:       sandboxImage,
+		Image:       SandboxImage,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
 		Tty:         false,
@@ -519,7 +512,7 @@ func (lw *limitWriter) Write(p []byte) (int, error) {
 // ansiRe matches ANSI/VT100 escape sequences (colours, cursor movement, etc.)
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[^[]`)
 
-// stripANSI removes all ANSI escape sequences from s.
-func stripANSI(s string) string {
+// StripANSI removes all ANSI escape sequences from s.
+func StripANSI(s string) string {
 	return ansiRe.ReplaceAllString(s, "")
 }

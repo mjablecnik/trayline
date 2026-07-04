@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"bufio"
@@ -14,6 +14,10 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
+	"server/core"
+	"server/docker"
+	"server/store"
 )
 
 var upgrader = websocket.Upgrader{
@@ -22,16 +26,16 @@ var upgrader = websocket.Upgrader{
 
 // SessionHandler handles WebSocket chat session endpoints.
 type SessionHandler struct {
-	store    *SessionStore
-	cm       *ContainerManager
-	logger   *Logger
-	config   *Config
-	stateMgr *StateManager // set after construction via field assignment
+	store    *store.SessionStore
+	cm       *docker.ContainerManager
+	logger   *core.Logger
+	config   *core.Config
+	stateMgr StateSaver
 }
 
 // NewSessionHandler creates a SessionHandler.
-func NewSessionHandler(store *SessionStore, cm *ContainerManager, logger *Logger, config *Config) *SessionHandler {
-	return &SessionHandler{store: store, cm: cm, logger: logger, config: config}
+func NewSessionHandler(store *store.SessionStore, cm *docker.ContainerManager, logger *core.Logger, config *core.Config, stateMgr StateSaver) *SessionHandler {
+	return &SessionHandler{store: store, cm: cm, logger: logger, config: config, stateMgr: stateMgr}
 }
 
 // saveState persists server state to disk, logging any error.
@@ -44,11 +48,19 @@ func (h *SessionHandler) saveState(ctx context.Context) {
 	}
 }
 
-// HandleChat handles WS /chat: validates params, upgrades connection, starts container, begins I/O.
+// StreamOutputForRecovery implements store.SessionOutputStreamer.
+// Called by StateManager after restart to re-attach output streaming for recovered sessions.
+func (h *SessionHandler) StreamOutputForRecovery(ctx context.Context, sessionID string, attached interface{}) {
+	if a, ok := attached.(dockertypes.HijackedResponse); ok {
+		go h.streamOutput(ctx, sessionID, a)
+	}
+}
+
+// HandleChat handles WS /chat.
 func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	agent := r.URL.Query().Get("agent")
 	if agent != "kiro" && agent != "claude" {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{
+		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
 			Message: `agent query parameter must be "kiro" or "claude"`,
 		})
@@ -57,9 +69,8 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	model := r.URL.Query().Get("model")
 	system := r.URL.Query().Get("system")
 
-	// Check capacity BEFORE upgrading WebSocket so we can still return HTTP 503 (Req 14.5).
 	if !h.cm.TryAcquireSlot() {
-		writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{
+		writeJSON(w, http.StatusServiceUnavailable, core.ErrorResponse{
 			Error:   "SERVICE_UNAVAILABLE",
 			Message: "server is at capacity, try again later",
 		})
@@ -77,7 +88,7 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sessionID := uuid.NewString()
 
-	sess := &Session{
+	sess := &store.Session{
 		ID:            sessionID,
 		Agent:         agent,
 		Model:         model,
@@ -93,7 +104,6 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info(r.Context(), fmt.Sprintf("session %s created (agent: %s)", sessionID, agent))
 	h.saveState(r.Context())
 
-	// Slot was pre-acquired above; StartChatContainer does not acquire another.
 	containerID, err := h.cm.StartChatContainer(ctx, agent, model, system)
 	if err != nil {
 		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to start agent container: " + err.Error()})
@@ -115,7 +125,7 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.store.Update(sessionID, func(s *Session) {
+	h.store.Update(sessionID, func(s *store.Session) {
 		s.ContainerID = containerID
 		s.Stdin = attached.Conn
 	})
@@ -135,12 +145,12 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-// HandleChatReconnect handles WS /chat/{id}: reconnects a client to an existing session.
+// HandleChatReconnect handles WS /chat/{id}.
 func (h *SessionHandler) HandleChatReconnect(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	sess := h.store.Get(id)
 	if sess == nil || !sess.Active {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{
+		writeJSON(w, http.StatusNotFound, core.ErrorResponse{
 			Error:   "NOT_FOUND",
 			Message: fmt.Sprintf("session %q not found or is no longer active", id),
 		})
@@ -150,7 +160,7 @@ func (h *SessionHandler) HandleChatReconnect(w http.ResponseWriter, r *http.Requ
 	sess.ConnMu.Lock()
 	if sess.Conn != nil {
 		sess.ConnMu.Unlock()
-		writeJSON(w, http.StatusConflict, ErrorResponse{
+		writeJSON(w, http.StatusConflict, core.ErrorResponse{
 			Error:   "CONFLICT",
 			Message: "session already has an active connection",
 		})
@@ -203,7 +213,7 @@ func (h *SessionHandler) HandleTerminateSession(w http.ResponseWriter, r *http.R
 	id := r.PathValue("id")
 	sess := h.store.Get(id)
 	if sess == nil {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{
+		writeJSON(w, http.StatusNotFound, core.ErrorResponse{
 			Error:   "NOT_FOUND",
 			Message: fmt.Sprintf("session %q not found", id),
 		})
@@ -296,21 +306,17 @@ func (h *SessionHandler) writeWSToSession(sessionID string, msg WSServerMessage)
 }
 
 // idleTurnTimeout is the quiet period after the last output line before emitting "done".
-// Clients rely on "done" to know when the agent has finished a turn (Req 8.9).
 const idleTurnTimeout = 500 * time.Millisecond
 
 // streamOutput reads from the attached container and sends output/done to the WebSocket.
-// It emits {"type":"done"} after each agent turn is detected via an idle-output timeout.
 func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, attached dockertypes.HijackedResponse) {
 	pr, pw := io.Pipe()
 
 	go func() {
 		defer pw.Close()
-		// stdcopy demultiplexes Docker's multiplexed stream into stdout and stderr.
 		stdcopy.StdCopy(pw, pw, attached.Reader)
 	}()
 
-	// Close the pipe reader when the context is cancelled so the scanner goroutine exits.
 	go func() {
 		<-ctx.Done()
 		pr.Close()
@@ -325,15 +331,12 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 		}
 	}()
 
-	// pendingDone tracks whether the agent has produced output since the last "done".
-	// When true, a "done" should be sent after idleTurnTimeout of no new output.
 	pendingDone := false
 	for {
 		if pendingDone {
 			select {
 			case line, ok := <-lineCh:
 				if !ok {
-					// Container exited — flush pending done and exit.
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 					return
 				}
@@ -341,9 +344,7 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
 				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
-				// Reset: new output arrived, keep pendingDone = true (idle timer restarts on next loop).
 			case <-time.After(idleTurnTimeout):
-				// No output for idleTurnTimeout — agent finished this turn.
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 				pendingDone = false
 			}
@@ -351,7 +352,6 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 			select {
 			case line, ok := <-lineCh:
 				if !ok {
-					// Container exited with no pending output.
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 					return
 				}
@@ -368,8 +368,7 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 // readClient reads WebSocket messages from the client and processes them.
 func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn *websocket.Conn) {
 	defer func() {
-		// On disconnect: clear conn but keep session alive for reconnection.
-		h.store.Update(sessionID, func(s *Session) {
+		h.store.Update(sessionID, func(s *store.Session) {
 			s.ConnMu.Lock()
 			if s.Conn == conn {
 				s.Conn = nil
@@ -396,7 +395,7 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 			continue
 		}
 
-		h.store.Update(sessionID, func(s *Session) {
+		h.store.Update(sessionID, func(s *store.Session) {
 			s.LastMessageAt = time.Now()
 		})
 

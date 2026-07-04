@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -17,6 +17,11 @@ const (
 	TaskFailed    TaskStatus = "failed"
 	TaskCancelled TaskStatus = "cancelled"
 )
+
+// IsTerminal reports whether a task status is in a terminal (non-progressing) state.
+func IsTerminal(s TaskStatus) bool {
+	return s == TaskCompleted || s == TaskFailed || s == TaskCancelled
+}
 
 // Task represents a one-shot agent execution unit.
 type Task struct {
@@ -113,47 +118,4 @@ func (s *TaskStore) All() []*Task {
 		all = append(all, t)
 	}
 	return all
-}
-
-// --- API request/response types ---
-
-// RunRequest is the body for POST /run.
-type RunRequest struct {
-	Prompt       string `json:"prompt"`
-	Agent        string `json:"agent"`
-	Model        string `json:"model,omitempty"`
-	System       string `json:"system,omitempty"`
-	OutputFormat string `json:"output_format,omitempty"`
-}
-
-// RunResponse is returned when the task completes within the 30-second long-poll window.
-type RunResponse struct {
-	ID          string     `json:"id"`
-	Status      TaskStatus `json:"status"`
-	Agent       string     `json:"agent"`
-	Result      string     `json:"result,omitempty"`
-	Error       string     `json:"error,omitempty"`
-	Valid        *bool      `json:"valid,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-}
-
-// RunAcceptedResponse is returned when the task is still running after 30 seconds.
-type RunAcceptedResponse struct {
-	ID     string     `json:"id"`
-	Status TaskStatus `json:"status"`
-}
-
-// TaskSummary is one item in the GET /runs response array.
-type TaskSummary struct {
-	ID        string     `json:"id"`
-	Status    TaskStatus `json:"status"`
-	Agent     string     `json:"agent"`
-	CreatedAt time.Time  `json:"created_at"`
-}
-
-// ErrorResponse is the standard error body for all error responses.
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
 }

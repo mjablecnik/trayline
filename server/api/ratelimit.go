@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"math"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"server/core"
 )
 
 type ipLimiter struct {
@@ -41,7 +43,6 @@ func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
 
 	ipl, ok := rl.limiters[ip]
 	if !ok {
-		// Rate: rpm/60 tokens per second; burst: rpm tokens total.
 		r := rate.Limit(float64(rl.rpm) / 60.0)
 		ipl = &ipLimiter{
 			limiter: rate.NewLimiter(r, rl.rpm),
@@ -86,7 +87,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 				retryAfter = 1
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-			writeJSON(w, http.StatusTooManyRequests, ErrorResponse{
+			writeJSON(w, http.StatusTooManyRequests, core.ErrorResponse{
 				Error:   "RATE_LIMITED",
 				Message: "too many requests, retry after " + strconv.Itoa(retryAfter) + " seconds",
 			})

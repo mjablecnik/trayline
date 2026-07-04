@@ -31,7 +31,11 @@ fi
 # ---------------------------------------------------------------------------
 # Ensure docker-socket-proxy is running.
 # ---------------------------------------------------------------------------
-if ! docker ps --filter "name=^/${PROXY_NAME}$" --format '{{.Names}}' | grep -q "^${PROXY_NAME}$"; then
+PROXY_EXISTS=$(docker ps -a --filter "name=^/${PROXY_NAME}$" --format '{{.Names}}')
+PROXY_RUNNING=$(docker ps --filter "name=^/${PROXY_NAME}$" --format '{{.Names}}')
+
+if [ -z "$PROXY_EXISTS" ]; then
+  # Container does not exist at all — create and start it.
   echo "Starting docker-socket-proxy ($PROXY_NAME)..."
   docker run -d \
     --name "$PROXY_NAME" \
@@ -43,17 +47,21 @@ if ! docker ps --filter "name=^/${PROXY_NAME}$" --format '{{.Names}}' | grep -q 
     -e NETWORKS=1 \
     -e POST=1 \
     "$PROXY_IMAGE"
+elif [ -z "$PROXY_RUNNING" ]; then
+  # Container exists but is stopped — just start it.
+  echo "Restarting stopped proxy ($PROXY_NAME)..."
+  docker start "$PROXY_NAME"
 else
-  # Make sure it is connected to the network (handles the case where it was
-  # started manually without --network).
-  if ! docker network inspect "$NETWORK_NAME" \
-      --format '{{range .Containers}}{{.Name}} {{end}}' \
-      | grep -qw "$PROXY_NAME"; then
-    echo "Connecting $PROXY_NAME to $NETWORK_NAME..."
-    docker network connect "$NETWORK_NAME" "$PROXY_NAME"
-  else
-    echo "Proxy $PROXY_NAME is already running and connected."
-  fi
+  echo "Proxy $PROXY_NAME is already running."
+fi
+
+# Make sure it is connected to the network (handles the case where it was
+# started manually without --network).
+if ! docker network inspect "$NETWORK_NAME" \
+    --format '{{range .Containers}}{{.Name}} {{end}}' \
+    | grep -qw "$PROXY_NAME"; then
+  echo "Connecting $PROXY_NAME to $NETWORK_NAME..."
+  docker network connect "$NETWORK_NAME" "$PROXY_NAME"
 fi
 
 # ---------------------------------------------------------------------------

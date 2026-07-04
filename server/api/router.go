@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"runtime/debug"
 
 	"github.com/google/uuid"
+
+	"server/core"
 )
 
 // NewRouter builds and returns the HTTP ServeMux with all routes and middleware applied.
@@ -16,7 +18,7 @@ func NewRouter(
 	sessionH *SessionHandler,
 	authToken string,
 	rl *RateLimiter,
-	logger *Logger,
+	logger *core.Logger,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -42,19 +44,19 @@ func NewRouter(
 // requestIDMiddleware attaches a unique request ID to every request context.
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := WithRequestID(r.Context(), uuid.NewString())
+		ctx := core.WithRequestID(r.Context(), uuid.NewString())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // recoveryMiddleware catches panics in handlers and returns HTTP 500.
-func recoveryMiddleware(logger *Logger, next http.Handler) http.Handler {
+func recoveryMiddleware(logger *core.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
 				stack := debug.Stack()
 				logger.Error(r.Context(), fmt.Sprintf("panic recovered: %v\n%s", rec, stack))
-				writeJSON(w, http.StatusInternalServerError, ErrorResponse{
+				writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
 					Error:   "INTERNAL_ERROR",
 					Message: "an unexpected error occurred",
 				})

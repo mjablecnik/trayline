@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -128,10 +128,8 @@ func LoadConfig() (*Config, error) {
 
 	// Agent credential mounts — mirrors what trayline-agent does on the CLI.
 	// All are optional; if unset the corresponding mount is simply skipped.
-	// Kiro: ~/.kiro (workspace config) and ~/.local/share/kiro-cli (auth token)
 	cfg.KiroHostDir = os.Getenv("KIRO_HOST_DIR")
 	cfg.KiroCredsHostDir = os.Getenv("KIRO_CREDS_HOST_DIR")
-	// Claude: ~/.claude (session data) and ~/.claude.json (global config/token)
 	cfg.ClaudeHostDir = os.Getenv("CLAUDE_HOST_DIR")
 	cfg.ClaudeConfigHostFile = os.Getenv("CLAUDE_CONFIG_HOST_FILE")
 

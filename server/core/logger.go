@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 type contextKey string
 
-const requestIDKey contextKey = "requestId"
+const RequestIDKey contextKey = "requestId"
 
 // Logger writes newline-delimited JSON log entries to stdout.
 type Logger struct {
@@ -31,7 +31,7 @@ type logEntry struct {
 
 func (l *Logger) log(ctx context.Context, level, message string) {
 	requestID := ""
-	if v := ctx.Value(requestIDKey); v != nil {
+	if v := ctx.Value(RequestIDKey); v != nil {
 		requestID, _ = v.(string)
 	}
 
@@ -49,7 +49,6 @@ func (l *Logger) log(ctx context.Context, level, message string) {
 
 	data, err := json.Marshal(entry)
 	if err != nil {
-		// Fallback: write a minimal valid JSON entry.
 		fmt.Fprintf(os.Stdout, `{"timestamp":%q,"level":"error","message":"failed to marshal log entry","requestId":"%s"}`+"\n",
 			time.Now().UTC().Format(time.RFC3339), requestID)
 		return
@@ -64,12 +63,12 @@ func (l *Logger) Error(ctx context.Context, message string) { l.log(ctx, "error"
 
 // WithRequestID returns a new context carrying the given request ID.
 func WithRequestID(ctx context.Context, requestID string) context.Context {
-	return context.WithValue(ctx, requestIDKey, requestID)
+	return context.WithValue(ctx, RequestIDKey, requestID)
 }
 
 // RequestIDFromContext extracts the request ID from a context.
 func RequestIDFromContext(ctx context.Context) string {
-	if v := ctx.Value(requestIDKey); v != nil {
+	if v := ctx.Value(RequestIDKey); v != nil {
 		if id, ok := v.(string); ok {
 			return id
 		}

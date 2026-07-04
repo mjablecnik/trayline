@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"server/core"
+	"server/docker"
 )
 
 const stateFileName = "state.json"
@@ -45,18 +48,29 @@ type serverState struct {
 	Sessions []persistedSession `json:"sessions"`
 }
 
+// OutputStreamer is implemented by the session handler to re-attach output streaming
+// after a server restart. Declared here to avoid an import cycle.
+type OutputStreamer interface {
+	StreamOutput(ctx context.Context, sessionID string, attached interface{})
+}
+
 // StateManager handles state persistence to disk and startup recovery.
 type StateManager struct {
 	stateDir     string
 	taskStore    *TaskStore
 	sessionStore *SessionStore
-	cm           *ContainerManager
-	logger       *Logger
-	sessionH     *SessionHandler // set via SetSessionHandler before Recover is called
+	cm           *docker.ContainerManager
+	logger       *core.Logger
+	sessionH     SessionOutputStreamer // set via SetSessionHandler before Recover is called
+}
+
+// SessionOutputStreamer is the minimal interface StateManager needs from the session handler.
+type SessionOutputStreamer interface {
+	StreamOutputForRecovery(ctx context.Context, sessionID string, attached interface{})
 }
 
 // NewStateManager creates a StateManager.
-func NewStateManager(stateDir string, tasks *TaskStore, sessions *SessionStore, cm *ContainerManager, logger *Logger) *StateManager {
+func NewStateManager(stateDir string, tasks *TaskStore, sessions *SessionStore, cm *docker.ContainerManager, logger *core.Logger) *StateManager {
 	return &StateManager{
 		stateDir:     stateDir,
 		taskStore:    tasks,
@@ -68,12 +82,12 @@ func NewStateManager(stateDir string, tasks *TaskStore, sessions *SessionStore, 
 
 // SetSessionHandler injects the session handler used to re-attach recovered sessions.
 // Must be called before Recover.
-func (sm *StateManager) SetSessionHandler(h *SessionHandler) {
+func (sm *StateManager) SetSessionHandler(h SessionOutputStreamer) {
 	sm.sessionH = h
 }
 
 // EnsureStateDir verifies that the state directory exists and is writable,
-// creating it if necessary. Returns an error if it cannot be created or written to.
+// creating it if necessary.
 func EnsureStateDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create STATE_DIR %q: %w", dir, err)
@@ -124,7 +138,7 @@ func (sm *StateManager) buildState() serverState {
 			OutputFormat: t.OutputFormat,
 			Result:       t.Result,
 			Error:        t.Error,
-			Valid:         t.Valid,
+			Valid:        t.Valid,
 			CreatedAt:    t.CreatedAt,
 			CompletedAt:  t.CompletedAt,
 			ContainerID:  t.ContainerID,
@@ -149,13 +163,12 @@ func (sm *StateManager) buildState() serverState {
 }
 
 // Recover reads the state file (if it exists) and reconciles persisted tasks and
-// sessions against the live Docker environment. On return the in-memory stores
-// are populated and the state file reflects the reconciled state.
+// sessions against the live Docker environment.
 func (sm *StateManager) Recover(ctx context.Context) error {
 	path := filepath.Join(sm.stateDir, stateFileName)
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return nil // no prior state — start clean
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to read state file: %w", err)
@@ -169,7 +182,6 @@ func (sm *StateManager) Recover(ctx context.Context) error {
 	sm.recoverTasks(ctx, state.Tasks)
 	sm.recoverSessions(ctx, state.Sessions)
 
-	// Persist reconciled state so stale entries don't reappear on the next start.
 	_ = sm.Save()
 	return nil
 }
@@ -187,7 +199,7 @@ func (sm *StateManager) recoverTasks(ctx context.Context, ptasks []persistedTask
 			OutputFormat: pt.OutputFormat,
 			Result:       pt.Result,
 			Error:        pt.Error,
-			Valid:         pt.Valid,
+			Valid:        pt.Valid,
 			CreatedAt:    pt.CreatedAt,
 			CompletedAt:  pt.CompletedAt,
 			ContainerID:  pt.ContainerID,
@@ -196,11 +208,9 @@ func (sm *StateManager) recoverTasks(ctx context.Context, ptasks []persistedTask
 
 		switch t.Status {
 		case TaskCompleted, TaskFailed, TaskCancelled:
-			// Already terminal — restore as-is.
 			close(t.Done)
 
 		case TaskQueued:
-			// Never started a container — fail it.
 			t.Status = TaskFailed
 			t.Error = "server restarted before task could be executed"
 			now := time.Now()
@@ -208,7 +218,6 @@ func (sm *StateManager) recoverTasks(ctx context.Context, ptasks []persistedTask
 			close(t.Done)
 
 		case TaskRunning:
-			// Check if the container still exists.
 			if t.ContainerID == "" {
 				t.Status = TaskFailed
 				t.Error = "server restarted and container was lost"
@@ -239,7 +248,6 @@ func (sm *StateManager) recoverTasks(ctx context.Context, ptasks []persistedTask
 			t.CompletedAt = &now
 			close(t.Done)
 
-			// Clean up the container regardless of outcome.
 			if t.ContainerID != "" {
 				_ = sm.cm.StopAndRemoveContainer(ctx, t.ContainerID)
 			}
@@ -254,14 +262,12 @@ func (sm *StateManager) recoverSessions(ctx context.Context, psessions []persist
 	for _, ps := range psessions {
 		info, err := sm.cm.InspectContainer(ctx, ps.ContainerID)
 		if err != nil || info.State == nil || !info.State.Running {
-			// Container gone — session is terminated, don't restore.
 			if sm.logger != nil {
 				sm.logger.Info(ctx, fmt.Sprintf("session %s: container %s not running after restart, discarding", ps.ID, ps.ContainerID))
 			}
 			continue
 		}
 
-		// Container still running — re-attach stdin/stdout and restore the session.
 		sessCtx, cancel := context.WithCancel(context.Background())
 
 		attached, err := sm.cm.AttachChatContainer(sessCtx, ps.ContainerID)
@@ -273,7 +279,6 @@ func (sm *StateManager) recoverSessions(ctx context.Context, psessions []persist
 			continue
 		}
 
-		// Track slot usage: each running container occupies one concurrency slot.
 		slotAcquired := sm.cm.TryAcquireSlot()
 
 		sess := &Session{
@@ -291,9 +296,8 @@ func (sm *StateManager) recoverSessions(ctx context.Context, psessions []persist
 		}
 		sm.sessionStore.Add(sess)
 
-		// Stream container output to any reconnected WebSocket client.
 		if sm.sessionH != nil {
-			go sm.sessionH.streamOutput(sessCtx, ps.ID, attached)
+			sm.sessionH.StreamOutputForRecovery(sessCtx, ps.ID, attached)
 		}
 
 		go func(sessID, containerID string, releaseSlot bool) {
