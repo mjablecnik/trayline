@@ -207,20 +207,10 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 	interruptCount := 0
 	fmtr := NewFormatter()
 	streaming := false
-	var doneTimer *time.Timer
-	doneTimerCh := func() <-chan time.Time {
-		if doneTimer != nil {
-			return doneTimer.C
-		}
-		return nil
-	}
+	var lastOutputTime time.Time
 
 	for {
 		select {
-		case <-doneTimerCh():
-			doneTimer = nil
-			showPrompt()
-
 		case sr := <-serverCh:
 			if sr.err != nil {
 				fmt.Fprintln(os.Stderr, "Error: WebSocket connection closed unexpectedly.")
@@ -234,22 +224,21 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 					showPrompt()
 				}
 			case "output":
-				if doneTimer != nil {
-					doneTimer.Stop()
-					doneTimer = nil
-					// This is a follow-up response chunk — add separator
-					fmt.Fprint(os.Stderr, fmtr.Yellow(os.Stderr, "  ···\n"))
-				}
 				if !streaming {
 					streaming = true
 					fmt.Fprint(os.Stderr, fmtr.Cyan(os.Stderr, "🤖 "))
+				} else if !lastOutputTime.IsZero() && time.Since(lastOutputTime) > 1*time.Second {
+					// Gap in streaming — agent was doing tool use, add newline separator
+					fmt.Print("\n")
 				}
 				fmt.Print(msg.Data)
+				lastOutputTime = time.Now()
 			case "done":
 				fmt.Print("\n\n")
 				streaming = false
+				lastOutputTime = time.Time{}
 				interruptCount = 0
-				doneTimer = time.NewTimer(150 * time.Millisecond)
+				showPrompt()
 			case "error":
 				fmt.Fprintln(os.Stderr, msg.Message)
 			case "context_compacted":
