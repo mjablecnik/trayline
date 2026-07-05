@@ -424,7 +424,7 @@ func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent st
 		Image:       SandboxImage,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
-		Tty:         false,
+		Tty:         interactive,
 		AttachStdin: interactive,
 		OpenStdin:   interactive,
 		StdinOnce:   interactive,

@@ -5,13 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
@@ -308,24 +306,22 @@ func (h *SessionHandler) writeWSToSession(sessionID string, msg WSServerMessage)
 // idleTurnTimeout is the quiet period after the last output line before emitting "done".
 const idleTurnTimeout = 500 * time.Millisecond
 
-// streamOutput reads from the attached container and sends output/done to the WebSocket.
+// streamOutput reads from the attached container (TTY mode — raw stream, no Docker mux header)
+// and sends output/done to the WebSocket.
 func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, attached dockertypes.HijackedResponse) {
-	pr, pw := io.Pipe()
-
-	go func() {
-		defer pw.Close()
-		stdcopy.StdCopy(pw, pw, attached.Reader)
-	}()
+	// TTY mode: attached.Reader is a raw stream (no stdcopy header).
+	// Read directly from it.
+	reader := attached.Reader
 
 	go func() {
 		<-ctx.Done()
-		pr.Close()
+		attached.Close()
 	}()
 
 	lineCh := make(chan string, 32)
 	go func() {
 		defer close(lineCh)
-		scanner := bufio.NewScanner(pr)
+		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
 			lineCh <- scanner.Text()
 		}
