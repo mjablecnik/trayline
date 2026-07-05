@@ -8,23 +8,26 @@ Compiles into a single static binary with no runtime dependencies beyond the Go 
 
 ```bash
 cd orchestrator
-go build -ldflags "-X main.version=1.0.0" -o trayline-run .
+go build -o trayline-run .
 ```
 
 ## Usage
 
 ```
-trayline-run --pipeline <path> [--dry-run] [--verbose] [--var key=value ...]
+trayline-run <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--restart] [--var key=value ...]
+trayline-run flow <pipeline> [--then <pipeline> ...] [--dry-run] [--verbose] [--no-lifecycle]
 trayline-run --version
 trayline-run --help
 ```
 
 Flags:
 
-- `--pipeline` — Path to pipeline YAML file (required)
 - `--var key=value` — Set or override a pipeline variable (repeatable)
 - `--dry-run` — Print pipeline steps without executing
 - `--verbose` — Stream trayline-agent output to stdout in real time
+- `--log-llm` — Log all LLM requests and responses to llm-debug.log
+- `--no-lifecycle` — Skip lifecycle.yaml before/after steps
+- `--restart` — Ignore checkpoint and start pipeline from the beginning
 - `--version` — Print version and exit
 - `--help, -h` — Show help message
 

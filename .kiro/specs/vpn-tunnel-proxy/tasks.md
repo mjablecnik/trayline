@@ -6,8 +6,8 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
 
 ## Tasks
 
-- [ ] 1. Set up project structure and configuration templates
-  - [ ] 1.1 Create tunnel directory structure and environment templates
+- [x] 1. Set up project structure and configuration templates
+  - [x] 1.1 Create tunnel directory structure and environment templates
     - Create `tunnel/relay/`, `tunnel/home-agent/`, `tunnel/scripts/` directories
     - Create `tunnel/relay/.env.example` with all relay WireGuard and Caddy variables
     - Create `tunnel/home-agent/.env.example` with all home agent WireGuard variables plus UPSTREAM_PORT, TRAYLINE_HOST, and TRAYLINE_PORT
@@ -17,7 +17,7 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Update root `.gitignore` to cover `tunnel/**/.env`, `tunnel/**/.env-prod`
     - _Requirements: 6.5, 4.4, 4.5_
 
-  - [ ] 1.2 Create WireGuard key generation script
+  - [x] 1.2 Create WireGuard key generation script
     - Create `tunnel/scripts/generate-keys.sh` following script portability pattern (`SCRIPT_DIR`/`PROJECT_DIR`)
     - Check for `wg` command availability, exit with error if missing
     - Generate private/public key pairs for relay and home agent using `wg genkey` / `wg pubkey`
@@ -26,14 +26,14 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Warn on stderr if existing `.env` files already contain key values, do NOT overwrite
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.6_
 
-- [ ] 2. Implement Relay Container
-  - [ ] 2.1 Create Relay Dockerfile
+- [x] 2. Implement Relay Container
+  - [x] 2.1 Create Relay Dockerfile
     - Create `tunnel/relay/Dockerfile` using Alpine base image with WireGuard tools, iptables, iproute2, and Caddy installed
     - Keep image minimal (target under 100 MB)
     - Set entrypoint to `entrypoint.sh`
     - _Requirements: 1.4, 1.3_
 
-  - [ ] 2.2 Create Relay entrypoint script (process supervisor)
+  - [x] 2.2 Create Relay entrypoint script (process supervisor)
     - Create `tunnel/relay/entrypoint.sh`
     - Generate `/etc/wireguard/wg0.conf` from environment variables (Interface: PrivateKey, Address, ListenPort; Peer: PublicKey, PresharedKey, AllowedIPs)
     - Bring up WireGuard interface with `wg-quick up wg0`
@@ -43,14 +43,14 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Handle SIGTERM: run `wg-quick down wg0`, stop Caddy, exit
     - _Requirements: 1.5, 1.6, 2.6, 4.1, 3.1, 3.2, 3.3, 3.5, 3.6_
 
-  - [ ] 2.3 Create Caddyfile template
+  - [x] 2.3 Create Caddyfile template
     - Create `tunnel/relay/Caddyfile` with reverse proxy config using environment variable placeholders
     - Configure header forwarding (X-Forwarded-For, X-Forwarded-Proto, Host)
     - Support WebSocket upgrade pass-through
     - Set 30-second upstream timeout
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6_
 
-  - [ ] 2.4 Create Relay health check script
+  - [x] 2.4 Create Relay health check script
     - Create `tunnel/relay/health.sh`
     - Check if `wg0` interface exists via `ip link show wg0`
     - Check if peer has a recent handshake (within 180 seconds) via `wg show wg0 latest-handshakes`
@@ -73,14 +73,14 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Create `tunnel/relay/test/health_test.bats`
     - **Validates: Requirements 7.1, 7.2**
 
-- [ ] 3. Implement Home Agent Container
-  - [ ] 3.1 Create Home Agent Dockerfile
+- [x] 3. Implement Home Agent Container
+  - [x] 3.1 Create Home Agent Dockerfile
     - Create `tunnel/home-agent/Dockerfile` using Alpine base image with WireGuard tools and `socat` installed
     - Keep image minimal
     - Set entrypoint to `entrypoint.sh`
     - _Requirements: 5.1, 5.3, 5.7_
 
-  - [ ] 3.2 Create Home Agent entrypoint script
+  - [x] 3.2 Create Home Agent entrypoint script
     - Create `tunnel/home-agent/entrypoint.sh`
     - Generate `/etc/wireguard/wg0.conf` from environment variables (Interface: PrivateKey, Address; Peer: PublicKey, PresharedKey, Endpoint, AllowedIPs, PersistentKeepalive)
     - Bring up WireGuard interface with `wg-quick up wg0`
@@ -98,11 +98,11 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Create `tunnel/home-agent/test/monitor_test.bats`
     - **Validates: Requirements 7.4**
 
-- [ ] 4. Checkpoint - Ensure containers build and core logic works
+- [x] 4. Checkpoint - Ensure containers build and core logic works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Create Fly.io deployment configuration
-  - [ ] 5.1 Create fly.toml for Relay Container
+- [x] 5. Create Fly.io deployment configuration
+  - [x] 5.1 Create fly.toml for Relay Container
     - Create `tunnel/relay/fly.toml` with app name `trayline-relay`, region `fra`
     - Configure TCP service on port 443 for HTTPS (Caddy)
     - Configure UDP service on port 51820 for WireGuard
@@ -111,7 +111,7 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Add non-sensitive env vars in `[env]` section (WG_SERVER_IP, WG_SUBNET, WG_LISTEN_PORT, WG_HOME_AGENT_IP, WG_PEER_ALLOWED_IPS, UPSTREAM_PORT)
     - _Requirements: 1.1, 1.2, 1.3, 4.3_
 
-  - [ ] 5.2 Create deploy script for Relay Container
+  - [x] 5.2 Create deploy script for Relay Container
     - Create `tunnel/relay/scripts/deploy.sh` following script portability pattern
     - Parse APP_NAME from `fly.toml`
     - Load `.env-prod` (or `$DPLOY_ENV_FILE` if set)
@@ -121,26 +121,26 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Run `fly deploy`
     - _Requirements: 1.1_
 
-- [ ] 6. Create local Docker management scripts
-  - [ ] 6.1 Create Relay start/stop scripts for local testing
+- [x] 6. Create local Docker management scripts
+  - [x] 6.1 Create Relay start/stop scripts for local testing
     - Create `tunnel/relay/scripts/build.sh` — builds the Docker image with `--no-cache`
     - Create `tunnel/relay/scripts/start-docker.sh` — builds image, stops/removes existing container, starts relay locally with `--env-file .env` and `--cap-add=NET_ADMIN`
     - Create `tunnel/relay/scripts/stop-docker.sh` — stops and removes relay container, exits gracefully if not found
     - All scripts follow portability pattern and are idempotent
     - _Requirements: 8.1, 8.2, 8.5, 8.6, 8.7_
 
-  - [ ] 6.2 Create Home Agent start/stop scripts
+  - [x] 6.2 Create Home Agent start/stop scripts
     - Create `tunnel/home-agent/scripts/build.sh` — builds the Docker image
     - Create `tunnel/home-agent/scripts/start-wireguard.sh` — resolves own directory, loads `.env`, ensures trayline-net exists, removes existing container, starts with `--env-file .env`, `--cap-add=NET_ADMIN`, `--network trayline-net`
     - Create `tunnel/home-agent/scripts/stop-wireguard.sh` — stops and removes home agent container, exits gracefully if not found
     - All scripts follow portability pattern and are idempotent
     - _Requirements: 5.2, 5.4, 5.6, 8.3, 8.4, 8.5, 8.6, 8.7_
 
-- [ ] 7. Checkpoint - Verify scripts and deployment config
+- [x] 7. Checkpoint - Verify scripts and deployment config
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Documentation and integration
-  - [ ] 8.1 Create tunnel README
+- [x] 8. Documentation and integration
+  - [x] 8.1 Create tunnel README
     - Create `tunnel/README.md` with setup guide covering:
       - Prerequisites (Docker, WireGuard tools, Fly.io CLI)
       - Key generation instructions
@@ -156,7 +156,7 @@ Implement a reverse VPN tunnel using WireGuard to provide secure remote access t
     - Add `hadolint` validation for both Dockerfiles
     - _Requirements: 8.5, 5.4, 6.5_
 
-- [ ] 9. Final checkpoint - Full integration verification
+- [x] 9. Final checkpoint - Full integration verification
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
