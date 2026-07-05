@@ -233,7 +233,7 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 					fmt.Fprint(os.Stderr, fmtr.Cyan(os.Stderr, "🤖 "))
 				} else if !lastOutputTime.IsZero() && time.Since(lastOutputTime) > 1*time.Second {
 					// Gap in streaming — agent was doing tool use, add newline separator
-					fmt.Print("\n")
+					fmt.Print("\n\n")
 				}
 				fmt.Print(msg.Data)
 				lastOutputTime = time.Now()
