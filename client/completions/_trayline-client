@@ -49,6 +49,7 @@ _trayline_client() {
                         '--model[Model override]:MODEL:' \
                         '--system[System prompt override]:PROMPT:' \
                         '--format[Output format]:FORMAT:(json text markdown)' \
+                        '*--file[Upload a file alongside the prompt (repeatable)]:FILE:_files' \
                         '--help[Show help for this subcommand]' \
                         '-h[Show help for this subcommand]'
                     ;;

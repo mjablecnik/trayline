@@ -20,6 +20,8 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `TASK_TIMEOUT` | `10m` | No | Maximum execution time for one-shot tasks |
 | `RATE_LIMIT` | `60` | No | Requests per minute per IP address |
 | `STATE_DIR` | `/tmp/trayline-server` | No | Directory for persisting server state across restarts |
+| `MAX_UPLOAD_SIZE` | `52428800` (50 MB) | No | Maximum size in bytes per uploaded file |
+| `MAX_UPLOAD_FILES` | `10` | No | Maximum number of files per request |
 
 Copy `.env.example` to `.env` and fill in the required values before running.
 
@@ -75,6 +77,27 @@ Content-Type: application/json
 
 Holds the connection open for up to 30 seconds. Returns HTTP 200 with the full result if the agent finishes within that window, or HTTP 202 with `{"id": "...", "status": "running"}` if it times out.
 
+#### Submit a task with file uploads
+
+```
+POST /run
+Content-Type: multipart/form-data
+```
+
+Form fields mirror the JSON body (`prompt`, `agent`, `model`, `system`, `output_format`). Files are attached under the `files` field (repeatable). Limits: max 10 files, 50 MB per file (configurable via `MAX_UPLOAD_FILES` and `MAX_UPLOAD_SIZE`).
+
+Files are written to `uploads/{taskID}/` inside the workspace and are accessible to the agent at `/workspace/uploads/{taskID}/`. The server prepends a metadata block to the prompt so the agent knows where to find them:
+
+```
+[Uploaded Files]
+- report.pdf → /workspace/uploads/abc-123/report.pdf
+- data.csv → /workspace/uploads/abc-123/data.csv
+
+<original prompt here>
+```
+
+Uploaded files are automatically deleted when the task reaches a terminal state.
+
 #### Get task status
 
 ```
@@ -114,20 +137,43 @@ Upon connection, the server sends:
 {"type": "session_started", "sessionId": "<uuid>"}
 ```
 
-**Client messages:**
+**Client messages (text frames):**
 ```json
 {"type": "message", "prompt": "Hello"}
 {"type": "interrupt"}
 {"type": "terminate"}
 ```
 
-**Server messages:**
+**Client messages (binary frames — file upload):**
+
+Binary frames use a simple header format:
+
+```
+[4 bytes: filename length, big-endian uint32]
+[N bytes: filename, UTF-8]
+[remaining bytes: file content]
+```
+
+On success, the server responds with:
+```json
+{"type": "file_uploaded", "data": "report.pdf"}
+```
+
+On error:
+```json
+{"type": "error", "message": "file \"big.zip\" exceeds maximum size of 52428800 bytes"}
+```
+
+Files uploaded during a session are stored at `/workspace/uploads/{sessionID}/` and their paths are prepended to the next text message prompt automatically. Uploaded files are deleted when the session terminates.
+
+**Server messages (text frames):**
 ```json
 {"type": "output", "data": "..."}
 {"type": "done"}
 {"type": "error", "message": "..."}
 {"type": "terminated"}
 {"type": "context_compacted"}
+{"type": "file_uploaded", "data": "<filename>"}
 ```
 
 #### Reconnect to a session
