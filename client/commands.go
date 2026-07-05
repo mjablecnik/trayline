@@ -79,10 +79,12 @@ Flags:
   --model MODEL       Model override (optional)
   --system PROMPT     System prompt override (optional)
   --format FORMAT     Output format: "json", "text", or "markdown" (optional)
+  --file PATH         Upload a file alongside the prompt (repeatable, max 10 files, 50 MB each)
 
 Examples:
   trayline-client run --agent claude --prompt "Explain this error"
   trayline-client run --agent kiro --prompt "Summarise" --format markdown
+  trayline-client run --agent claude --prompt "Analyse this data" --file report.csv --file schema.json
 `,
 	"tasks": `Usage:
   trayline-client tasks

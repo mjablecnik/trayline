@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -387,6 +388,139 @@ func TestHandleRun_ServerUnreachable(t *testing.T) {
 	code := handleRun([]string{"--agent", "claude", "--prompt", "hi"}, cfg)
 	if code != 1 {
 		t.Errorf("expected exit 1, got %d", code)
+	}
+}
+
+// --- --file flag: parsing and validation ---
+
+func TestHandleRun_FileFlag_NonExistentFile(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+	code := handleRun([]string{
+		"--agent", "claude", "--prompt", "hi",
+		"--file", "/nonexistent/path/file.txt",
+	}, runTestConfig(ts))
+	if code != 2 {
+		t.Errorf("expected exit 2 for non-existent file, got %d", code)
+	}
+}
+
+func TestHandleRun_FileFlag_ValidFile_SendsMultipart(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "data.txt")
+	if err := os.WriteFile(tmpFile, []byte("file content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotContentType string
+	now := time.Now()
+	run := RunResponse{ID: "t-mp", Status: "completed", Agent: "claude", CreatedAt: now}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotContentType = r.Header.Get("Content-Type")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(run)
+	}))
+	defer ts.Close()
+
+	code := handleRun([]string{
+		"--agent", "claude", "--prompt", "hello", "--file", tmpFile,
+	}, runTestConfig(ts))
+	if code != 0 {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+	if !strings.HasPrefix(gotContentType, "multipart/form-data") {
+		t.Errorf("expected multipart content type, got %q", gotContentType)
+	}
+}
+
+func TestHandleRun_FileFlag_MultipleFiles_FormFieldsAndFiles(t *testing.T) {
+	dir := t.TempDir()
+	f1 := filepath.Join(dir, "a.txt")
+	f2 := filepath.Join(dir, "b.csv")
+	if err := os.WriteFile(f1, []byte("aaa"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f2, []byte("bbb"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	run := RunResponse{ID: "t-mp2", Status: "completed", Agent: "kiro", CreatedAt: now}
+
+	var gotPrompt, gotAgent string
+	var gotFileNames []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(10 << 20); err == nil {
+			gotPrompt = r.FormValue("prompt")
+			gotAgent = r.FormValue("agent")
+			for _, fhs := range r.MultipartForm.File {
+				for _, fh := range fhs {
+					gotFileNames = append(gotFileNames, fh.Filename)
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(run)
+	}))
+	defer ts.Close()
+
+	code := handleRun([]string{
+		"--agent", "kiro", "--prompt", "analyze", "--file", f1, "--file", f2,
+	}, runTestConfig(ts))
+	if code != 0 {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+	if gotPrompt != "analyze" {
+		t.Errorf("prompt: got %q", gotPrompt)
+	}
+	if gotAgent != "kiro" {
+		t.Errorf("agent: got %q", gotAgent)
+	}
+	if len(gotFileNames) != 2 {
+		t.Errorf("expected 2 files, got %d: %v", len(gotFileNames), gotFileNames)
+	}
+}
+
+func TestHandleRun_NoFileFlagUsesJSON(t *testing.T) {
+	var gotContentType string
+	now := time.Now()
+	run := RunResponse{ID: "t-json", Status: "completed", Agent: "claude", CreatedAt: now}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotContentType = r.Header.Get("Content-Type")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(run)
+	}))
+	defer ts.Close()
+
+	code := handleRun([]string{"--agent", "claude", "--prompt", "hi"}, runTestConfig(ts))
+	if code != 0 {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+	if gotContentType != "application/json" {
+		t.Errorf("expected application/json content type, got %q", gotContentType)
+	}
+}
+
+func TestHandleRun_FileFlag_SecondFileNonExistent(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "real.txt")
+	if err := os.WriteFile(tmpFile, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+
+	code := handleRun([]string{
+		"--agent", "claude", "--prompt", "hi",
+		"--file", tmpFile,
+		"--file", "/no/such/file.pdf",
+	}, runTestConfig(ts))
+	if code != 2 {
+		t.Errorf("expected exit 2 for non-existent second file, got %d", code)
 	}
 }
 

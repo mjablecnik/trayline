@@ -5,8 +5,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
+
+// stringSliceFlag implements flag.Value to allow a flag to be specified multiple times.
+type stringSliceFlag []string
+
+func (f *stringSliceFlag) String() string { return strings.Join(*f, ", ") }
+func (f *stringSliceFlag) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
 
 const defaultPollInterval = 2 * time.Second
 const defaultPollTimeout = 10 * time.Minute
@@ -21,6 +31,8 @@ func handleRun(args []string, cfg *Config) int {
 	modelFlag  := fs.String("model", "", "")
 	systemFlag := fs.String("system", "", "")
 	formatFlag := fs.String("format", "", "")
+	var fileFlag stringSliceFlag
+	fs.Var(&fileFlag, "file", "")
 
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -43,6 +55,15 @@ func handleRun(args []string, cfg *Config) int {
 		return 2
 	}
 
+	for _, path := range fileFlag {
+		f, err := os.Open(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: Cannot read file %q: %v\n", path, err)
+			return 2
+		}
+		f.Close()
+	}
+
 	req := RunRequest{
 		Agent:        *agentFlag,
 		Prompt:       *promptFlag,
@@ -51,7 +72,51 @@ func handleRun(args []string, cfg *Config) int {
 		OutputFormat: *formatFlag,
 	}
 
+	if len(fileFlag) > 0 {
+		return executeRunWithFiles(req, []string(fileFlag), *formatFlag, cfg, defaultPollInterval, defaultPollTimeout)
+	}
 	return executeRun(req, *formatFlag, cfg, defaultPollInterval, defaultPollTimeout)
+}
+
+// executeRunWithFiles is the testable core for multipart uploads with injectable timing.
+func executeRunWithFiles(req RunRequest, files []string, format string, cfg *Config, pollInterval, pollTimeout time.Duration) int {
+	client := NewAPIClient(cfg)
+	run, accepted, err := client.PostRunMultipart(req, files)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	if run != nil {
+		return displayRunResult(run, format, cfg.Quiet)
+	}
+
+	if !cfg.Quiet {
+		fmt.Fprintf(os.Stderr, "Task %s submitted (status: %s). Waiting for completion...\n", accepted.ID, accepted.Status)
+	}
+
+	deadline := time.Now().Add(pollTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(pollInterval)
+		run, err = client.GetRun(accepted.ID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		switch run.Status {
+		case "completed":
+			return displayRunResult(run, format, cfg.Quiet)
+		case "failed":
+			fmt.Fprintf(os.Stderr, "Error: Task failed: %s\n", run.Error)
+			return 1
+		case "cancelled":
+			fmt.Fprintln(os.Stderr, "Error: Task was cancelled.")
+			return 1
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "Error: Polling timeout exceeded. Task may still be running.")
+	return 1
 }
 
 // executeRun is the testable core of handleRun with injectable timing parameters.

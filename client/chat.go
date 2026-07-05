@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -245,6 +247,11 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 				showPrompt()
 			case "error":
 				fmt.Fprintln(os.Stderr, msg.Message)
+			case "file_uploaded":
+				if !cfg.Quiet {
+					fmt.Fprintf(os.Stderr, "File uploaded: %s\n", msg.Data)
+					showPrompt()
+				}
 			case "context_compacted":
 				if !cfg.Quiet {
 					fmt.Fprintln(os.Stderr, "Info: Context was compacted to fit within limits.")
@@ -269,6 +276,21 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 				sendJSON("terminate", "")
 				waitForTerminated()
 				return 0
+			}
+			if strings.HasPrefix(line, "/file ") {
+				path := strings.TrimSpace(line[len("/file "):])
+				fileData, err := os.ReadFile(path)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Cannot read file %q: %v\n", path, err)
+					showPrompt()
+					continue
+				}
+				frame := encodeBinaryFrame(filepath.Base(path), fileData)
+				if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Failed to send file: %v\n", err)
+					return 1
+				}
+				continue
 			}
 			if err := sendJSON("message", line); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: Failed to send message: %v\n", err)
@@ -304,6 +326,17 @@ func buildChatPath(sessionID string) string {
 		return "/chat/" + sessionID
 	}
 	return "/chat"
+}
+
+// encodeBinaryFrame encodes a filename and file content into the WebSocket binary frame format:
+// [4 bytes: filename length (big-endian uint32)][N bytes: filename][remaining: file content]
+func encodeBinaryFrame(filename string, data []byte) []byte {
+	nameBytes := []byte(filename)
+	frame := make([]byte, 4+len(nameBytes)+len(data))
+	binary.BigEndian.PutUint32(frame[:4], uint32(len(nameBytes)))
+	copy(frame[4:], nameBytes)
+	copy(frame[4+len(nameBytes):], data)
+	return frame
 }
 
 // buildChatParams constructs query parameters for a chat WebSocket connection.

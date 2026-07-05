@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -542,4 +544,175 @@ func TestBuildChatParams(t *testing.T) {
 	if p2.Get("system") != "You are helpful" {
 		t.Fatalf("system: got %q, want 'You are helpful'", p2.Get("system"))
 	}
+}
+
+// TestEncodeBinaryFrame verifies the binary frame format matches the server's expected layout.
+func TestEncodeBinaryFrame(t *testing.T) {
+	filename := "report.pdf"
+	content  := []byte("hello world")
+	frame    := encodeBinaryFrame(filename, content)
+
+	if len(frame) < 4 {
+		t.Fatalf("frame too short: %d bytes", len(frame))
+	}
+	nameLen := binary.BigEndian.Uint32(frame[:4])
+	if int(nameLen) != len(filename) {
+		t.Fatalf("nameLen: got %d, want %d", nameLen, len(filename))
+	}
+	if string(frame[4:4+nameLen]) != filename {
+		t.Fatalf("filename in frame: got %q, want %q", string(frame[4:4+nameLen]), filename)
+	}
+	if string(frame[4+nameLen:]) != string(content) {
+		t.Fatalf("content in frame mismatch")
+	}
+}
+
+// TestChatLoop_FileCommand_Success verifies that /file <path> sends a binary frame and
+// the client prints confirmation when it receives a file_uploaded ack from the server.
+func TestChatLoop_FileCommand_Success(t *testing.T) {
+	// Create a temp file to upload.
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "data.csv")
+	if err := os.WriteFile(tmpFile, []byte("col1,col2\n1,2\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryMsgCh := make(chan []byte, 2)
+
+	srv := wsTestServer(t, func(conn *websocket.Conn) {
+		writeSrvMsg(t, conn, WSServerMessage{Type: "session_started", SessionID: "s-file"})
+
+		// Read the binary file frame.
+		mt, data, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		if mt != websocket.BinaryMessage {
+			t.Errorf("expected BinaryMessage, got %d", mt)
+		}
+		binaryMsgCh <- data
+
+		// Acknowledge the upload.
+		writeSrvMsg(t, conn, WSServerMessage{Type: "file_uploaded", Data: "data.csv"})
+
+		// Wait for /quit.
+		for {
+			msg, ok := readClientMsg(t, conn)
+			if !ok {
+				return
+			}
+			if msg.Type == "terminate" {
+				writeSrvMsg(t, conn, WSServerMessage{Type: "terminated"})
+				return
+			}
+		}
+	})
+	defer srv.Close()
+
+	clientConn := dialWSServer(t, srv, "/chat")
+	defer clientConn.Close()
+
+	stdinR, stdinW := io.Pipe()
+	defer stdinW.Close()
+
+	sigCh  := make(chan os.Signal, 2)
+	cfg    := &Config{Token: "test"}
+	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
+
+	time.Sleep(50 * time.Millisecond)
+	stdinW.Write([]byte("/file " + tmpFile + "\n"))
+
+	select {
+	case frame := <-binaryMsgCh:
+		if len(frame) < 4 {
+			t.Fatalf("binary frame too short: %d bytes", len(frame))
+		}
+		nameLen := binary.BigEndian.Uint32(frame[:4])
+		gotName := string(frame[4 : 4+nameLen])
+		if gotName != "data.csv" {
+			t.Fatalf("frame filename: got %q, want data.csv", gotName)
+		}
+		gotContent := string(frame[4+nameLen:])
+		if gotContent != "col1,col2\n1,2\n" {
+			t.Fatalf("frame content mismatch: got %q", gotContent)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not receive binary file frame")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	stdinW.Write([]byte("/quit\n"))
+	expectCode(t, codeCh, 0)
+}
+
+// TestChatLoop_FileCommand_NonExistent verifies that /file with a missing path prints an error
+// without disconnecting the session (the loop continues and /quit works normally).
+func TestChatLoop_FileCommand_NonExistent(t *testing.T) {
+	srv := wsTestServer(t, func(conn *websocket.Conn) {
+		writeSrvMsg(t, conn, WSServerMessage{Type: "session_started", SessionID: "s-missing"})
+		for {
+			msg, ok := readClientMsg(t, conn)
+			if !ok {
+				return
+			}
+			if msg.Type == "terminate" {
+				writeSrvMsg(t, conn, WSServerMessage{Type: "terminated"})
+				return
+			}
+		}
+	})
+	defer srv.Close()
+
+	clientConn := dialWSServer(t, srv, "/chat")
+	defer clientConn.Close()
+
+	stdinR, stdinW := io.Pipe()
+	defer stdinW.Close()
+
+	sigCh  := make(chan os.Signal, 2)
+	cfg    := &Config{Token: "test"}
+	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Attempt to upload a non-existent file — should not disconnect.
+	stdinW.Write([]byte("/file /no/such/file/anywhere.txt\n"))
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Loop should still be alive; /quit should exit cleanly.
+	stdinW.Write([]byte("/quit\n"))
+	expectCode(t, codeCh, 0)
+}
+
+// TestChatLoop_FileUploadedAck verifies the client handles file_uploaded ack from server
+// without crashing and continues the session.
+func TestChatLoop_FileUploadedAck(t *testing.T) {
+	srv := wsTestServer(t, func(conn *websocket.Conn) {
+		writeSrvMsg(t, conn, WSServerMessage{Type: "session_started", SessionID: "s-ack"})
+		// Unsolicited file_uploaded message.
+		writeSrvMsg(t, conn, WSServerMessage{Type: "file_uploaded", Data: "image.png"})
+		msg, ok := readClientMsg(t, conn)
+		if !ok {
+			return
+		}
+		if msg.Type == "terminate" {
+			writeSrvMsg(t, conn, WSServerMessage{Type: "terminated"})
+		}
+	})
+	defer srv.Close()
+
+	clientConn := dialWSServer(t, srv, "/chat")
+	defer clientConn.Close()
+
+	stdinR, stdinW := io.Pipe()
+	defer stdinW.Close()
+
+	sigCh  := make(chan os.Signal, 2)
+	cfg    := &Config{Token: "test"}
+	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
+
+	time.Sleep(100 * time.Millisecond)
+	stdinW.Write([]byte("/quit\n"))
+	expectCode(t, codeCh, 0)
 }

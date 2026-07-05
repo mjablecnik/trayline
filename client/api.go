@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -151,6 +153,93 @@ func (c *APIClient) PostRun(req RunRequest) (*RunResponse, *RunAcceptedResponse,
 		return nil, &accepted, nil
 	default:
 		return nil, nil, parseError(resp.StatusCode, body)
+	}
+}
+
+// PostRunMultipart sends POST /run as multipart/form-data when files are present.
+// Returns RunResponse on HTTP 200 or RunAcceptedResponse on HTTP 202.
+func (c *APIClient) PostRunMultipart(req RunRequest, files []string) (*RunResponse, *RunAcceptedResponse, error) {
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+
+	writeField := func(name, value string) error {
+		if value == "" {
+			return nil
+		}
+		return mw.WriteField(name, value)
+	}
+	for _, pair := range [][2]string{
+		{"prompt", req.Prompt},
+		{"agent", req.Agent},
+		{"model", req.Model},
+		{"system", req.System},
+		{"output_format", req.OutputFormat},
+	} {
+		if err := writeField(pair[0], pair[1]); err != nil {
+			return nil, nil, &APIError{Message: fmt.Sprintf("Error: Failed to build request: %v", err)}
+		}
+	}
+
+	for _, filePath := range files {
+		f, err := os.Open(filePath)
+		if err != nil {
+			return nil, nil, &APIError{Message: fmt.Sprintf("Error: Cannot open file %q: %v", filePath, err)}
+		}
+		part, err := mw.CreateFormFile("files", filepath.Base(filePath))
+		if err != nil {
+			f.Close()
+			return nil, nil, &APIError{Message: fmt.Sprintf("Error: Failed to build request: %v", err)}
+		}
+		if _, err := io.Copy(part, f); err != nil {
+			f.Close()
+			return nil, nil, &APIError{Message: fmt.Sprintf("Error: Failed to read file %q: %v", filePath, err)}
+		}
+		f.Close()
+	}
+
+	if err := mw.Close(); err != nil {
+		return nil, nil, &APIError{Message: fmt.Sprintf("Error: Failed to build request: %v", err)}
+	}
+
+	reqURL := c.serverURL + "/run"
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, &body)
+	if err != nil {
+		return nil, nil, &APIError{Message: fmt.Sprintf("Error: Failed to build request: %v", err)}
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.token)
+	httpReq.Header.Set("Content-Type", mw.FormDataContentType())
+
+	uploadClient := &http.Client{Timeout: 5 * time.Minute}
+	start := time.Now()
+	resp, err := uploadClient.Do(httpReq)
+	elapsed := time.Since(start)
+	if err != nil {
+		return nil, nil, &APIError{Message: fmt.Sprintf("Error: Server unreachable at %s. Check that the server is running.", c.serverURL)}
+	}
+
+	c.logVerbose("POST %s -> %d (%dms)\n", reqURL, resp.StatusCode, elapsed.Milliseconds())
+
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to read response body: %v", err)}
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var run RunResponse
+		if err := json.Unmarshal(data, &run); err != nil {
+			return nil, nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+		}
+		return &run, nil, nil
+	case http.StatusAccepted:
+		var accepted RunAcceptedResponse
+		if err := json.Unmarshal(data, &accepted); err != nil {
+			return nil, nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+		}
+		return nil, &accepted, nil
+	default:
+		return nil, nil, parseError(resp.StatusCode, data)
 	}
 }
 
