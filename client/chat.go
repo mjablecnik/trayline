@@ -144,9 +144,24 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 	}
 
 	interruptCount := 0
+	fmtr := NewFormatter()
+	streaming := false
+	var doneTimer *time.Timer
+	doneTimerCh := func() <-chan time.Time {
+		if doneTimer != nil {
+			return doneTimer.C
+		}
+		return nil
+	}
 
 	for {
 		select {
+		case <-doneTimerCh():
+			doneTimer = nil
+			if !cfg.Quiet {
+				PrintPrompt(os.Stderr)
+			}
+
 		case sr := <-serverCh:
 			if sr.err != nil {
 				fmt.Fprintln(os.Stderr, "Error: WebSocket connection closed unexpectedly.")
@@ -160,13 +175,22 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 					PrintPrompt(os.Stderr)
 				}
 			case "output":
+				if doneTimer != nil {
+					doneTimer.Stop()
+					doneTimer = nil
+					// This is a follow-up response chunk — add separator
+					fmt.Fprint(os.Stderr, fmtr.Yellow(os.Stderr, "  ···\n"))
+				}
+				if !streaming {
+					streaming = true
+					fmt.Fprint(os.Stderr, fmtr.Cyan(os.Stderr, "🤖 "))
+				}
 				fmt.Print(msg.Data)
 			case "done":
-				fmt.Println()
+				fmt.Print("\n\n")
+				streaming = false
 				interruptCount = 0
-				if !cfg.Quiet {
-					PrintPrompt(os.Stderr)
-				}
+				doneTimer = time.NewTimer(150 * time.Millisecond)
 			case "error":
 				fmt.Fprintln(os.Stderr, msg.Message)
 			case "context_compacted":

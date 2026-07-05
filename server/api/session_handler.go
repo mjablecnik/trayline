@@ -406,6 +406,7 @@ func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID strin
 					continue
 				}
 				content, _ := message["content"].([]interface{})
+				hasText := false
 				for _, block := range content {
 					b, _ := block.(map[string]interface{})
 					if b == nil {
@@ -417,8 +418,14 @@ func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID strin
 						text, _ := b["text"].(string)
 						if text != "" {
 							h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: text})
+							hasText = true
 						}
 					}
+				}
+				// Emit "done" after each assistant message to allow client
+				// to visually separate intermediate responses (tool use).
+				if hasText {
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 				}
 
 			case "result":

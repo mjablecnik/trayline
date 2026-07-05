@@ -96,9 +96,15 @@ func FormatTimestamp(t time.Time) string {
 	return t.Format("2006-01-02 15:04")
 }
 
-// PrintPrompt writes the interactive input prompt "> " to w.
+// PrintPrompt writes the interactive input prompt "> " to w with green color when w is a TTY.
 func PrintPrompt(w io.Writer) {
-	fmt.Fprint(w, "> ")
+	f, ok := w.(*os.File)
+	if ok {
+		fmtr := NewFormatter()
+		fmt.Fprint(w, fmtr.Green(f, "> "))
+	} else {
+		fmt.Fprint(w, "> ")
+	}
 }
 
 // FormatTasksTable formats tasks as an aligned columnar table with a header row.
