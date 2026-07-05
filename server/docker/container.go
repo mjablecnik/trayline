@@ -420,7 +420,7 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 		}
 	case "claude":
 		if m.config.ClaudeHostDir != "" {
-			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude:ro")
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
 		}
 		if m.config.ClaudeConfigHostFile != "" {
 			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json:ro")
