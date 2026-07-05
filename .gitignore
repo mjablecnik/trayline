@@ -1,3 +1,5 @@
 testdata/
 .env
 llm-debug.log
+tunnel/**/.env
+tunnel/**/.env-prod
