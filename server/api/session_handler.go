@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -26,16 +27,49 @@ var upgrader = websocket.Upgrader{
 
 // SessionHandler handles WebSocket chat session endpoints.
 type SessionHandler struct {
-	store    *store.SessionStore
-	cm       *docker.ContainerManager
-	logger   *core.Logger
-	config   *core.Config
-	stateMgr StateSaver
+	store        *store.SessionStore
+	cm           *docker.ContainerManager
+	logger       *core.Logger
+	config       *core.Config
+	stateMgr     StateSaver
+	filesMu      sync.RWMutex
+	sessionFiles map[string][]UploadedFile
 }
 
 // NewSessionHandler creates a SessionHandler.
 func NewSessionHandler(store *store.SessionStore, cm *docker.ContainerManager, logger *core.Logger, config *core.Config, stateMgr StateSaver) *SessionHandler {
-	return &SessionHandler{store: store, cm: cm, logger: logger, config: config, stateMgr: stateMgr}
+	return &SessionHandler{
+		store:        store,
+		cm:           cm,
+		logger:       logger,
+		config:       config,
+		stateMgr:     stateMgr,
+		sessionFiles: make(map[string][]UploadedFile),
+	}
+}
+
+func (h *SessionHandler) addSessionFile(sessionID string, f UploadedFile) {
+	h.filesMu.Lock()
+	defer h.filesMu.Unlock()
+	h.sessionFiles[sessionID] = append(h.sessionFiles[sessionID], f)
+}
+
+func (h *SessionHandler) getSessionFiles(sessionID string) []UploadedFile {
+	h.filesMu.RLock()
+	defer h.filesMu.RUnlock()
+	files := h.sessionFiles[sessionID]
+	if len(files) == 0 {
+		return nil
+	}
+	cp := make([]UploadedFile, len(files))
+	copy(cp, files)
+	return cp
+}
+
+func (h *SessionHandler) removeSessionFiles(sessionID string) {
+	h.filesMu.Lock()
+	defer h.filesMu.Unlock()
+	delete(h.sessionFiles, sessionID)
 }
 
 // saveState persists server state to disk, logging any error.
@@ -153,6 +187,10 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 		h.cm.ReleaseChatSlot()
 		h.store.Remove(sessionID)
 		h.saveState(context.Background())
+		if err := CleanupUploadDir(h.config.WorkspaceDir, sessionID); err != nil {
+			h.logger.Warn(context.Background(), fmt.Sprintf("session %s: failed to clean upload dir: %s", sessionID, err.Error()))
+		}
+		h.removeSessionFiles(sessionID)
 	}()
 }
 
@@ -525,9 +563,28 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 		default:
 		}
 
-		_, data, err := conn.ReadMessage()
+		msgType, data, err := conn.ReadMessage()
 		if err != nil {
 			return
+		}
+
+		if msgType == websocket.BinaryMessage {
+			filename, fileData, err := DecodeBinaryFrame(data)
+			if err != nil {
+				h.writeWS(conn, WSServerMessage{Type: "error", Message: err.Error()})
+				continue
+			}
+			uploaded, err := SaveSingleFile(filename, fileData, h.config.WorkspaceDir, sessionID, h.config.MaxUploadSize)
+			if err != nil {
+				h.writeWS(conn, WSServerMessage{Type: "error", Message: err.Error()})
+				continue
+			}
+			h.addSessionFile(sessionID, *uploaded)
+			h.store.Update(sessionID, func(s *store.Session) {
+				s.LastMessageAt = time.Now()
+			})
+			h.writeWS(conn, WSServerMessage{Type: "file_uploaded", Data: uploaded.OriginalName})
+			continue
 		}
 
 		var msg WSClientMessage
@@ -548,19 +605,23 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 		switch msg.Type {
 		case "message":
 			if sess.Stdin != nil && msg.Prompt != "" {
+				prompt := msg.Prompt
+				if files := h.getSessionFiles(sessionID); len(files) > 0 {
+					prompt = BuildUploadMetadata(files) + prompt
+				}
 				if sess.Agent == "claude" {
 					// Send NDJSON user message for claude stream-json protocol
 					userMsg := map[string]interface{}{
 						"type":               "user",
 						"session_id":         nil,
-						"message":            map[string]interface{}{"role": "user", "content": msg.Prompt},
+						"message":            map[string]interface{}{"role": "user", "content": prompt},
 						"parent_tool_use_id": nil,
 					}
 					data, _ := json.Marshal(userMsg)
 					fmt.Fprintf(sess.Stdin, "%s\n", data)
 				} else {
 					// Plain text for kiro
-					fmt.Fprintf(sess.Stdin, "%s\n", msg.Prompt)
+					fmt.Fprintf(sess.Stdin, "%s\n", prompt)
 				}
 			}
 		case "interrupt":

@@ -20,6 +20,8 @@ type Config struct {
 	TaskTimeout        time.Duration
 	RateLimit          int
 	StateDir           string
+	MaxUploadSize      int64
+	MaxUploadFiles     int
 
 	// Agent credential directories on the host — mounted read-only into every agent
 	// container, mirroring what trayline-agent does for interactive CLI invocations.
@@ -124,6 +126,30 @@ func LoadConfig() (*Config, error) {
 	cfg.StateDir = os.Getenv("STATE_DIR")
 	if cfg.StateDir == "" {
 		cfg.StateDir = "/tmp/trayline-server"
+	}
+
+	// MAX_UPLOAD_SIZE
+	maxUploadSizeStr := os.Getenv("MAX_UPLOAD_SIZE")
+	if maxUploadSizeStr == "" {
+		cfg.MaxUploadSize = 50 * 1024 * 1024 // 50 MB
+	} else {
+		size, err := strconv.ParseInt(maxUploadSizeStr, 10, 64)
+		if err != nil || size < 1 {
+			return nil, fmt.Errorf("MAX_UPLOAD_SIZE must be a positive integer (bytes), got %q", maxUploadSizeStr)
+		}
+		cfg.MaxUploadSize = size
+	}
+
+	// MAX_UPLOAD_FILES
+	maxUploadFilesStr := os.Getenv("MAX_UPLOAD_FILES")
+	if maxUploadFilesStr == "" {
+		cfg.MaxUploadFiles = 10
+	} else {
+		count, err := strconv.Atoi(maxUploadFilesStr)
+		if err != nil || count < 1 {
+			return nil, fmt.Errorf("MAX_UPLOAD_FILES must be a positive integer, got %q", maxUploadFilesStr)
+		}
+		cfg.MaxUploadFiles = count
 	}
 
 	// Agent credential mounts — mirrors what trayline-agent does on the CLI.

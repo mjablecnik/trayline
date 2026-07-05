@@ -3,8 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,17 +27,25 @@ type StateSaver interface {
 	Save() error
 }
 
+// ContainerRunner is the minimal interface TaskHandler needs to execute agent containers.
+type ContainerRunner interface {
+	RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time) (*docker.ContainerResult, error)
+}
+
 // TaskHandler handles one-shot task REST endpoints.
 type TaskHandler struct {
-	store    *store.TaskStore
-	cm       *docker.ContainerManager
-	logger   *core.Logger
-	stateMgr StateSaver
+	store          *store.TaskStore
+	cm             ContainerRunner
+	logger         *core.Logger
+	stateMgr       StateSaver
+	workspaceDir   string
+	maxUploadSize  int64
+	maxUploadFiles int
 }
 
 // NewTaskHandler creates a TaskHandler.
-func NewTaskHandler(store *store.TaskStore, cm *docker.ContainerManager, logger *core.Logger, stateMgr StateSaver) *TaskHandler {
-	return &TaskHandler{store: store, cm: cm, logger: logger, stateMgr: stateMgr}
+func NewTaskHandler(store *store.TaskStore, cm ContainerRunner, logger *core.Logger, stateMgr StateSaver, workspaceDir string, maxUploadSize int64, maxUploadFiles int) *TaskHandler {
+	return &TaskHandler{store: store, cm: cm, logger: logger, stateMgr: stateMgr, workspaceDir: workspaceDir, maxUploadSize: maxUploadSize, maxUploadFiles: maxUploadFiles}
 }
 
 // saveState persists server state to disk, logging any error.
@@ -50,12 +61,33 @@ func (h *TaskHandler) saveState(ctx context.Context) {
 // HandlePostRun handles POST /run.
 func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 	var req RunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
-			Error:   "VALIDATION_ERROR",
-			Message: "request body is not valid JSON: " + err.Error(),
-		})
-		return
+	var fileHeaders []*multipart.FileHeader
+
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+				Error:   "VALIDATION_ERROR",
+				Message: "failed to parse multipart form: " + err.Error(),
+			})
+			return
+		}
+		req.Prompt = r.FormValue("prompt")
+		req.Agent = r.FormValue("agent")
+		req.Model = r.FormValue("model")
+		req.System = r.FormValue("system")
+		req.OutputFormat = r.FormValue("output_format")
+		if r.MultipartForm != nil {
+			fileHeaders = r.MultipartForm.File["files"]
+		}
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+				Error:   "VALIDATION_ERROR",
+				Message: "request body is not valid JSON: " + err.Error(),
+			})
+			return
+		}
 	}
 
 	if req.Prompt == "" {
@@ -80,12 +112,38 @@ func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	taskID := uuid.NewString()
+	basePrompt := req.Prompt
+
+	if len(fileHeaders) > 0 && h.workspaceDir != "" {
+		uploaded, err := SaveUploadedFiles(fileHeaders, h.workspaceDir, taskID, h.maxUploadSize, h.maxUploadFiles)
+		if err != nil {
+			var valErr *UploadValidationError
+			if errors.As(err, &valErr) {
+				writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+					Error:   "VALIDATION_ERROR",
+					Message: err.Error(),
+				})
+			} else {
+				h.logger.Error(r.Context(), "upload error: "+err.Error())
+				writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+					Error:   "INTERNAL_ERROR",
+					Message: "failed to store uploaded files",
+				})
+			}
+			return
+		}
+		if len(uploaded) > 0 {
+			basePrompt = BuildUploadMetadata(uploaded) + req.Prompt
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	task := &store.Task{
-		ID:           uuid.NewString(),
+		ID:           taskID,
 		Status:       store.TaskQueued,
 		Agent:        req.Agent,
-		Prompt:       req.Prompt,
+		Prompt:       basePrompt,
 		Model:        req.Model,
 		System:       req.System,
 		OutputFormat: req.OutputFormat,
@@ -112,6 +170,13 @@ func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 // executeTask runs a one-shot task in a goroutine.
 func (h *TaskHandler) executeTask(ctx context.Context, task *store.Task) {
 	defer close(task.Done)
+	if h.workspaceDir != "" {
+		defer func() {
+			if err := CleanupUploadDir(h.workspaceDir, task.ID); err != nil {
+				h.logger.Warn(context.Background(), fmt.Sprintf("failed to clean up upload dir for task %s: %v", task.ID, err))
+			}
+		}()
+	}
 
 	var proceed bool
 	h.store.Update(task.ID, func(t *store.Task) {

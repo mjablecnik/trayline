@@ -8,7 +8,7 @@ type WSClientMessage struct {
 
 // WSServerMessage is a message sent from the server to the WebSocket client.
 type WSServerMessage struct {
-	Type      string `json:"type"`             // "session_started", "session_resumed", "output", "done", "error", "terminated", "context_compacted"
+	Type      string `json:"type"`             // "session_started", "session_resumed", "output", "done", "error", "terminated", "context_compacted", "file_uploaded"
 	SessionID string `json:"sessionId,omitempty"`
 	Data      string `json:"data,omitempty"`
 	Message   string `json:"message,omitempty"`
