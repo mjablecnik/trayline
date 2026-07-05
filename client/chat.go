@@ -115,6 +115,8 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 	// Use readline for interactive terminals (provides arrow keys, cursor movement, history).
 	// Fall back to bufio.Scanner for non-TTY input (pipes, tests).
 	var rl *readline.Instance
+	// readReqCh signals the readline goroutine to call Readline() and show prompt.
+	readReqCh := make(chan struct{}, 1)
 	if f, ok := stdin.(*os.File); ok && isTerminalFd(f) {
 		fmtr := NewFormatter()
 		prompt := fmtr.Green(os.Stderr, "> ")
@@ -129,7 +131,7 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 		})
 		if err == nil {
 			go func() {
-				for {
+				for range readReqCh {
 					line, err := rl.Readline()
 					if err != nil {
 						if err == readline.ErrInterrupt {
@@ -190,15 +192,17 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 		}
 	}
 
-	// showPrompt displays the input prompt. When readline is active, it refreshes
-	// readline's prompt display; otherwise it writes "> " to stderr.
+	// showPrompt triggers readline to display prompt and wait for input.
 	showPrompt := func() {
 		if cfg.Quiet {
 			return
 		}
 		if rl != nil {
-			// readline displays its own prompt on each Readline() call,
-			// but we can trigger a refresh after output.
+			// Signal the readline goroutine to call Readline() — this displays the prompt.
+			select {
+			case readReqCh <- struct{}{}:
+			default:
+			}
 			return
 		}
 		PrintPrompt(os.Stderr)
