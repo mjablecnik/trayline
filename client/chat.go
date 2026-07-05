@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ergochat/readline"
 	"github.com/gorilla/websocket"
 )
 
@@ -110,15 +111,61 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 		err  error
 	}
 	inputCh := make(chan inputResult, 1)
-	go func() {
-		scanner := bufio.NewScanner(stdin)
-		for scanner.Scan() {
-			inputCh <- inputResult{line: scanner.Text()}
-		}
-		if err := scanner.Err(); err != nil {
-			inputCh <- inputResult{err: err}
+
+	// Use readline for interactive terminals (provides arrow keys, cursor movement, history).
+	// Fall back to bufio.Scanner for non-TTY input (pipes, tests).
+	var rl *readline.Instance
+	if f, ok := stdin.(*os.File); ok && isTerminalFd(f) {
+		fmtr := NewFormatter()
+		prompt := fmtr.Green(os.Stderr, "> ")
+		var err error
+		rl, err = readline.NewFromConfig(&readline.Config{
+			Prompt:          prompt,
+			Stdin:           f,
+			Stdout:          os.Stderr,
+			Stderr:          os.Stderr,
+			InterruptPrompt: "",
+			EOFPrompt:       "",
+		})
+		if err == nil {
+			go func() {
+				for {
+					line, err := rl.Readline()
+					if err != nil {
+						if err == readline.ErrInterrupt {
+							// Ignore — signal handler deals with SIGINT
+							continue
+						}
+						inputCh <- inputResult{eof: true}
+						return
+					}
+					inputCh <- inputResult{line: line}
+				}
+			}()
 		} else {
-			inputCh <- inputResult{eof: true}
+			// readline init failed, fall back to scanner
+			rl = nil
+		}
+	}
+
+	if rl == nil {
+		go func() {
+			scanner := bufio.NewScanner(stdin)
+			for scanner.Scan() {
+				inputCh <- inputResult{line: scanner.Text()}
+			}
+			if err := scanner.Err(); err != nil {
+				inputCh <- inputResult{err: err}
+			} else {
+				inputCh <- inputResult{eof: true}
+			}
+		}()
+	}
+
+	// Close readline on exit to restore terminal state.
+	defer func() {
+		if rl != nil {
+			rl.Close()
 		}
 	}()
 
@@ -143,6 +190,20 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 		}
 	}
 
+	// showPrompt displays the input prompt. When readline is active, it refreshes
+	// readline's prompt display; otherwise it writes "> " to stderr.
+	showPrompt := func() {
+		if cfg.Quiet {
+			return
+		}
+		if rl != nil {
+			// readline displays its own prompt on each Readline() call,
+			// but we can trigger a refresh after output.
+			return
+		}
+		PrintPrompt(os.Stderr)
+	}
+
 	interruptCount := 0
 	fmtr := NewFormatter()
 	streaming := false
@@ -158,9 +219,7 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 		select {
 		case <-doneTimerCh():
 			doneTimer = nil
-			if !cfg.Quiet {
-				PrintPrompt(os.Stderr)
-			}
+			showPrompt()
 
 		case sr := <-serverCh:
 			if sr.err != nil {
@@ -172,7 +231,7 @@ func chatLoop(conn *websocket.Conn, cfg *Config, stdin io.Reader, sigCh <-chan o
 			case "session_started", "session_resumed":
 				if !cfg.Quiet {
 					fmt.Fprintf(os.Stderr, "Session ID: %s\n", msg.SessionID)
-					PrintPrompt(os.Stderr)
+					showPrompt()
 				}
 			case "output":
 				if doneTimer != nil {
