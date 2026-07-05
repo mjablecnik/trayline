@@ -238,6 +238,7 @@ func buildOneShotCmd(agent, prompt, model, system string) []string {
 }
 
 // buildChatCmd constructs the CLI command for an interactive chat session.
+// Uses SDK streaming JSON mode for programmatic stdin/stdout communication.
 func buildChatCmd(agent, model, system string) []string {
 	switch agent {
 	case "kiro":
@@ -250,12 +251,14 @@ func buildChatCmd(agent, model, system string) []string {
 		}
 		return cmd
 	case "claude":
-		cmd := []string{"claude", "--dangerously-skip-permissions"}
+		cmd := []string{"claude", "-p", "--dangerously-skip-permissions",
+			"--output-format", "stream-json", "--input-format", "stream-json",
+			"--verbose"}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
 		}
 		if system != "" {
-			cmd = append(cmd, "--system-prompt", system)
+			cmd = append(cmd, "--append-system-prompt", system)
 		}
 		return cmd
 	default:
@@ -301,16 +304,25 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 	return result, nil
 }
 
-// StartChatContainer starts a persistent interactive container.
+// StartChatContainer creates a persistent interactive container but does NOT start it.
+// The caller must attach (via AttachChatContainer) before starting (via StartContainer).
 // The caller must have pre-acquired a slot via TryAcquireSlot before calling this.
 // The caller must also call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
 func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
-	containerID, err := m.createAndStartContainer(ctx, agent, cmd, true)
+	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
+	useTTY := agent != "claude"
+	containerID, err := m.createContainer(ctx, agent, cmd, true, useTTY)
 	if err != nil {
 		return "", err
 	}
 	return containerID, nil
+}
+
+// StartContainer starts an already-created container.
+func (m *ContainerManager) StartContainer(ctx context.Context, containerID string) error {
+	return m.client.ContainerStart(ctx, containerID, dockertypes.ContainerStartOptions{})
 }
 
 // ReleaseChatSlot returns the concurrency slot held by a chat session.
@@ -420,14 +432,30 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 
 // createAndStartContainer creates and starts a container with the given command.
 func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent string, cmd []string, interactive bool) (string, error) {
+	containerID, err := m.createContainer(ctx, agent, cmd, interactive, interactive)
+	if err != nil {
+		return "", err
+	}
+
+	if err := m.client.ContainerStart(ctx, containerID, dockertypes.ContainerStartOptions{}); err != nil {
+		_ = m.client.ContainerRemove(context.Background(), containerID, dockertypes.ContainerRemoveOptions{Force: true})
+		return "", fmt.Errorf("failed to start container: %w", err)
+	}
+
+	return containerID, nil
+}
+
+// createContainer creates a container without starting it.
+// interactive: whether to attach stdin. tty: whether to allocate a pseudo-TTY.
+func (m *ContainerManager) createContainer(ctx context.Context, agent string, cmd []string, interactive bool, tty bool) (string, error) {
 	cfg := &container.Config{
 		Image:       SandboxImage,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
-		Tty:         interactive,
+		Tty:         tty,
 		AttachStdin: interactive,
 		OpenStdin:   interactive,
-		StdinOnce:   interactive,
+		StdinOnce:   false,
 	}
 
 	hostCfg := &container.HostConfig{
@@ -444,11 +472,6 @@ func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent st
 	resp, err := m.client.ContainerCreate(ctx, cfg, hostCfg, netCfg, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
-	}
-
-	if err := m.client.ContainerStart(ctx, resp.ID, dockertypes.ContainerStartOptions{}); err != nil {
-		_ = m.client.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{Force: true})
-		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 
 	return resp.ID, nil

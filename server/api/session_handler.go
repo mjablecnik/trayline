@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
@@ -104,7 +106,7 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 
 	containerID, err := h.cm.StartChatContainer(ctx, agent, model, system)
 	if err != nil {
-		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to start agent container: " + err.Error()})
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to create agent container: " + err.Error()})
 		conn.Close()
 		cancel()
 		h.cm.ReleaseChatSlot()
@@ -115,6 +117,17 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	attached, err := h.cm.AttachChatContainer(ctx, containerID)
 	if err != nil {
 		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to attach to container: " + err.Error()})
+		conn.Close()
+		cancel()
+		h.cm.StopAndRemoveContainer(context.Background(), containerID)
+		h.cm.ReleaseChatSlot()
+		h.store.Remove(sessionID)
+		return
+	}
+
+	if err := h.cm.StartContainer(ctx, containerID); err != nil {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to start container: " + err.Error()})
+		attached.Close()
 		conn.Close()
 		cancel()
 		h.cm.StopAndRemoveContainer(context.Background(), containerID)
@@ -306,18 +319,146 @@ func (h *SessionHandler) writeWSToSession(sessionID string, msg WSServerMessage)
 // idleTurnTimeout is the quiet period after the last output line before emitting "done".
 const idleTurnTimeout = 500 * time.Millisecond
 
-// streamOutput reads from the attached container (TTY mode — raw stream, no Docker mux header)
-// and sends output/done to the WebSocket.
+// streamOutput reads from the attached container and sends output/done to the WebSocket.
+// For claude agent: demultiplexes Docker stream (non-TTY) then parses NDJSON.
+// For kiro agent: reads raw TTY stream as plain text lines.
 func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, attached dockertypes.HijackedResponse) {
-	// TTY mode: attached.Reader is a raw stream (no stdcopy header).
-	// Read directly from it.
-	reader := attached.Reader
+	sess := h.store.Get(sessionID)
+	if sess == nil {
+		return
+	}
 
+	if sess.Agent == "claude" {
+		// Non-TTY: Docker uses multiplexed stream. Demux stdout via stdcopy.
+		pr, pw := io.Pipe()
+		go func() {
+			defer pw.Close()
+			stdcopy.StdCopy(pw, pw, attached.Reader)
+		}()
+		h.streamOutputClaude(ctx, sessionID, pr)
+	} else {
+		// TTY mode: raw stream, read directly.
+		h.streamOutputPlainText(ctx, sessionID, attached.Reader)
+	}
+}
+
+// streamOutputClaude handles NDJSON protocol output from claude CLI (stream-json mode).
+func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID string, reader interface{ Read([]byte) (int, error) }) {
+	lineCh := make(chan string, 32)
 	go func() {
-		<-ctx.Done()
-		attached.Close()
+		defer close(lineCh)
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large JSON lines
+		for scanner.Scan() {
+			lineCh <- scanner.Text()
+		}
 	}()
 
+	// Send initialization control request
+	sess := h.store.Get(sessionID)
+	if sess != nil && sess.Stdin != nil {
+		initMsg := map[string]interface{}{
+			"type":       "control_request",
+			"request_id": "init_" + sessionID[:8],
+			"request": map[string]interface{}{
+				"subtype": "initialize",
+				"hooks":   nil,
+				"agents":  nil,
+			},
+		}
+		data, _ := json.Marshal(initMsg)
+		fmt.Fprintf(sess.Stdin, "%s\n", data)
+	}
+
+	initialized := false
+	for {
+		select {
+		case line, ok := <-lineCh:
+			if !ok {
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+				return
+			}
+
+			var msg map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &msg); err != nil {
+				// Not JSON — pass through as raw output
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				continue
+			}
+
+			msgType, _ := msg["type"].(string)
+
+			switch msgType {
+			case "control_response":
+				if !initialized {
+					initialized = true
+					h.logger.Info(ctx, fmt.Sprintf("session %s: claude CLI initialized", sessionID))
+				}
+
+			case "system":
+				// System messages (session info etc.) — skip or log
+				continue
+
+			case "assistant":
+				// Extract text content from assistant message
+				message, _ := msg["message"].(map[string]interface{})
+				if message == nil {
+					continue
+				}
+				content, _ := message["content"].([]interface{})
+				for _, block := range content {
+					b, _ := block.(map[string]interface{})
+					if b == nil {
+						continue
+					}
+					blockType, _ := b["type"].(string)
+					switch blockType {
+					case "text":
+						text, _ := b["text"].(string)
+						if text != "" {
+							h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: text})
+						}
+					}
+				}
+
+			case "result":
+				// End of turn — emit "done"
+				// Check if context was compacted
+				subtype, _ := msg["subtype"].(string)
+				if subtype == "compact_boundary" {
+					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
+				}
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+
+			case "stream_event":
+				// Partial streaming delta — extract text
+				event, _ := msg["event"].(map[string]interface{})
+				if event == nil {
+					continue
+				}
+				eventType, _ := event["type"].(string)
+				if eventType == "content_block_delta" {
+					delta, _ := event["delta"].(map[string]interface{})
+					if delta != nil {
+						deltaType, _ := delta["type"].(string)
+						if deltaType == "text_delta" {
+							text, _ := delta["text"].(string)
+							if text != "" {
+								h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: text})
+							}
+						}
+					}
+				}
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// streamOutputPlainText handles plain text output from kiro CLI.
+func (h *SessionHandler) streamOutputPlainText(ctx context.Context, sessionID string, reader interface{ Read([]byte) (int, error) }) {
 	lineCh := make(chan string, 32)
 	go func() {
 		defer close(lineCh)
@@ -343,6 +484,8 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 			case <-time.After(idleTurnTimeout):
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 				pendingDone = false
+			case <-ctx.Done():
+				return
 			}
 		} else {
 			select {
@@ -356,6 +499,8 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
 				pendingDone = true
+			case <-ctx.Done():
+				return
 			}
 		}
 	}
@@ -403,7 +548,20 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 		switch msg.Type {
 		case "message":
 			if sess.Stdin != nil && msg.Prompt != "" {
-				fmt.Fprintf(sess.Stdin, "%s\n", msg.Prompt)
+				if sess.Agent == "claude" {
+					// Send NDJSON user message for claude stream-json protocol
+					userMsg := map[string]interface{}{
+						"type":               "user",
+						"session_id":         nil,
+						"message":            map[string]interface{}{"role": "user", "content": msg.Prompt},
+						"parent_tool_use_id": nil,
+					}
+					data, _ := json.Marshal(userMsg)
+					fmt.Fprintf(sess.Stdin, "%s\n", data)
+				} else {
+					// Plain text for kiro
+					fmt.Fprintf(sess.Stdin, "%s\n", msg.Prompt)
+				}
 			}
 		case "interrupt":
 			if sess.ContainerID != "" {
