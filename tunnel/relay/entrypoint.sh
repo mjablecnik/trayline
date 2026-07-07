@@ -16,10 +16,12 @@ trap cleanup SIGTERM SIGINT
 
 echo "[relay] Starting chisel server on port 8080..."
 echo "[relay] Auth: ${CHISEL_AUTH_USER}:<hidden>"
+echo "[relay] Non-chisel HTTP requests will be proxied to 127.0.0.1:9000 (reverse tunnel target)"
 
 chisel server \
     --port 8080 \
     --reverse \
+    --proxy "http://127.0.0.1:9000" \
     --auth "${CHISEL_AUTH_USER}:${CHISEL_AUTH_PASS}" &
 CHISEL_PID=$!
 

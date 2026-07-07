@@ -20,8 +20,9 @@ echo "[home-agent] Forwarding: relay:${RELAY_PORT} -> ${TRAYLINE_HOST}:${TRAYLIN
 chisel client \
     --auth "${CHISEL_AUTH_USER}:${CHISEL_AUTH_PASS}" \
     --keepalive 25s \
+    --hostname "${RELAY_HOSTNAME:-trayline-relay.fly.dev}" \
     "${RELAY_URL}" \
-    "R:0.0.0.0:${RELAY_PORT}:${TRAYLINE_HOST}:${TRAYLINE_PORT}" &
+    "R:127.0.0.1:${RELAY_PORT}:${TRAYLINE_HOST}:${TRAYLINE_PORT}" &
 CHISEL_PID=$!
 
 echo "[home-agent] Chisel client started with PID ${CHISEL_PID}"
