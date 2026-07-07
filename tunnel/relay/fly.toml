@@ -9,7 +9,7 @@ primary_region = "fra"
   WG_LISTEN_PORT = "51820"
   WG_HOME_AGENT_IP = "10.0.0.2"
   WG_PEER_ALLOWED_IPS = "10.0.0.2/32"
-  UPSTREAM_PORT = "8080"
+  UPSTREAM_PORT = "9000"
 
 [[services]]
   protocol = "tcp"
@@ -37,3 +37,4 @@ primary_region = "fra"
 [[vm]]
   size = "shared-cpu-1x"
   memory = "256mb"
+  count = 1
