@@ -35,8 +35,8 @@ echo "==> Starting container: $CONTAINER_NAME"
 docker run -d \
     --name "$CONTAINER_NAME" \
     --env-file "$ENV_FILE" \
-    --cap-add=NET_ADMIN \
     --network "$NETWORK_NAME" \
+    --restart unless-stopped \
     "$IMAGE_NAME"
 
 echo "==> Container started: $CONTAINER_NAME"

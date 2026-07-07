@@ -28,9 +28,7 @@ echo "==> Starting container: $CONTAINER_NAME"
 docker run -d \
     --name "$CONTAINER_NAME" \
     --env-file "$ENV_FILE" \
-    --cap-add=NET_ADMIN \
-    -p 443:443 \
-    -p 51820:51820/udp \
+    -p 8080:8080 \
     "$IMAGE_NAME"
 
 echo "==> Container started: $CONTAINER_NAME"

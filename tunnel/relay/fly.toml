@@ -4,12 +4,6 @@ primary_region = "fra"
 [build]
 
 [env]
-  WG_SERVER_IP = "10.0.0.1"
-  WG_SUBNET = "24"
-  WG_LISTEN_PORT = "51820"
-  WG_HOME_AGENT_IP = "10.0.0.2"
-  WG_PEER_ALLOWED_IPS = "10.0.0.2/32"
-  UPSTREAM_PORT = "9000"
 
 [[services]]
   protocol = "tcp"
@@ -23,21 +17,13 @@ primary_region = "fra"
     port = 80
     handlers = ["http"]
 
-[[services]]
-  protocol = "udp"
-  internal_port = 51820
-
-  [[services.ports]]
-    port = 51820
-
 [checks]
   [checks.health]
-    port = 8081
-    type = "http"
+    port = 8080
+    type = "tcp"
     interval = "30s"
-    timeout = "10s"
-    grace_period = "60s"
-    path = "/health"
+    timeout = "5s"
+    grace_period = "30s"
 
 [[vm]]
   size = "shared-cpu-1x"

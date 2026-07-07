@@ -32,32 +32,8 @@ else
     fly apps create "$APP_NAME"
 fi
 
-# Allocate dedicated IPv4 (required for UDP WireGuard traffic — shared IPv4 does NOT support UDP)
-echo "==> Ensuring dedicated IPv4 allocation (required for WireGuard UDP)..."
-if fly ips list --app "$APP_NAME" 2>/dev/null | grep -q "v4.*dedicated"; then
-    echo "==> Dedicated IPv4 already allocated"
-else
-    echo "==> Allocating dedicated IPv4 ($2/month)..."
-    fly ips allocate-v4 --app "$APP_NAME"
-fi
-
-# Extract keys already defined as plain env vars in fly.toml [env] — these should not be secrets
-TOML_ENV_KEYS=$(awk '/^\[env\]/{found=1; next} found && /^\[/{found=0} found && /^[[:space:]]*[A-Z_][A-Z0-9_]*[[:space:]]*=/{key=$0; gsub(/[[:space:]]*=.*$/, "", key); gsub(/^[[:space:]]+/, "", key); print key}' "$RELAY_DIR/fly.toml")
-
-# Build a filtered env string: only lines whose key is NOT in fly.toml [env]
-SECRETS=$(grep -v '^[[:space:]]*#' "$ENV_FILE" | grep -v '^[[:space:]]*$' | while IFS= read -r line; do
-    key="${line%%=*}"
-    skip=false
-    for toml_key in $TOML_ENV_KEYS; do
-        if [ "$key" = "$toml_key" ]; then
-            skip=true
-            break
-        fi
-    done
-    if [ "$skip" = false ]; then
-        printf '%s\n' "$line"
-    fi
-done)
+# Set secrets from env file
+SECRETS=$(grep -v '^[[:space:]]*#' "$ENV_FILE" | grep -v '^[[:space:]]*$' | grep '=.' || true)
 
 if [ -n "$SECRETS" ]; then
     echo "==> Setting secrets..."
