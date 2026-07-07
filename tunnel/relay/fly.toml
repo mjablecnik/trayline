@@ -7,7 +7,7 @@ primary_region = "fra"
 
 [[services]]
   protocol = "tcp"
-  internal_port = 8080
+  internal_port = 9000
 
   [[services.ports]]
     port = 443
@@ -16,6 +16,13 @@ primary_region = "fra"
   [[services.ports]]
     port = 80
     handlers = ["http"]
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+
+  [[services.ports]]
+    port = 8080
 
 [checks]
   [checks.health]
