@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-CADDY_PID=""
+PROXY_PID=""
 HEALTH_PID=""
 
 cleanup() {
@@ -9,9 +9,9 @@ cleanup() {
     if [ -n "${HEALTH_PID}" ]; then
         kill "${HEALTH_PID}" 2>/dev/null || true
     fi
-    if [ -n "${CADDY_PID}" ]; then
-        kill "${CADDY_PID}" 2>/dev/null || true
-        wait "${CADDY_PID}" 2>/dev/null || true
+    if [ -n "${PROXY_PID}" ]; then
+        kill "${PROXY_PID}" 2>/dev/null || true
+        wait "${PROXY_PID}" 2>/dev/null || true
     fi
     wg-quick down wg0 2>/dev/null || true
     echo "[entrypoint] Shutdown complete"
@@ -51,16 +51,16 @@ while ! ip link show wg0 > /dev/null 2>&1; do
 done
 echo "[entrypoint] WireGuard interface is up"
 
-echo "[entrypoint] Starting health server on port 8080..."
-socat TCP-LISTEN:8080,reuseaddr,fork EXEC:/app/health.sh &
+echo "[entrypoint] Starting health server on port 8081..."
+socat TCP-LISTEN:8081,reuseaddr,fork EXEC:/app/health.sh &
 HEALTH_PID=$!
 
-echo "[entrypoint] Starting Caddy..."
-caddy run --config /app/Caddyfile &
-CADDY_PID=$!
+echo "[entrypoint] Starting reverse proxy (socat :8080 -> ${WG_HOME_AGENT_IP}:${UPSTREAM_PORT})..."
+socat TCP-LISTEN:8080,reuseaddr,fork TCP:${WG_HOME_AGENT_IP}:${UPSTREAM_PORT} &
+PROXY_PID=$!
 
-echo "[entrypoint] Caddy started with PID ${CADDY_PID}, running..."
-wait "${CADDY_PID}"
+echo "[entrypoint] Reverse proxy started with PID ${PROXY_PID}, running..."
+wait "${PROXY_PID}"
 EXIT_CODE=$?
-echo "[entrypoint] Caddy exited with code ${EXIT_CODE}"
+echo "[entrypoint] Proxy exited with code ${EXIT_CODE}"
 exit "${EXIT_CODE}"

@@ -7,12 +7,11 @@ RUN apk add --no-cache \
     ip6tables \
     iproute2 \
     socat \
-    caddy \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
-COPY entrypoint.sh health.sh Caddyfile ./
+COPY entrypoint.sh health.sh ./
 RUN chmod +x entrypoint.sh health.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]

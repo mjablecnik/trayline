@@ -32,12 +32,13 @@ else
     fly apps create "$APP_NAME"
 fi
 
-# Allocate shared IPv4 (required for UDP WireGuard traffic)
-echo "==> Ensuring shared IPv4 allocation (required for WireGuard UDP)..."
-if fly ips allocate-v4 --shared --app "$APP_NAME" 2>/dev/null; then
-    echo "==> IPv4 allocated"
+# Allocate dedicated IPv4 (required for UDP WireGuard traffic — shared IPv4 does NOT support UDP)
+echo "==> Ensuring dedicated IPv4 allocation (required for WireGuard UDP)..."
+if fly ips list --app "$APP_NAME" 2>/dev/null | grep -q "v4.*dedicated"; then
+    echo "==> Dedicated IPv4 already allocated"
 else
-    echo "==> IPv4 already allocated (continuing)"
+    echo "==> Allocating dedicated IPv4 ($2/month)..."
+    fly ips allocate-v4 --app "$APP_NAME"
 fi
 
 # Extract keys already defined as plain env vars in fly.toml [env] — these should not be secrets
