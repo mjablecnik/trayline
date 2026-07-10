@@ -84,10 +84,17 @@ RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
+    && chmod -R a+w /opt/flutter/bin/cache \
+    && chmod -R a+w /opt/flutter/packages/flutter_tools/.dart_tool \
+    && mkdir -p /opt/flutter/dev /opt/flutter/examples \
+    && chmod a+w /opt/flutter/.git/refs/heads \
     && mkdir -p /home/agent/.pub-cache \
     && cp -r /root/.cargo /home/agent/.cargo \
     && cp -r /root/.rustup /home/agent/.rustup \
     && chown -R agent:agent /home/agent
+
+# Ensure ld.lld is available where Flutter expects it (next to clang++ binary)
+RUN ln -sf /usr/bin/ld /usr/lib/llvm-*/bin/ld.lld 2>/dev/null || true
 
 ENV PATH="/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
