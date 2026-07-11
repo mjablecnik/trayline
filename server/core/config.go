@@ -22,6 +22,7 @@ type Config struct {
 	StateDir           string
 	MaxUploadSize      int64
 	MaxUploadFiles     int
+	MaxPromptLength    int
 
 	// Agent credential directories on the host — mounted read-only into every agent
 	// container, mirroring what trayline-agent does for interactive CLI invocations.
@@ -150,6 +151,18 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("MAX_UPLOAD_FILES must be a positive integer, got %q", maxUploadFilesStr)
 		}
 		cfg.MaxUploadFiles = count
+	}
+
+	// MAX_PROMPT_LENGTH
+	maxPromptLenStr := os.Getenv("MAX_PROMPT_LENGTH")
+	if maxPromptLenStr == "" {
+		cfg.MaxPromptLength = 32000
+	} else {
+		maxPromptLen, err := strconv.Atoi(maxPromptLenStr)
+		if err != nil || maxPromptLen < 1 {
+			return nil, fmt.Errorf("MAX_PROMPT_LENGTH must be a positive integer, got %q", maxPromptLenStr)
+		}
+		cfg.MaxPromptLength = maxPromptLen
 	}
 
 	// Agent credential mounts — mirrors what trayline-agent does on the CLI.

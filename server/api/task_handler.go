@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	maxPromptLen    = 32000
 	longPollTimeout = 30 * time.Second
 )
 
@@ -41,11 +40,12 @@ type TaskHandler struct {
 	workspaceDir   string
 	maxUploadSize  int64
 	maxUploadFiles int
+	maxPromptLen   int
 }
 
 // NewTaskHandler creates a TaskHandler.
-func NewTaskHandler(store *store.TaskStore, cm ContainerRunner, logger *core.Logger, stateMgr StateSaver, workspaceDir string, maxUploadSize int64, maxUploadFiles int) *TaskHandler {
-	return &TaskHandler{store: store, cm: cm, logger: logger, stateMgr: stateMgr, workspaceDir: workspaceDir, maxUploadSize: maxUploadSize, maxUploadFiles: maxUploadFiles}
+func NewTaskHandler(store *store.TaskStore, cm ContainerRunner, logger *core.Logger, stateMgr StateSaver, workspaceDir string, maxUploadSize int64, maxUploadFiles int, maxPromptLen int) *TaskHandler {
+	return &TaskHandler{store: store, cm: cm, logger: logger, stateMgr: stateMgr, workspaceDir: workspaceDir, maxUploadSize: maxUploadSize, maxUploadFiles: maxUploadFiles, maxPromptLen: maxPromptLen}
 }
 
 // saveState persists server state to disk, logging any error.
@@ -97,10 +97,10 @@ func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if len(req.Prompt) > maxPromptLen {
+	if len(req.Prompt) > h.maxPromptLen {
 		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
-			Message: fmt.Sprintf("prompt exceeds maximum length of %d characters", maxPromptLen),
+			Message: fmt.Sprintf("prompt exceeds maximum length of %d characters", h.maxPromptLen),
 		})
 		return
 	}

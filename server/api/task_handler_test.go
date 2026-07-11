@@ -32,7 +32,7 @@ func newTestHandler(t *testing.T) (*TaskHandler, string) {
 	ts := store.NewTaskStore()
 	logger := core.NewLogger("test-token")
 	runner := &fakeRunner{result: &docker.ContainerResult{Stdout: "ok", ExitCode: 0}}
-	return NewTaskHandler(ts, runner, logger, nil, dir, MaxUploadFileSize, MaxUploadFileCount), dir
+	return NewTaskHandler(ts, runner, logger, nil, dir, MaxUploadFileSize, MaxUploadFileCount, 32000), dir
 }
 
 // buildMultipartBody creates a multipart/form-data body with given fields and optional file content.

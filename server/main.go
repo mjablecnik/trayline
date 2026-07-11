@@ -49,7 +49,7 @@ func main() {
 	cm := docker.NewContainerManager(dockerClient, cfg, logger)
 	stateMgr := store.NewStateManager(cfg.StateDir, taskStore, sessionStore, cm, logger)
 
-	taskH := api.NewTaskHandler(taskStore, cm, logger, stateMgr, cfg.WorkspaceDir, cfg.MaxUploadSize, cfg.MaxUploadFiles)
+	taskH := api.NewTaskHandler(taskStore, cm, logger, stateMgr, cfg.WorkspaceDir, cfg.MaxUploadSize, cfg.MaxUploadFiles, cfg.MaxPromptLength)
 
 	health := &api.HealthHandler{}
 	sessionH := api.NewSessionHandler(sessionStore, cm, logger, cfg, stateMgr)
