@@ -74,69 +74,74 @@ _trayline_pipeline_vars() {
   # Check if user is completing a value (after =) for specs-name
   local current="${words[CURRENT]}"
   if [[ "$current" == specs-name=* ]]; then
-    local prefix="specs-name="
+    local typed="${current#specs-name=}"
     local specs_dir=".kiro/specs"
     if [[ -d "$specs_dir" ]]; then
       local -a specs
       specs=( ${specs_dir}/*(N/:t) )
-      compadd -P "$prefix" -S '' -- "${specs[@]}"
+      compadd -p "specs-name=" -S '' -- "${specs[@]}"
     fi
     return
   fi
 
   # Complete brief= with files (markdown and text files in project root and subdirs)
   if [[ "$current" == brief=* ]]; then
-    local prefix="brief="
     local typed="${current#brief=}"
     local search_dir="."
     local file_prefix=""
 
-    if [[ -n "$typed" && -d "$typed" ]]; then
-      search_dir="$typed"
-      file_prefix="${typed%/}/"
-    elif [[ -n "$typed" && "$typed" == */ && -d "${typed%/}" ]]; then
-      search_dir="${typed%/}"
-      file_prefix="$typed"
-    elif [[ -n "$typed" && -d "${typed%/*}" ]]; then
-      search_dir="${typed%/*}"
-      file_prefix="${typed%/*}/"
+    if [[ -n "$typed" ]]; then
+      if [[ "$typed" == */ && -d "${typed%/}" ]]; then
+        # Typed ends with / and is a valid directory
+        search_dir="${typed%/}"
+        file_prefix="$typed"
+      elif [[ -d "$typed" ]]; then
+        # Typed is a valid directory without trailing /
+        search_dir="$typed"
+        file_prefix="${typed%/}/"
+      elif [[ "$typed" == */* && -d "${typed%/*}" ]]; then
+        # Partial filename inside a subdirectory
+        search_dir="${typed%/*}"
+        file_prefix="${typed%/*}/"
+      fi
+      # else: partial filename at root — search_dir stays ".", file_prefix stays ""
     fi
 
     local -a files
     files=( ${search_dir}/*.(md|txt|yaml|yml)(N:t) )
     local -a dirs
     dirs=( ${search_dir}/*(N/:t) )
-    if [[ ${#files[@]} -gt 0 || ${#dirs[@]} -gt 0 ]]; then
-      [[ ${#files[@]} -gt 0 ]] && compadd -P "${prefix}${file_prefix}" -S '' -- "${files[@]}"
-      [[ ${#dirs[@]} -gt 0 ]] && compadd -P "${prefix}${file_prefix}" -S '/' -- "${dirs[@]}"
-    fi
+
+    # Use -p to set prefix that zsh won't use for matching, and let compadd filter
+    local full_prefix="brief=${file_prefix}"
+    [[ ${#files[@]} -gt 0 ]] && compadd -p "$full_prefix" -S '' -- "${files[@]}"
+    [[ ${#dirs[@]} -gt 0 ]] && compadd -p "$full_prefix" -S '/' -- "${dirs[@]}"
     return
   fi
 
   # Complete path= with directories (supports nested: path=frontend/src/<TAB>)
   if [[ "$current" == path=* ]]; then
-    local prefix="path="
     local typed="${current#path=}"
     local search_dir="."
     local file_prefix=""
 
-    if [[ -n "$typed" && -d "$typed" ]]; then
-      # User typed a valid directory, show its subdirectories
-      search_dir="$typed"
-      file_prefix="${typed%/}/"
-    elif [[ -n "$typed" && "$typed" == */ && -d "${typed%/}" ]]; then
-      search_dir="${typed%/}"
-      file_prefix="$typed"
-    elif [[ -n "$typed" && -d "${typed%/*}" ]]; then
-      # Partial path — show siblings in parent dir
-      search_dir="${typed%/*}"
-      file_prefix="${typed%/*}/"
+    if [[ -n "$typed" ]]; then
+      if [[ "$typed" == */ && -d "${typed%/}" ]]; then
+        search_dir="${typed%/}"
+        file_prefix="$typed"
+      elif [[ -d "$typed" ]]; then
+        search_dir="$typed"
+        file_prefix="${typed%/}/"
+      elif [[ "$typed" == */* && -d "${typed%/*}" ]]; then
+        search_dir="${typed%/*}"
+        file_prefix="${typed%/*}/"
+      fi
     fi
 
     local -a dirs
     dirs=( ${search_dir}/*(N/:t) )
     if [[ ${#dirs[@]} -gt 0 ]]; then
-      compadd -P "${prefix}${file_prefix}" -S '/' -- "${dirs[@]}"
+      compadd -p "path=${file_prefix}" -S '/' -- "${dirs[@]}"
     fi
     return
   fi
