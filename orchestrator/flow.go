@@ -418,11 +418,12 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath st
 			projectDir = cwd
 		}
 		stepVerbose := verbose || step.Verbose
+		var stepOutput string
 		var exitCode int
 		if step.Agent != "" {
-			_, exitCode, err = runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, exitCode, err = runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		} else if step.Command != "" {
-			_, exitCode, err = runner.RunCommand(step.Command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, exitCode, err = runner.RunCommand(step.Command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		}
 
 		if err != nil || exitCode != 0 {
@@ -441,7 +442,22 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath st
 					return 1
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "%s✗ Lifecycle before step %q failed%s\n", colorRed, step.Name, colorReset)
+				fmt.Fprintf(os.Stderr, "%s✗ Lifecycle before step %q failed (exit code %d)%s\n", colorRed, step.Name, exitCode, colorReset)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  %s  error: %v%s\n", colorRed, err, colorReset)
+				}
+				if stepOutput != "" && !stepVerbose {
+					lines := strings.Split(strings.TrimRight(stepOutput, "\n"), "\n")
+					if len(lines) > 20 {
+						fmt.Fprintf(os.Stderr, "  %s  output (last 20 lines):%s\n", colorRed, colorReset)
+						lines = lines[len(lines)-20:]
+					} else {
+						fmt.Fprintf(os.Stderr, "  %s  output:%s\n", colorRed, colorReset)
+					}
+					for _, line := range lines {
+						fmt.Fprintf(os.Stderr, "  %s  | %s%s\n", colorRed, line, colorReset)
+					}
+				}
 				return 1
 			}
 		} else {
@@ -470,12 +486,13 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath st
 			projectDir = cwd
 		}
 		stepVerbose := verbose || step.Verbose
+		var stepOutput string
 		var stepExitCode int
 		var stepErr error
 		if step.Agent != "" {
-			_, stepExitCode, stepErr = runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, stepExitCode, stepErr = runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		} else if command != "" {
-			_, stepExitCode, stepErr = runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, stepExitCode, stepErr = runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		}
 
 		if stepErr != nil || stepExitCode != 0 {
@@ -491,7 +508,23 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath st
 				fbVerbose := verbose || fallback.Verbose
 				runner.RunAgent(fallback.Agent, fbPrompt, fallback.Model, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
 			} else {
-				fmt.Fprintf(os.Stderr, "  %s⚠ Lifecycle after step %q failed%s\n", colorYellow, step.Name, colorReset)
+				fmt.Fprintf(os.Stderr, "  %s⚠ Lifecycle after step %q failed (exit code %d)%s\n", colorYellow, step.Name, stepExitCode, colorReset)
+				if stepErr != nil {
+					fmt.Fprintf(os.Stderr, "  %s  error: %v%s\n", colorYellow, stepErr, colorReset)
+				}
+				if stepOutput != "" && !stepVerbose {
+					// Show last 20 lines of output to help diagnose the failure
+					lines := strings.Split(strings.TrimRight(stepOutput, "\n"), "\n")
+					if len(lines) > 20 {
+						fmt.Fprintf(os.Stderr, "  %s  output (last 20 lines):%s\n", colorYellow, colorReset)
+						lines = lines[len(lines)-20:]
+					} else {
+						fmt.Fprintf(os.Stderr, "  %s  output:%s\n", colorYellow, colorReset)
+					}
+					for _, line := range lines {
+						fmt.Fprintf(os.Stderr, "  %s  | %s%s\n", colorYellow, line, colorReset)
+					}
+				}
 			}
 		} else {
 			if i+1 < len(lc.After) && lc.After[i+1].Agent != "" {
