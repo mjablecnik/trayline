@@ -110,7 +110,8 @@ steps:
   - loop:
       max_iterations: 50
       condition:
-        not_contains: "All tasks are done"
+        file: ".agents/tmp/TASKS.md"
+        contains: "- [ ]"
       steps:
         - name: "fix-seo-issues"
           agent: "claude"
@@ -152,4 +153,3 @@ steps:
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
 
             When you are done, print a summary of which issues you fixed.
-            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."

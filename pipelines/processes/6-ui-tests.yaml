@@ -128,7 +128,8 @@ steps:
   - loop:
       max_iterations: 50
       condition:
-        not_contains: "All tasks are done"
+        file: ".agents/tmp/COMPONENT_TASKS.md"
+        contains: "- [ ]"
       steps:
         - name: "generate-component-tests"
           agent: "claude"
@@ -142,9 +143,9 @@ steps:
 
             Read COMPONENT_TESTS.md and COMPONENT_TASKS.md from .agents/tmp/ (in cwd).
 
-            If COMPONENT_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
+            If COMPONENT_TESTS.md does not exist, skip this step entirely — there is nothing to do.
             If COMPONENT_TASKS.md says "All component tests are up to date. No changes needed.",
-            say "All tasks are done."
+            there is nothing to do — skip this step.
 
             Your job is to create, fix, or remove component stories/tests in {{path}}.
 
@@ -168,12 +169,12 @@ steps:
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in .agents/tmp/COMPONENT_TASKS.md (in cwd) are now checked off, explicitly say "All tasks are done."
 
   - loop:
       max_iterations: 50
       condition:
-        not_contains: "All tasks are done"
+        file: ".agents/tmp/E2E_TASKS.md"
+        contains: "- [ ]"
       steps:
         - name: "generate-e2e-tests"
           agent: "claude"
@@ -188,9 +189,9 @@ steps:
 
             Read E2E_TESTS.md and E2E_TASKS.md from .agents/tmp/ (in cwd).
 
-            If E2E_TESTS.md does not exist, skip this step entirely and say "All tasks are done."
+            If E2E_TESTS.md does not exist, skip this step entirely — there is nothing to do.
             If E2E_TASKS.md says "All E2E tests are up to date. No changes needed.",
-            say "All tasks are done."
+            there is nothing to do — skip this step.
 
             Your job is to create, fix, or remove E2E tests for pages in {{path}}.
 
@@ -233,7 +234,6 @@ steps:
             After every batch of changes, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in .agents/tmp/E2E_TASKS.md (in cwd) are now checked off, explicitly say "All tasks are done."
 
   - name: "summarize-tests"
     agent: "claude"

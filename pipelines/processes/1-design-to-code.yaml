@@ -60,7 +60,8 @@ steps:
   - loop:
       max_iterations: 50
       condition:
-        not_contains: "All tasks are done"
+        file: ".agents/tmp/TASKS.md"
+        contains: "- [ ]"
       steps:
         - name: "create-pages"
           agent: "claude"
@@ -96,4 +97,3 @@ steps:
             After every completed page, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
 
             When you are done, print a summary of which tasks you completed.
-            If all tasks in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."

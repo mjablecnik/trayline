@@ -515,7 +515,9 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("step %q: condition file not found: %s", stepName, path)
+			// File does not exist — treat as empty input so contains/not_contains
+			// conditions evaluate against an empty string (contains→false, not_contains→true).
+			return "", nil
 		}
 		return "", fmt.Errorf("step %q: reading condition file: %w", stepName, err)
 	}

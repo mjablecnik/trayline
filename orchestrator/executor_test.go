@@ -735,16 +735,17 @@ func TestConditionInputSelection(t *testing.T) {
 	})
 }
 
-// Test for condition file not found at runtime (issue #21 in code review).
+// Test for condition file not found at runtime — returns empty string (not an error)
+// so that contains/not_contains conditions can evaluate gracefully.
 func TestConditionFileNotFound(t *testing.T) {
-	cond := Condition{Prompt: "Done?", File: "/nonexistent/path/missing-file.txt"}
+	cond := Condition{Contains: "- [ ]", File: "/nonexistent/path/missing-file.txt"}
 	e := &Executor{}
-	_, err := e.conditionInput("test-step", &cond, "", "step output")
-	if err == nil {
-		t.Fatal("expected error for missing condition file")
+	input, err := e.conditionInput("test-step", &cond, "", "step output")
+	if err != nil {
+		t.Fatalf("expected no error for missing condition file, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "condition file not found") {
-		t.Errorf("unexpected error message: %v", err)
+	if input != "" {
+		t.Errorf("expected empty string for missing file, got: %q", input)
 	}
 }
 

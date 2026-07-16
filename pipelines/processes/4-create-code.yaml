@@ -7,7 +7,8 @@ steps:
   - loop:
       max_iterations: 50
       condition:
-        not_contains: "All tasks are done"
+        file: ".kiro/specs/{{specs-name}}/tasks.md"
+        contains: "- [ ]"
       steps:
         - name: "create-code"
           agent: "claude"
@@ -28,8 +29,7 @@ steps:
             If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
             Only record genuinely useful insights — not trivial typos or obvious fixes.
 
-            When you are done, print a summary of which tasks you completed. If all tasks
-            in the spec are now checked off, explicitly say "All tasks are done."
+            When you are done, print a summary of which tasks you completed.
 
   - name: "verify-builds"
     command: "trayline run tasks/check-build --var path={{path}} --no-lifecycle"

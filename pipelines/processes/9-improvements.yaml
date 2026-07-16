@@ -89,5 +89,5 @@ steps:
             All changes must remain compliant with the specification and design documents.
             After every major change and successful test, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>.
             When you are done, print a summary of which tasks you completed. If all improvement tasks
-            in .agents/tmp/TASKS.md are now checked off, explicitly say "All tasks are done."
+            in .agents/tmp/TASKS.md are now checked off, say so.
           verbose: true
