@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -523,7 +524,7 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 	}
 	return string(data), nil
 }
-// evaluateCondition evaluates a condition using either string match (contains) or LLM (prompt).
+// evaluateCondition evaluates a condition using string match, regex match, or LLM (prompt).
 // Returns the boolean decision.
 func (e *Executor) evaluateCondition(context string, cond *Condition, input string) (bool, error) {
 	if cond.Contains != "" {
@@ -540,6 +541,22 @@ func (e *Executor) evaluateCondition(context string, cond *Condition, input stri
 		return decision, nil
 	}
 
+	if cond.Matches != "" {
+		re := regexp.MustCompile(cond.Matches)
+		decision := re.MatchString(input)
+		e.debugLog("%s: matches %q → %v", context, cond.Matches, decision)
+		fmt.Printf("%s  %s⚡ %s: matches(%q)=%v%s\n", indent(), colorMagenta, context, cond.Matches, decision, colorReset)
+		return decision, nil
+	}
+
+	if cond.NotMatches != "" {
+		re := regexp.MustCompile(cond.NotMatches)
+		decision := !re.MatchString(input)
+		e.debugLog("%s: not_matches %q → %v", context, cond.NotMatches, decision)
+		fmt.Printf("%s  %s⚡ %s: not_matches(%q)=%v%s\n", indent(), colorMagenta, context, cond.NotMatches, decision, colorReset)
+		return decision, nil
+	}
+
 	decision, err := e.LLM.Evaluate(input, cond.Prompt)
 	if err != nil {
 		e.debugError(fmt.Sprintf("LLM.Evaluate for %s", context), err)
@@ -553,7 +570,7 @@ func (e *Executor) evaluateCondition(context string, cond *Condition, input stri
 // Loop elements may be steps or nested loops. If a step condition evaluates to false,
 // the remaining elements in the current iteration are skipped and the loop exits.
 func (e *Executor) executeLoop(loop *Loop) (int, error) {
-	hasLoopCondition := loop.Condition.Prompt != "" || loop.Condition.Contains != "" || loop.Condition.NotContains != ""
+	hasLoopCondition := loop.Condition.Prompt != "" || loop.Condition.Contains != "" || loop.Condition.NotContains != "" || loop.Condition.Matches != "" || loop.Condition.NotMatches != ""
 	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, elements=%d", loop.MaxIterations, hasLoopCondition, len(loop.Elements)))
 
 	for iter := 1; iter <= loop.MaxIterations; iter++ {
@@ -688,7 +705,22 @@ func printCondition(cond *Condition, indent string) {
 	if cond == nil {
 		return
 	}
-	line := indent + colorMagenta + "condition: \"" + cond.Prompt + "\""
+	line := indent + colorMagenta + "condition:"
+	if cond.Prompt != "" {
+		line += " prompt=\"" + cond.Prompt + "\""
+	}
+	if cond.Contains != "" {
+		line += " contains=\"" + cond.Contains + "\""
+	}
+	if cond.NotContains != "" {
+		line += " not_contains=\"" + cond.NotContains + "\""
+	}
+	if cond.Matches != "" {
+		line += " matches=\"" + cond.Matches + "\""
+	}
+	if cond.NotMatches != "" {
+		line += " not_matches=\"" + cond.NotMatches + "\""
+	}
 	if cond.File != "" {
 		line += " [file: " + cond.File + "]"
 	}

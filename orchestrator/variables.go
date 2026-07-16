@@ -113,12 +113,16 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 				if s.Condition != nil {
 					resolveField(&s.Condition.Prompt)
 					resolveField(&s.Condition.File)
+					resolveField(&s.Condition.Matches)
+					resolveField(&s.Condition.NotMatches)
 				}
 			}
 			if elem.Loop != nil {
 				l := elem.Loop
 				resolveField(&l.Condition.Prompt)
 				resolveField(&l.Condition.File)
+				resolveField(&l.Condition.Matches)
+				resolveField(&l.Condition.NotMatches)
 				substituteElements(l.Elements)
 			}
 		}

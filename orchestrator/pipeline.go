@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -80,6 +81,8 @@ type Condition struct {
 	Goto        string `yaml:"goto"`
 	Contains    string `yaml:"contains"`
 	NotContains string `yaml:"not_contains"`
+	Matches     string `yaml:"matches"`
+	NotMatches  string `yaml:"not_matches"`
 }
 
 // rawPipeline is used for YAML marshaling and unmarshaling.
@@ -223,11 +226,27 @@ func validateCondition(stepName string, c *Condition, targetNames []string) erro
 	if c.NotContains != "" {
 		modes++
 	}
+	if c.Matches != "" {
+		modes++
+	}
+	if c.NotMatches != "" {
+		modes++
+	}
 	if modes == 0 {
-		return fmt.Errorf("step %q: condition requires one of \"prompt\", \"contains\", or \"not_contains\"", stepName)
+		return fmt.Errorf("step %q: condition requires one of \"prompt\", \"contains\", \"not_contains\", \"matches\", or \"not_matches\"", stepName)
 	}
 	if modes > 1 {
-		return fmt.Errorf("step %q: condition must have exactly one of \"prompt\", \"contains\", or \"not_contains\"", stepName)
+		return fmt.Errorf("step %q: condition must have exactly one of \"prompt\", \"contains\", \"not_contains\", \"matches\", or \"not_matches\"", stepName)
+	}
+	if c.Matches != "" {
+		if _, err := regexp.Compile(c.Matches); err != nil {
+			return fmt.Errorf("step %q: invalid regex in matches: %w", stepName, err)
+		}
+	}
+	if c.NotMatches != "" {
+		if _, err := regexp.Compile(c.NotMatches); err != nil {
+			return fmt.Errorf("step %q: invalid regex in not_matches: %w", stepName, err)
+		}
 	}
 	if c.Goto != "" {
 		found := false
@@ -277,7 +296,7 @@ func validateLoop(l *Loop, topLevelNames []string) error {
 	}
 
 	// Loop-level condition is required unless at least one step has a condition.
-	if l.Condition.Prompt == "" && l.Condition.Contains == "" && l.Condition.NotContains == "" && !hasStepCondition {
+	if l.Condition.Prompt == "" && l.Condition.Contains == "" && l.Condition.NotContains == "" && l.Condition.Matches == "" && l.Condition.NotMatches == "" && !hasStepCondition {
 		return fmt.Errorf("loop: missing required field \"condition\"")
 	}
 
