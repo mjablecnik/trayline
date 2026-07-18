@@ -204,6 +204,11 @@ func (e *Executor) Run() int {
 
 		if elem.Loop != nil {
 			if exitCode, err := e.executeLoop(elem.Loop); err != nil || exitCode != 0 {
+				if exitCode == 2 && err == nil {
+					// Rate limit detected inside loop — checkpoint already saved
+					printTotal("Pipeline paused (rate limit).")
+					return 2
+				}
 				if err != nil {
 					fmt.Printf("\n%s✗ error:%s %v\n", colorRed, colorReset, err)
 				}
@@ -587,6 +592,10 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 			if elem.Loop != nil {
 				exitCode, err := e.executeLoop(elem.Loop)
 				if err != nil || exitCode != 0 {
+					if exitCode == 2 && err == nil {
+						// Rate limit from nested loop — propagate up
+						return 2, nil
+					}
 					return exitCode, err
 				}
 				continue
@@ -607,6 +616,13 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 				return 1, fmt.Errorf("loop step %q: %v", step.Name, err)
 			}
 			if exitCode != 0 {
+				// Check if this is a rate limit error — propagate up for checkpoint/pause handling
+				if IsRateLimitError(output) {
+					fmt.Printf("\n%s%s⏸ Rate limit detected on step %q (inside loop). Saving checkpoint for resume.%s\n", indent(), colorYellow, step.Name, colorReset)
+					SaveCheckpoint(e.PipelineName, e.ResolvedVars, nil, step.Name, true)
+					e.RateLimitOutput = output
+					return 2, nil
+				}
 				fmt.Fprintf(os.Stderr, "  %s✗ error:%s step %q failed with exit code %d\n", colorRed, colorReset, step.Name, exitCode)
 				e.debugLog("Step %q failed with exit code %d — aborting loop", step.Name, exitCode)
 				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)

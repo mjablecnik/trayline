@@ -749,6 +749,48 @@ func TestConditionFileNotFound(t *testing.T) {
 	}
 }
 
+// Test that rate limit inside a loop propagates exit code 2 (pause, not fail).
+func TestExecutor_LoopRateLimitPause(t *testing.T) {
+	changeDirForExecutorTest(t)
+
+	pipeline := &Pipeline{
+		Elements: []PipelineElement{
+			{Loop: &Loop{
+				MaxIterations: 5,
+				Elements: []PipelineElement{
+					{Step: &Step{Name: "create-code", Agent: "claude", Prompt: "implement feature"}},
+				},
+				Condition: Condition{Prompt: "Continue?"},
+			}},
+		},
+	}
+	runner := &mockRunner{
+		responses: []runResponse{
+			{output: "ok", exitCode: 0},
+			{output: "ok", exitCode: 0},
+			{output: "You've hit your session limit - resets 8pm (UTC)", exitCode: 1},
+		},
+	}
+	// Loop condition: iter 1 → true (continue), iter 2 → true (continue)
+	// Iter 3 will hit rate limit before condition is evaluated.
+	eval := &mockEvaluator{decisions: []bool{true, true}}
+
+	e := buildExecutor(pipeline, runner, eval)
+	e.PipelineName = "processes/4-create-code"
+	e.ResolvedVars = map[string]string{}
+	code := e.Run()
+
+	if code != 2 {
+		t.Errorf("expected exit code 2 (rate limit pause), got %d", code)
+	}
+	if len(runner.calls) != 3 {
+		t.Errorf("expected 3 calls (2 success + 1 rate limited), got %d", len(runner.calls))
+	}
+	if e.RateLimitOutput == "" {
+		t.Error("expected RateLimitOutput to be set")
+	}
+}
+
 // Test for loop step failure (issue #22 / Requirement 9.10).
 func TestExecutor_LoopStepFailure(t *testing.T) {
 	pipeline := &Pipeline{
