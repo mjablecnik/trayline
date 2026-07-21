@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -72,9 +73,18 @@ var rateLimitPatterns = []string{
 	"overloaded",
 }
 
+// ansiRegex matches ANSI escape sequences (colors, cursor movement, etc.).
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// stripANSI removes all ANSI escape sequences from a string.
+func stripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
+
 // IsRateLimitError checks if the output contains rate limit indicators.
+// Strips ANSI escape codes before matching to handle colored agent output.
 func IsRateLimitError(output string) bool {
-	lower := strings.ToLower(output)
+	lower := strings.ToLower(stripANSI(output))
 	for _, pattern := range rateLimitPatterns {
 		if strings.Contains(lower, pattern) {
 			return true
@@ -87,7 +97,7 @@ func IsRateLimitError(output string) bool {
 // Supports patterns like "resets 2am (UTC)", "resets 3:30pm (UTC)", "resets 14:00 (UTC)".
 // Returns zero time if no reset time is found.
 func ParseResetTime(output string) time.Time {
-	lower := strings.ToLower(output)
+	lower := strings.ToLower(stripANSI(output))
 
 	// Pattern: "resets <time> (utc)" or "resets <time> utc"
 	idx := strings.Index(lower, "resets ")
