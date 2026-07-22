@@ -374,6 +374,182 @@ func TestHandleStop_NoRunningTaskConflict(t *testing.T) {
 	}
 }
 
+func TestHandlerPersist_WritesStateFileAfterCreate(t *testing.T) {
+	q := newTestQueue()
+	runner := newFakeRunner()
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
+	statePath := t.TempDir() + "/state.json"
+	h := NewHandler(q, w, statePath)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	rec := doRequest(mux, http.MethodPost, "/tasks", `{"command":"echo hi"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	loaded, err := LoadState(statePath, NewNameGenerator())
+	if err != nil {
+		t.Fatalf("unexpected error loading persisted state: %v", err)
+	}
+	if len(loaded.Tasks) != 1 || loaded.Tasks[0].Command != "echo hi" {
+		t.Fatalf("expected persisted state to contain the created task, got %+v", loaded.Tasks)
+	}
+}
+
+func TestHandleRetry_Success(t *testing.T) {
+	_, q, w, runner, mux := newTestHandler()
+	task, err := q.AddTask("will-fail", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if running := q.StartNext(); running == nil {
+		t.Fatal("expected StartNext to start the task")
+	}
+	if _, err := q.MarkFailed(1); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	proc := newFakeProcess(0)
+	proc.finish()
+	runner.enqueue("will-fail", proc)
+
+	// NOTE: the worker is deliberately started only after the response body
+	// has been read, not before. handleRetry (handler.go) reads the *Task
+	// returned by queue.Retry() via toTaskResponse without holding q.mu, so
+	// starting the worker earlier races the Worker goroutine's concurrent
+	// mutation of that same Task's Status/ExitCode fields under `-race`. See
+	// MEMORY.md "handleRetry/handleSkip read Task pointers unsynchronized
+	// with the Worker".
+	rec := doRequest(mux, http.MethodPost, "/tasks/retry", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp taskResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.ID != task.ID {
+		t.Fatalf("expected retried task %s, got %s", task.ID, resp.ID)
+	}
+	if resp.Status != string(TaskPending) {
+		t.Fatalf("expected status pending in response, got %q", resp.Status)
+	}
+
+	// The retry notified the worker (buffered wake signal); once started, it
+	// picks up and completes the re-queued task using the process enqueued
+	// above without needing that signal (StartNext is checked unconditionally
+	// on the first loop iteration).
+	go w.Run()
+	t.Cleanup(w.Shutdown)
+	if !pollUntil(time.Second, func() bool {
+		return q.CurrentState() == QueueIdle
+	}) {
+		t.Fatalf("expected worker to complete the retried task, queue state=%q", q.CurrentState())
+	}
+}
+
+func TestHandleSkip_Success(t *testing.T) {
+	_, q, _, _, mux := newTestHandler()
+	task, err := q.AddTask("will-fail", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if running := q.StartNext(); running == nil {
+		t.Fatal("expected StartNext to start the task")
+	}
+	if _, err := q.MarkFailed(1); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	rec := doRequest(mux, http.MethodPost, "/tasks/skip", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp idNameResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.ID != task.ID || resp.Name != task.Name {
+		t.Fatalf("expected skipped task %s/%s, got %s/%s", task.ID, task.Name, resp.ID, resp.Name)
+	}
+	if _, err := q.Snapshot(task.ID); err != ErrTaskNotFound {
+		t.Fatalf("expected skipped task to be removed from the queue, got err=%v", err)
+	}
+}
+
+func TestHandleCreateTask_NegativePositionRejected(t *testing.T) {
+	_, _, _, _, mux := newTestHandler()
+	rec := doRequest(mux, http.MethodPost, "/tasks", `{"command":"echo hi","position":-1}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	if resp.Error != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %q", resp.Error)
+	}
+}
+
+func TestHandleUpdateTask_MalformedJSON(t *testing.T) {
+	_, q, _, _, mux := newTestHandler()
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	rec := doRequest(mux, http.MethodPatch, "/tasks/"+task.ID, "{not json")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	if resp.Error != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %q", resp.Error)
+	}
+}
+
+func TestHandleResume_RunningWhenPendingTasksRemain(t *testing.T) {
+	// Constructed directly (rather than via AddTask, which always makes an
+	// idle queue running) to exercise Resume's "idle with pending tasks"
+	// branch, e.g. as it would appear right after loading a persisted state.
+	pending := &Task{ID: "abc12345", Name: "brave-tiger", Command: "echo hi", Status: TaskPending, CreatedAt: time.Now()}
+	q := &Queue{State: QueueIdle, Tasks: []*Task{pending}, names: NewNameGenerator()}
+	runner := newFakeRunner()
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
+	h := NewHandler(q, w, "")
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	rec := doRequest(mux, http.MethodPost, "/queue/resume", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp queueActionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.State != string(QueueRunning) {
+		t.Fatalf("expected running state, got %q", resp.State)
+	}
+	if resp.Message != "" {
+		t.Fatalf("expected no message, got %q", resp.Message)
+	}
+}
+
+func TestTaskPosition_UnknownIdentifierReturnsNegativeOne(t *testing.T) {
+	h, _, _, _, _ := newTestHandler()
+	if pos := h.taskPosition("does-not-exist"); pos != -1 {
+		t.Fatalf("expected -1 for an unknown identifier, got %d", pos)
+	}
+}
+
 func TestHandleHealth(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
 	rec := doRequest(mux, http.MethodGet, "/health", "")

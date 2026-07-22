@@ -427,6 +427,136 @@ func TestWorker_HaltedQueueDoesNotStartNextTask(t *testing.T) {
 	}
 }
 
+func TestWorker_ForceKillSendsOnlySigkillAndMarksStopped(t *testing.T) {
+	q := newTestQueue()
+	task, err := q.AddTask("sleep 100", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	runner := newFakeRunner()
+	proc := newFakeProcess(0)
+	proc.exitOnTerm = true // reacts to SIGKILL too, since SIGKILL sets shouldExit
+	runner.enqueue("sleep 100", proc)
+
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
+
+	go w.Run()
+	defer w.Shutdown()
+
+	waitFor(t, time.Second, func() bool {
+		got, err := q.Snapshot(task.ID)
+		return err == nil && got.Status == TaskRunning
+	})
+
+	killed, err := w.ForceKill()
+	if err != nil {
+		t.Fatalf("ForceKill: %v", err)
+	}
+	if killed.ID != task.ID {
+		t.Fatalf("expected killed task %s, got %s", task.ID, killed.ID)
+	}
+
+	got, _ := q.Snapshot(task.ID)
+	if got.Status != TaskFailed {
+		t.Fatalf("expected task failed after ForceKill, got %s", got.Status)
+	}
+	if got.ExitCode == nil || *got.ExitCode != ExitCodeStopped {
+		t.Fatalf("expected exit code %d, got %v", ExitCodeStopped, got.ExitCode)
+	}
+
+	signals := proc.signalsReceived()
+	if len(signals) != 1 || signals[0] != syscall.SIGKILL {
+		t.Fatalf("expected only SIGKILL sent, got %v", signals)
+	}
+	if notifier.callCount() != 1 {
+		t.Fatalf("expected 1 notification after ForceKill, got %d", notifier.callCount())
+	}
+}
+
+func TestWorker_ForceKillWithNoRunningTaskReturnsError(t *testing.T) {
+	q := newTestQueue()
+	runner := newFakeRunner()
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
+
+	go w.Run()
+	defer w.Shutdown()
+
+	if _, err := w.ForceKill(); err != ErrNoRunningTask {
+		t.Fatalf("expected ErrNoRunningTask, got %v", err)
+	}
+}
+
+func TestWorker_FinishTask_SuccessSendsNoNotification(t *testing.T) {
+	q := newTestQueue()
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if q.StartNext() == nil {
+		t.Fatal("StartNext: expected a task")
+	}
+
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, newFakeRunner(), notifier, "", &bytes.Buffer{})
+
+	w.finishTask(task, 0)
+
+	if notifier.callCount() != 0 {
+		t.Fatalf("expected no notification on success, got %d", notifier.callCount())
+	}
+}
+
+func TestWorker_FinishTask_FailureNotifiesOnce(t *testing.T) {
+	q := newTestQueue()
+	task, err := q.AddTask("false", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if q.StartNext() == nil {
+		t.Fatal("StartNext: expected a task")
+	}
+
+	notifier := &fakeNotifier{}
+	w := NewWorker(q, newFakeRunner(), notifier, "", &bytes.Buffer{})
+
+	w.finishTask(task, 1)
+
+	if notifier.callCount() != 1 {
+		t.Fatalf("expected 1 notification on failure, got %d", notifier.callCount())
+	}
+}
+
+func TestWorker_FinishTask_PersistErrorToUnwritableStateFileIsLoggedNotPanicked(t *testing.T) {
+	q := newTestQueue()
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if q.StartNext() == nil {
+		t.Fatal("StartNext: expected a task")
+	}
+
+	notifier := &fakeNotifier{}
+	// A state file inside a nonexistent directory makes SaveState fail at
+	// os.CreateTemp; finishTask must log the error, not panic or block.
+	w := NewWorker(q, newFakeRunner(), notifier, "/nonexistent-dir/state.json", &bytes.Buffer{})
+
+	done := make(chan struct{})
+	go func() {
+		w.finishTask(task, 0)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("finishTask blocked on persist error")
+	}
+}
+
 func TestWorker_PersistsStateAfterEachTask(t *testing.T) {
 	dir := t.TempDir()
 	statePath := dir + "/state.json"

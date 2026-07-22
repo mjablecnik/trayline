@@ -452,3 +452,255 @@ func TestProperty_TaskUpdateAppliesFieldsCorrectly(t *testing.T) {
 		}
 	})
 }
+
+func TestDeleteTask_NotFoundReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.DeleteTask("nonexistent"); err != ErrTaskNotFound {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
+	}
+}
+
+func TestDeleteTask_RunningTaskReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	q.StartNext()
+
+	if _, err := q.DeleteTask(task.ID); err != ErrTaskRunning {
+		t.Fatalf("expected ErrTaskRunning, got %v", err)
+	}
+}
+
+func TestDeleteTask_FailedTaskTransitionsQueueToIdle(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	q.StartNext()
+	if _, err := q.MarkFailed(1); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	deleted, err := q.DeleteTask(task.ID)
+	if err != nil {
+		t.Fatalf("DeleteTask: %v", err)
+	}
+	if deleted.ID != task.ID {
+		t.Fatalf("expected deleted task %q, got %q", task.ID, deleted.ID)
+	}
+	if q.State != QueueIdle {
+		t.Fatalf("expected queue idle after deleting failed task, got %q", q.State)
+	}
+}
+
+func TestUpdateTask_InvalidNameReturnsValidationError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	if _, err := q.UpdateTask(task.ID, "", "Invalid Name"); err == nil {
+		t.Fatal("expected validation error for invalid name, got nil")
+	}
+}
+
+func TestUpdateTask_NameCollisionReturnsErrNameTaken(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	_, err := q.AddTask("echo a", "taken-name", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	task2, err := q.AddTask("echo b", "other-name", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	if _, err := q.UpdateTask(task2.ID, "", "taken-name"); err != ErrNameTaken {
+		t.Fatalf("expected ErrNameTaken, got %v", err)
+	}
+}
+
+func TestUpdateTask_RunningTaskReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	q.StartNext()
+
+	if _, err := q.UpdateTask(task.ID, "echo bye", ""); err != ErrTaskRunning {
+		t.Fatalf("expected ErrTaskRunning, got %v", err)
+	}
+}
+
+func TestUpdateTask_FailedTaskReturnsImmutableError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	q.StartNext()
+	if _, err := q.MarkFailed(1); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	if _, err := q.UpdateTask(task.ID, "echo bye", ""); err != ErrTaskFailedImmutable {
+		t.Fatalf("expected ErrTaskFailedImmutable, got %v", err)
+	}
+}
+
+func TestUpdateTask_SameNameIsAllowed(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "my-name", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	updated, err := q.UpdateTask(task.ID, "", "my-name")
+	if err != nil {
+		t.Fatalf("expected updating to the same name to be allowed, got error: %v", err)
+	}
+	if updated.Name != "my-name" {
+		t.Fatalf("expected name %q, got %q", "my-name", updated.Name)
+	}
+}
+
+func TestResume_HaltedQueueReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.AddTask("echo hi", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	q.StartNext()
+	if _, err := q.MarkFailed(1); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	if _, err := q.Resume(); err != ErrQueueHalted {
+		t.Fatalf("expected ErrQueueHalted, got %v", err)
+	}
+}
+
+func TestResume_AlreadyRunningReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.AddTask("echo hi", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	if _, err := q.Resume(); err != ErrQueueAlreadyRunning {
+		t.Fatalf("expected ErrQueueAlreadyRunning, got %v", err)
+	}
+}
+
+func TestResume_NoPendingTasksTransitionsToIdleAndReportsEmpty(t *testing.T) {
+	// A fresh queue is already idle with zero pending tasks and no failed
+	// task, which is exactly Resume's no-pending branch.
+	q := NewQueue(NewNameGenerator())
+
+	empty, err := q.Resume()
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if !empty {
+		t.Fatal("expected empty=true when no pending tasks remain")
+	}
+	if q.State != QueueIdle {
+		t.Fatalf("expected queue idle, got %q", q.State)
+	}
+}
+
+func TestSnapshot_NotFoundReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.Snapshot("nonexistent"); err != ErrTaskNotFound {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
+	}
+}
+
+func TestRemoveTask_NotFoundReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.RemoveTask("nonexistent"); err != ErrTaskNotFound {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
+	}
+}
+
+func TestFindTask_NotFoundReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.FindTask("nonexistent"); err != ErrTaskNotFound {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
+	}
+}
+
+func TestStartNext_NotRunningQueueReturnsNil(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	// A freshly created queue with no tasks is idle, not running.
+	if next := q.StartNext(); next != nil {
+		t.Fatalf("expected nil when queue is not running, got %+v", next)
+	}
+}
+
+func TestStartNext_AlreadyRunningTaskReturnsNil(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.AddTask("echo a", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if _, err := q.AddTask("echo b", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+
+	first := q.StartNext()
+	if first == nil {
+		t.Fatal("expected first task to start")
+	}
+	if second := q.StartNext(); second != nil {
+		t.Fatalf("expected nil while a task is already running, got %+v", second)
+	}
+}
+
+func TestStartNext_NoPendingTasksReturnsNil(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	task, err := q.AddTask("echo hi", "", nil)
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	// AddTask transitioned the queue to "running"; removing the only task
+	// (without going through the worker) leaves it "running" with zero
+	// pending tasks, exercising StartNext's own no-pending branch.
+	if _, err := q.RemoveTask(task.ID); err != nil {
+		t.Fatalf("RemoveTask: %v", err)
+	}
+
+	if next := q.StartNext(); next != nil {
+		t.Fatalf("expected nil when no pending tasks remain, got %+v", next)
+	}
+}
+
+func TestMarkComplete_NoRunningTaskReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.MarkComplete(); err != ErrNoRunningTask {
+		t.Fatalf("expected ErrNoRunningTask, got %v", err)
+	}
+}
+
+func TestMarkFailed_NoRunningTaskReturnsError(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if _, err := q.MarkFailed(1); err != ErrNoRunningTask {
+		t.Fatalf("expected ErrNoRunningTask, got %v", err)
+	}
+}
+
+func TestCurrentTask_NilWhenNoneRunning(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if got := q.CurrentTask(); got != nil {
+		t.Fatalf("expected nil, got %+v", got)
+	}
+}
+
+func TestFailedTaskInfo_NilWhenNoneFailed(t *testing.T) {
+	q := NewQueue(NewNameGenerator())
+	if got := q.FailedTaskInfo(); got != nil {
+		t.Fatalf("expected nil, got %+v", got)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,6 +182,100 @@ func TestLoadState_SchemaMismatchIsTreatedAsCorrupted(t *testing.T) {
 	}
 	if q.State != QueueIdle || len(q.Tasks) != 0 {
 		t.Fatalf("expected empty idle queue, got state=%q tasks=%d", q.State, len(q.Tasks))
+	}
+}
+
+func TestSaveState_UnwritableDirectoryReturnsError(t *testing.T) {
+	q := &Queue{State: QueueIdle, Tasks: []*Task{}, names: NewNameGenerator()}
+	path := filepath.Join(t.TempDir(), "does-not-exist", "taskline-state.json")
+
+	if err := SaveState(q, path); err == nil {
+		t.Fatal("expected an error saving state to a nonexistent directory")
+	}
+}
+
+func TestLoadState_PathIsDirectoryReturnsReadError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "taskline-state.json")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatalf("unexpected error creating directory fixture: %v", err)
+	}
+
+	q, err := LoadState(path, NewNameGenerator())
+	if err == nil {
+		t.Fatal("expected an error loading state from a path that is a directory")
+	}
+	if errors.Is(err, ErrCorruptedState) {
+		t.Fatalf("expected a plain read error (not ErrCorruptedState) for a directory path, got %v", err)
+	}
+	if q.State != QueueIdle || len(q.Tasks) != 0 {
+		t.Fatalf("expected empty idle queue, got state=%q tasks=%d", q.State, len(q.Tasks))
+	}
+}
+
+func TestLoadState_CorruptedJSONRenameFailureWrapsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "taskline-state.json")
+	if err := os.WriteFile(path, []byte("{not valid json"), 0o644); err != nil {
+		t.Fatalf("unexpected error writing corrupted file: %v", err)
+	}
+	// Pre-create the ".corrupted" target as a directory so os.Rename (file
+	// onto existing directory) fails, forcing LoadState's rename-error branch.
+	if err := os.Mkdir(path+".corrupted", 0o755); err != nil {
+		t.Fatalf("unexpected error creating rename-target directory: %v", err)
+	}
+
+	q, err := LoadState(path, NewNameGenerator())
+	if !errors.Is(err, ErrCorruptedState) {
+		t.Fatalf("expected error to wrap ErrCorruptedState, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "also failed to rename corrupted file") {
+		t.Fatalf("expected error to mention the rename failure, got %v", err)
+	}
+	if q.State != QueueIdle || len(q.Tasks) != 0 {
+		t.Fatalf("expected empty idle queue, got state=%q tasks=%d", q.State, len(q.Tasks))
+	}
+}
+
+func TestStateFileValid_RejectsUnknownQueueState(t *testing.T) {
+	sf := stateFile{State: QueueState("bogus"), Tasks: nil}
+	if sf.valid() {
+		t.Fatal("expected an unrecognized queue state to be rejected")
+	}
+}
+
+func TestStateFileValid_RejectsNilTask(t *testing.T) {
+	sf := stateFile{State: QueueIdle, Tasks: []*Task{nil}}
+	if sf.valid() {
+		t.Fatal("expected a nil task to be rejected")
+	}
+}
+
+func TestStateFileValid_RejectsEmptyID(t *testing.T) {
+	sf := stateFile{State: QueueIdle, Tasks: []*Task{{ID: "", Command: "echo hi", Status: TaskPending}}}
+	if sf.valid() {
+		t.Fatal("expected a task with an empty ID to be rejected")
+	}
+}
+
+func TestStateFileValid_RejectsWhitespaceOnlyCommand(t *testing.T) {
+	sf := stateFile{State: QueueIdle, Tasks: []*Task{{ID: "abc123", Command: "   ", Status: TaskPending}}}
+	if sf.valid() {
+		t.Fatal("expected a task with a whitespace-only command to be rejected")
+	}
+}
+
+func TestStateFileValid_RejectsUnknownTaskStatus(t *testing.T) {
+	sf := stateFile{State: QueueIdle, Tasks: []*Task{{ID: "abc123", Command: "echo hi", Status: TaskStatus("bogus")}}}
+	if sf.valid() {
+		t.Fatal("expected a task with an unrecognized status to be rejected")
+	}
+}
+
+func TestStateFileValid_AcceptsWellFormedState(t *testing.T) {
+	sf := stateFile{State: QueueRunning, Tasks: []*Task{{ID: "abc123", Command: "echo hi", Status: TaskRunning}}}
+	if !sf.valid() {
+		t.Fatal("expected a well-formed state file to be accepted")
 	}
 }
 
