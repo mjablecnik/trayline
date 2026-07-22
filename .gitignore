@@ -3,3 +3,7 @@ testdata/
 llm-debug.log
 tunnel/**/.env
 tunnel/**/.env-prod
+taskline/server/bin/
+taskline/cli/bin/
+taskline/server/server
+taskline/cli/cli
