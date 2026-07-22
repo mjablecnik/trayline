@@ -1,0 +1,56 @@
+#compdef taskline
+
+# Zsh completion for the taskline CLI.
+
+_taskline() {
+  local -a subcommands
+  subcommands=(
+    'add:Add a new task to the queue'
+    'list:List tasks in the queue'
+    'delete:Delete a task by ID or name'
+    'update:Update a pending task'
+    'retry:Retry the failed task'
+    'skip:Skip the failed task'
+    'stop:Stop the running task'
+    'resume:Resume queue execution'
+    'status:Show queue status'
+  )
+
+  local curcontext="$curcontext" state line
+  typeset -A opt_args
+
+  _arguments -C \
+    '(- *)'{-h,--help}'[Show help message]' \
+    '(- *)'{-v,--version}'[Show version information]' \
+    '1: :->subcommand' \
+    '*::arg:->args'
+
+  case $state in
+    subcommand)
+      _describe 'command' subcommands
+      ;;
+    args)
+      case ${line[1]} in
+        add)
+          _arguments \
+            '--name=[Task name]:name:' \
+            '--position=[Queue position]:position:' \
+            '1:command:'
+          ;;
+        list|retry|skip|stop|resume|status)
+          ;;
+        delete)
+          _arguments '1:identifier:'
+          ;;
+        update)
+          _arguments \
+            '--command=[New command]:command:' \
+            '--name=[New name]:name:' \
+            '1:identifier:'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_taskline "$@"
