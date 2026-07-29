@@ -21,6 +21,8 @@ Atomic operations that perform a single responsibility. These are the smallest r
 | `check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
 | `cleanup` | Discards all git changes, or commits and pushes them. |
 | `release` | Bumps version, updates CHANGELOG.md, creates git tag. |
+| `squash-commits` | Reorganizes local unpushed commits into clean, logical commits. |
+| `sync-docs` | Synchronizes README.md, DOCS.md, and CLAUDE.md with the current codebase. |
 | `sync-pull` | Pulls from bare repo with conflict resolution. |
 | `sync-push` | Pushes to bare repo with conflict resolution. |
 | `update-ai-log` | Updates .agents/AI_LOG.md from .agents/tmp/ or git history. |
@@ -40,6 +42,8 @@ Standalone processes with clear output. Each process focuses on one development 
 | `7-create-tests` | Creates unit/integration tests for uncovered code. | `specs-name`, `path`, `number` |
 | `8-code-review` | Reviews code against spec, fixes critical/high/medium issues. | `specs-name`, `path`, `number` |
 | `9-improvements` | Finds and applies validation, DX, and test improvements. | `specs-name`, `path`, `number` |
+| `10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. | `path`, `number` |
+| `11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. | `path`, `number` |
 
 ## Workflows
 
@@ -47,11 +51,12 @@ Composed processes for full development cycles. Workflows chain multiple process
 
 | Workflow | Processes | Skip Flags |
 |----------|-----------|------------|
-| `design-implementation` | 1→2→3 | `skip-data-refactor`, `skip-ui-refactor` |
-| `feature-implementation` | 4→8→7→6 | `skip-code-review`, `skip-create-tests`, `skip-ui-tests` |
-| `bug-fixing` | 5→7→6 | `skip-create-tests`, `skip-ui-tests` |
-| `tests-implementation` | 6→7 | `skip-ui-tests`, `skip-create-tests` |
-| `refactoring` | 8→9 | `skip-improvements` |
+| `design-impl` | 1→2→3 | `skip-data-refactor`, `skip-ui-refactor` |
+| `feature-impl` | 4→8→7→6 | `skip-code-review`, `skip-create-tests`, `skip-ui-tests` |
+| `fix-bugs` | 5→7→6 | `skip-create-tests`, `skip-ui-tests` |
+| `write-tests` | 6→7 | `skip-ui-tests`, `skip-create-tests` |
+| `refactoring` | 8→9→10→11 | `skip-code-review`, `skip-improvements`, `skip-security-audit`, `skip-seo-audit` |
+| `maintenance` | refactoring→write-tests→check-build→sync-docs | `skip-seo-audit` |
 
 ## Lifecycle
 
@@ -139,19 +144,19 @@ trayline flow <pipeline> [--var key=value ...] [--then <pipeline> [--var key=val
 trayline run processes/4-create-code --var specs-name=my-feature
 
 # Run a full workflow:
-trayline run workflows/feature-implementation --var specs-name=my-feature
+trayline run workflows/feature-impl --var specs-name=my-feature
 
 # Skip specific steps in a workflow:
-trayline run workflows/feature-implementation --var specs-name=my-feature --var skip-code-review=true
+trayline run workflows/feature-impl --var specs-name=my-feature --var skip-code-review=true
 
 # Run a task without lifecycle (no sync):
 trayline run tasks/check-build --no-lifecycle
 
 # Force restart (ignore checkpoint):
-trayline run workflows/feature-implementation --var specs-name=my-feature --restart
+trayline run workflows/feature-impl --var specs-name=my-feature --restart
 
 # Dry run (preview what would execute):
-trayline run workflows/feature-implementation --var specs-name=my-feature --dry-run
+trayline run workflows/feature-impl --var specs-name=my-feature --dry-run
 
 # Flow — run multiple pipelines sequentially:
 trayline flow processes/8-code-review --var path=. --var number=5 \

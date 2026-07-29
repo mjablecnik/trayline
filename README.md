@@ -68,7 +68,7 @@ trayline run <pipeline> [options]
 
 ```bash
 trayline run processes/8-code-review --verbose
-trayline run workflows/feature-implementation --var specs-name=my-spec
+trayline run workflows/feature-impl --var specs-name=my-spec
 trayline run tasks/check-build --no-lifecycle
 ```
 
@@ -180,6 +180,8 @@ trayline/
 | `tasks/check-build` | Verifies project builds, runs, lints. Fixes issues until clean. |
 | `tasks/cleanup` | Discards all git changes, or commits and pushes them. |
 | `tasks/release` | Bumps version, updates CHANGELOG.md, creates git tag. |
+| `tasks/squash-commits` | Reorganizes local unpushed commits into clean, logical commits. |
+| `tasks/sync-docs` | Synchronizes README.md, DOCS.md, and CLAUDE.md with the current codebase. |
 | `tasks/sync-pull` | Pulls from bare repo with conflict resolution. |
 | `tasks/sync-push` | Pushes to bare repo with conflict resolution. |
 | `tasks/update-ai-log` | Updates .agents/AI_LOG.md from .agents/tmp/ or git history. |
@@ -197,13 +199,16 @@ trayline/
 | `processes/7-create-tests` | Creates unit/integration tests for uncovered code. |
 | `processes/8-code-review` | Reviews code against spec, fixes critical/high/medium issues. |
 | `processes/9-improvements` | Finds and applies validation, DX, and test improvements. |
+| `processes/10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. |
+| `processes/11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. |
 
 ### Workflows
 
 | Pipeline | Description |
 |----------|-------------|
-| `workflows/design-implementation` | Design → data refactor → UI refactor (1→2→3). |
-| `workflows/feature-implementation` | Create code → review → tests → UI tests (4→8→7→6). |
-| `workflows/bug-fixing` | Create from brief → tests → UI tests (5→7→6). |
-| `workflows/tests-implementation` | UI tests → unit tests (6→7). |
-| `workflows/refactoring` | Code review → improvements (8→9). |
+| `workflows/design-impl` | Design → data refactor → UI refactor (1→2→3). |
+| `workflows/feature-impl` | Create code → review → tests → UI tests (4→8→7→6). |
+| `workflows/fix-bugs` | Create from brief → tests → UI tests (5→7→6). |
+| `workflows/write-tests` | UI tests → unit tests (6→7). |
+| `workflows/refactoring` | Code review → improvements → security audit → SEO audit (8→9→10→11). |
+| `workflows/maintenance` | Refactoring → write tests → check build → sync docs. |
