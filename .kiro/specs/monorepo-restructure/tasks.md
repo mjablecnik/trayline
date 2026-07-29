@@ -6,7 +6,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
 
 ## Tasks
 
-- [ ] 1. Create runtime/ directory and move scripts + Dockerfile
+- [x] 1. Create runtime/ directory and move scripts + Dockerfile
   - Create `runtime/` and `runtime/sandbox/` directories
   - `git mv Dockerfile runtime/sandbox/Dockerfile`
   - `git mv scripts/trayline runtime/trayline`
@@ -16,7 +16,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Verify moved files retain executable permissions
   - **Requirements:** 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 9.1
 
-- [ ] 2. Move tools (taskline + tunnel) into tools/ directory
+- [x] 2. Move tools (taskline + tunnel) into tools/ directory
   - Create `tools/` directory
   - `git mv taskline tools/taskline`
   - `git mv tunnel tools/tunnel`
@@ -25,7 +25,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Verify taskline tests pass: `go test ./...` in both modules
   - **Requirements:** 5.1, 5.2, 5.3, 5.4, 5.5, 9.1
 
-- [ ] 3. Move setup artifacts into setup/ directory
+- [x] 3. Move setup artifacts into setup/ directory
   - Create `setup/` and `setup/completions/` directories
   - `git mv install.sh setup/install.sh`
   - `git mv config.example setup/config.example`
@@ -34,7 +34,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Remove the now-empty `completions/` directory
   - **Requirements:** 6.1, 6.3, 6.4, 6.5, 6.6, 9.1
 
-- [ ] 4. Move server files into remote/ structure
+- [x] 4. Move server files into remote/ structure
   - Create `remote/cmd/server/` directories
   - `git mv server/main.go remote/cmd/server/main.go`
   - `git mv server/api remote/api`
@@ -46,7 +46,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Move server `.env`, `.env.example`, `API.md`, `README.md` to `remote/`
   - **Requirements:** 4.2, 4.3, 4.4, 4.7, 9.1
 
-- [ ] 5. Move client files into remote/ structure
+- [x] 5. Move client files into remote/ structure
   - Create `remote/cmd/client/` directory
   - `git mv client/main.go remote/cmd/client/main.go`
   - Move all other client `.go` files to `remote/cmd/client/`
@@ -55,7 +55,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Remove the now-empty `server/` and `client/` directories
   - **Requirements:** 4.2, 4.7, 9.1
 
-- [ ] 6. Create unified remote/go.mod and update import paths
+- [x] 6. Create unified remote/go.mod and update import paths
   - Create `remote/go.mod` declaring `module remote` with `go 1.23`
   - Merge all dependencies from former server and client go.mod files
   - Replace all `import "server/..."` with `import "remote/..."` in remote/
@@ -64,7 +64,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Verify: `cd remote && go build ./... && go test ./...`
   - **Requirements:** 4.1, 4.5, 4.6, 12.1
 
-- [ ] 7. Update setup/install.sh path references
+- [x] 7. Update setup/install.sh path references
   - Change `SCRIPT_DIR` logic to derive `REPO_ROOT="$(dirname "$SCRIPT_DIR")"` since install.sh is now in `setup/`
   - Update sandbox Docker build path to `$REPO_ROOT/runtime/sandbox`
   - Update runtime script copy sources to `$REPO_ROOT/runtime/`
@@ -74,14 +74,14 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Verify install.sh runs without errors from any working directory
   - **Requirements:** 6.2, 6.7, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 8.11
 
-- [ ] 8. Update .gitignore for new structure
+- [x] 8. Update .gitignore for new structure
   - Remove old paths that no longer exist (server/bin/, client/bin/, client/trayline-client)
   - Add new paths for remote/ and tools/ build artifacts
   - Ensure .env patterns cover new locations under tools/
   - Verify no patterns reference removed directories
   - **Requirements:** 11.3
 
-- [ ] 9. Create/update README.md with project structure map
+- [x] 9. Create/update README.md with project structure map
   - Write root README.md with one-line project description
   - Add "Project Structure" section with directory tree (all 7 top-level dirs)
   - Include one-line description per directory (max 80 chars)
@@ -89,7 +89,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Ensure all referenced paths exist in the actual filesystem
   - **Requirements:** 11.1, 11.4
 
-- [ ] 10. Create CLAUDE.md with agent instructions
+- [x] 10. Create CLAUDE.md with agent instructions
   - Create CLAUDE.md at repo root
   - List repo-relative paths to each service directory
   - Document build commands for each Go module
@@ -97,20 +97,20 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - List paths to pipelines, specs, and config files
   - **Requirements:** 11.2, 11.4
 
-- [ ] 11. Verify orchestrator and pipelines are unchanged
+- [x] 11. Verify orchestrator and pipelines are unchanged
   - Confirm orchestrator/go.mod still declares `module orchestrator`
   - Run `cd orchestrator && go build ./... && go test ./...` — must exit 0
   - Confirm all YAML files in pipelines/ have identical content to before
   - Verify lifecycle.yaml log-task field still resolves correctly
   - **Requirements:** 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 12.4
 
-- [ ] 12. Verify .agents/ and .kiro/ are untouched
+- [x] 12. Verify .agents/ and .kiro/ are untouched
   - Confirm .agents/ exists at root with MEMORY.md, AI_LOG.md, tmp/, checkpoints/
   - Confirm .kiro/ exists at root with all specs intact
   - Confirm no files were moved, renamed, or modified within these directories
   - **Requirements:** 7.1, 7.2, 7.3, 7.4
 
-- [ ] 13. Final verification — all builds, tests, and install pass
+- [x] 13. Final verification — all builds, tests, and install pass
   - `cd orchestrator && go build ./... && go test ./...`
   - `cd remote && go build ./... && go test ./...`
   - `cd tools/taskline/server && go build ./... && go test ./...`
@@ -120,7 +120,7 @@ This plan restructures the trayline monorepo from a flat layout into 7 top-level
   - Verify `git log --follow -- runtime/sync.sh` shows full history
   - **Requirements:** 12.6, 12.7, 12.8, 13.1, 13.2, 13.4, 13.5
 
-- [ ] 14. Clean up stale references
+- [x] 14. Clean up stale references
   - Search entire repo for references to old paths (scripts/trayline, server/, client/ as directories)
   - Update any remaining references in documentation or specs
   - Remove any leftover empty directories or stale files
