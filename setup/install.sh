@@ -46,7 +46,7 @@ fi
 # Build or copy orchestrator binary
 if command -v go &>/dev/null; then
   echo "==> Building orchestrator (trayline-run)..."
-  (cd "$REPO_ROOT/orchestrator" && go build -o "$TRAYLINE_HOME/trayline-run" .)
+  (cd "$REPO_ROOT/orchestrator" && go build -o "$TRAYLINE_HOME/trayline-run" ./cmd)
 else
   echo "==> Go not found, copying pre-built orchestrator binary..."
   cp "$REPO_ROOT/orchestrator/bin/orchestrator" "$TRAYLINE_HOME/trayline-run"

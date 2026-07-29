@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"encoding/json"
@@ -48,9 +48,9 @@ type Checkpoint struct {
 
 // FlowCheckpoint stores the state of a flow (multi-pipeline) run for resume capability.
 type FlowCheckpoint struct {
-	Segments           []FlowSegmentState `json:"segments"`
-	CompletedSegments  int                `json:"completed_segments"`
-	Timestamp          string             `json:"timestamp"`
+	Segments          []FlowSegmentState `json:"segments"`
+	CompletedSegments int                `json:"completed_segments"`
+	Timestamp         string             `json:"timestamp"`
 }
 
 // FlowSegmentState stores the identity of a flow segment for matching.

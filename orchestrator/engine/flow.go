@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"flag"
@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"orchestrator/core"
+	"orchestrator/llm"
 )
 
 // yamlUnmarshal is a thin wrapper so flow.go can decode YAML without conflicting imports.
@@ -21,6 +24,49 @@ func yamlUnmarshal(data []byte, v interface{}) error {
 type FlowSegment struct {
 	PipelinePath string
 	Vars         map[string]string
+}
+
+// programName returns the base name of the running executable.
+func programName() string {
+	return filepath.Base(os.Args[0])
+}
+
+// varFlags is a repeatable --var flag that accumulates key=value strings.
+type varFlags []string
+
+func (v *varFlags) String() string { return strings.Join(*v, ", ") }
+func (v *varFlags) Set(val string) error {
+	*v = append(*v, val)
+	return nil
+}
+
+// findLifecycleFile searches for lifecycle.yaml in the pipelines directory.
+func findLifecycleFile() string {
+	// Look next to the current executable first
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		candidate := filepath.Join(dir, "pipelines", "lifecycle.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		// Also check sibling pipelines dir (for dev mode)
+		candidate = filepath.Join(dir, "..", "pipelines", "lifecycle.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	// Check TRAYLINE_HOME
+	home := os.Getenv("TRAYLINE_HOME")
+	if home == "" {
+		home = filepath.Join(os.Getenv("HOME"), ".trayline")
+	}
+	candidate := filepath.Join(home, "pipelines", "lifecycle.yaml")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+
+	return ""
 }
 
 func flowUsageText() string {
@@ -113,7 +159,7 @@ func parseSegment(args []string) (*FlowSegment, error) {
 	}
 
 	pipelinePath := fs.Arg(0)
-	cliVars, err := ParseCLIVars(vars)
+	cliVars, err := core.ParseCLIVars(vars)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +171,7 @@ func parseSegment(args []string) (*FlowSegment, error) {
 }
 
 // runFlow is the entry point for the flow subcommand.
-func runFlow(args []string) int {
+func RunFlow(args []string) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
 		fmt.Fprint(os.Stderr, flowUsageText())
 		return 0
@@ -164,7 +210,7 @@ func runFlow(args []string) int {
 	}
 
 	// Load config
-	cfg := LoadConfig()
+	cfg := core.LoadConfig()
 
 	// Print flow overview
 	fmt.Printf("\n%s%s━━━ Flow: %d pipeline(s) ━━━%s\n", colorBold, colorCyan, len(segments), colorReset)
@@ -193,7 +239,7 @@ func runFlow(args []string) int {
 }
 
 // executeFlow runs all pipeline segments sequentially.
-func executeFlow(segments []*FlowSegment, cfg *Config, dryRun, verbose, logLLM, restart bool) int {
+func executeFlow(segments []*FlowSegment, cfg *core.Config, dryRun, verbose, logLLM, restart bool) int {
 	start := time.Now()
 
 	// Load flow checkpoint for resume capability
@@ -288,25 +334,25 @@ func syncBetweenPipelines(pipelineName string, verbose bool) {
 }
 
 // executeSinglePipeline runs one pipeline segment (parse, resolve vars, validate, execute).
-func executeSinglePipeline(seg *FlowSegment, cfg *Config, dryRun, verbose, logLLM, restart bool) int {
+func executeSinglePipeline(seg *FlowSegment, cfg *core.Config, dryRun, verbose, logLLM, restart bool) int {
 	// Parse pipeline
-	pipeline, yamlVars, err := ParsePipelineRaw(seg.PipelinePath)
+	pipeline, yamlVars, err := core.ParsePipelineRaw(seg.PipelinePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
 
 	// Merge variables
-	resolvedVars := MergeVariables(yamlVars, seg.Vars)
+	resolvedVars := core.MergeVariables(yamlVars, seg.Vars)
 
 	// Substitute variables
-	if err := SubstituteVariables(pipeline, resolvedVars); err != nil {
+	if err := core.SubstituteVariables(pipeline, resolvedVars); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
 
 	// Validate
-	if err := ValidatePipeline(pipeline); err != nil {
+	if err := core.ValidatePipeline(pipeline); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
@@ -318,11 +364,11 @@ func executeSinglePipeline(seg *FlowSegment, cfg *Config, dryRun, verbose, logLL
 	}
 
 	// Build LLM client
-	var llmClient ConditionEvaluator
+	var llmClient llm.ConditionEvaluator
 	if pipeline.NeedsLLM() {
-		raw := NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		raw := llm.NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 		if logLLM {
-			logger, err := NewLLMLogger(raw)
+			logger, err := llm.NewLLMLogger(raw)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: could not create LLM log: %v\n", err)
 				llmClient = raw
@@ -379,7 +425,7 @@ func parseLogTask(lifecyclePath string) string {
 }
 
 // runFlowWithLifecycle wraps the flow execution with lifecycle before/after steps.
-func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath string, dryRun, verbose, logLLM, restart bool) int {
+func runFlowWithLifecycle(segments []*FlowSegment, cfg *core.Config, lifecyclePath string, dryRun, verbose, logLLM, restart bool) int {
 	data, err := os.ReadFile(lifecyclePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not read lifecycle.yaml: %v\n", err)
@@ -395,8 +441,8 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *Config, lifecyclePath st
 	type LifecycleConfig struct {
 		LogTask string      `yaml:"log-task"`
 		Retry   RetryConfig `yaml:"retry"`
-		Before  []Step      `yaml:"before"`
-		After   []Step      `yaml:"after"`
+		Before  []core.Step `yaml:"before"`
+		After   []core.Step `yaml:"after"`
 	}
 
 	var lc LifecycleConfig

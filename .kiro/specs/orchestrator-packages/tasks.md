@@ -6,7 +6,7 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
 
 ## Tasks
 
-- [ ] 1. Create core/ package with config, pipeline types, and variables
+- [x] 1. Create core/ package with config, pipeline types, and variables
   - Create `orchestrator/core/` directory
   - Move `config.go` → `core/config.go`, change `package main` to `package core`
   - Move `pipeline.go` → `core/pipeline.go`, change `package main` to `package core`
@@ -17,7 +17,7 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
   - Verify: `cd orchestrator && go build ./core`
   - **Requirements:** 2.1, 2.2, 2.3, 4.6, 5.1
 
-- [ ] 2. Create llm/ package with client and logger
+- [x] 2. Create llm/ package with client and logger
   - Create `orchestrator/llm/` directory
   - Move `llm.go` → `llm/client.go`, change `package main` to `package llm`
   - Move `llm_logger.go` → `llm/logger.go`, change `package main` to `package llm`
@@ -29,7 +29,7 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
   - Verify: `cd orchestrator && go build ./llm`
   - **Requirements:** 2.4, 4.8, 4.9, 5.2, 9.2
 
-- [ ] 3. Create engine/ package with executor, checkpoint, and flow
+- [x] 3. Create engine/ package with executor, checkpoint, and flow
   - Create `orchestrator/engine/` directory
   - Move `executor.go` → `engine/executor.go`, change `package main` to `package engine`
   - Move `checkpoint.go` → `engine/checkpoint.go`, change `package main` to `package engine`
@@ -48,7 +48,7 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
   - Verify: `cd orchestrator && go build ./engine`
   - **Requirements:** 2.3, 3.1, 3.2, 3.3, 3.4, 3.5, 4.10, 4.11, 5.3, 9.4
 
-- [ ] 4. Create cmd/ package with CLI entry point and lifecycle
+- [x] 4. Create cmd/ package with CLI entry point and lifecycle
   - Create `orchestrator/cmd/` directory
   - Move `main.go` → `cmd/main.go`, keep `package main`
   - Add import statements: `"orchestrator/core"`, `"orchestrator/engine"`, `"orchestrator/llm"`
@@ -60,7 +60,7 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
   - Verify: `cd orchestrator && go build ./cmd`
   - **Requirements:** 2.8, 3.1, 3.2, 3.3, 5.4, 7.1, 7.2
 
-- [ ] 5. Remove old root-level Go files and update go.mod
+- [x] 5. Remove old root-level Go files and update go.mod
   - Delete all `.go` files from `orchestrator/` root (they've been moved to subdirs)
   - Keep `go.mod`, `go.sum`, `.env.example`, `README.md`, `test-pipeline.yaml` at root
   - Remove stale build artifacts (`orchestrator/orchestrator`, `orchestrator/trayline-run`) if present
@@ -68,18 +68,18 @@ Refactoring the orchestrator Go module from a flat `package main` into 4 interna
   - Verify no `.go` files remain in root: only `cmd/`, `core/`, `engine/`, `llm/` contain Go source
   - **Requirements:** 10.1, 10.2, 10.3
 
-- [ ] 6. Update build command in setup/install.sh
+- [x] 6. Update build command in setup/install.sh
   - Change orchestrator build command from `go build -o "$TRAYLINE_HOME/trayline-run" .` to `go build -o "$TRAYLINE_HOME/trayline-run" ./cmd`
   - Verify install.sh still builds the binary correctly
   - **Requirements:** 7.1, 7.3
 
-- [ ] 7. Update README.md with new project structure
+- [x] 7. Update README.md with new project structure
   - Update the "Project Structure" section in `orchestrator/README.md` to show the new package layout
   - Update the "Build" section: `go build -o trayline-run ./cmd`
   - Update the "Testing" section: `go test ./...` (unchanged, just verify it's documented)
   - **Requirements:** 7.2
 
-- [ ] 8. Final verification — all builds and tests pass
+- [x] 8. Final verification — all builds and tests pass
   - Run `cd orchestrator && go build ./...` — must exit 0
   - Run `cd orchestrator && go test ./...` — must exit 0
   - Run `cd orchestrator && go build -o /tmp/trayline-run-test ./cmd` — must produce working binary

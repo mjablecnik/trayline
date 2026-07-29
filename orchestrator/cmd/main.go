@@ -9,6 +9,20 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"orchestrator/core"
+	"orchestrator/engine"
+	"orchestrator/llm"
+)
+
+// ANSI color codes for terminal output (lifecycle before/after step logging).
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorYellow = "\033[33m"
+	colorCyan   = "\033[36m"
+	colorBold   = "\033[1m"
+	colorDim    = "\033[2m"
 )
 
 var version = "2.4.0"
@@ -60,7 +74,7 @@ func (v *varFlags) Set(val string) error {
 func main() {
 	// Check for "flow" subcommand before standard flag parsing
 	if len(os.Args) > 1 && os.Args[1] == "flow" {
-		os.Exit(runFlow(os.Args[2:]))
+		os.Exit(engine.RunFlow(os.Args[2:]))
 		return
 	}
 	os.Exit(run(os.Args[1:]))
@@ -107,33 +121,33 @@ func run(args []string) int {
 	}
 
 	// Parse CLI variables first (fail fast on malformed flags)
-	cliVars, err := ParseCLIVars(vars)
+	cliVars, err := core.ParseCLIVars(vars)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
 
 	// Load config
-	cfg := LoadConfig()
+	cfg := core.LoadConfig()
 
 	// Parse pipeline (raw, no validation yet)
-	pipeline, yamlVars, err := ParsePipelineRaw(pipelinePath)
+	pipeline, yamlVars, err := core.ParsePipelineRaw(pipelinePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
 
 	// Merge YAML variables with CLI overrides (CLI takes precedence)
-	resolvedVars := MergeVariables(yamlVars, cliVars)
+	resolvedVars := core.MergeVariables(yamlVars, cliVars)
 
 	// Substitute variables in all templatable fields (fails if any placeholder is undefined)
-	if err := SubstituteVariables(pipeline, resolvedVars); err != nil {
+	if err := core.SubstituteVariables(pipeline, resolvedVars); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
 
 	// Validate pipeline after substitution so validation sees resolved values
-	if err := ValidatePipeline(pipeline); err != nil {
+	if err := core.ValidatePipeline(pipeline); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
@@ -145,11 +159,11 @@ func run(args []string) int {
 	}
 
 	// Build executor
-	var llmClient ConditionEvaluator
+	var llmClient llm.ConditionEvaluator
 	if pipeline.NeedsLLM() {
-		raw := NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		raw := llm.NewLLMClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 		if *logLLMFlag {
-			logger, err := NewLLMLogger(raw)
+			logger, err := llm.NewLLMLogger(raw)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: could not create LLM log: %v\n", err)
 				llmClient = raw
@@ -162,13 +176,13 @@ func run(args []string) int {
 		}
 	}
 
-	executor := &Executor{
+	executor := &engine.Executor{
 		Config:       cfg,
 		Pipeline:     pipeline,
 		LLM:          llmClient,
 		DryRun:       *dryRunFlag,
 		Verbose:      *verboseFlag,
-		Runner:       &OSCommandRunner{},
+		Runner:       &engine.OSCommandRunner{},
 		ResolvedVars: resolvedVars,
 		PipelineName: pipelinePath,
 		Restart:      *restartFlag,
@@ -215,7 +229,7 @@ func findLifecycleFile() string {
 }
 
 // runWithLifecycle executes before steps, runs the pipeline, then executes after steps.
-func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName string, vars map[string]string, verbose bool) int {
+func runWithLifecycle(executor *engine.Executor, lifecyclePath string, pipelineName string, vars map[string]string, verbose bool) int {
 	data, err := os.ReadFile(lifecyclePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not read lifecycle.yaml: %v\n", err)
@@ -231,8 +245,8 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 	type LifecycleConfig struct {
 		LogTask string      `yaml:"log-task"`
 		Retry   RetryConfig `yaml:"retry"`
-		Before  []Step      `yaml:"before"`
-		After   []Step      `yaml:"after"`
+		Before  []core.Step `yaml:"before"`
+		After   []core.Step `yaml:"after"`
 	}
 
 	var lc LifecycleConfig
@@ -246,7 +260,7 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		executor.LogTask = lc.LogTask
 	}
 
-	runner := &OSCommandRunner{}
+	runner := &engine.OSCommandRunner{}
 	env := os.Environ()
 	cwd, _ := os.Getwd()
 
@@ -312,7 +326,7 @@ func runWithLifecycle(executor *Executor, lifecyclePath string, pipelineName str
 		if exitCode == 2 && lc.Retry.OnRateLimit && attempt < maxAttempts {
 			// Check if we can parse a specific reset time from the output
 			var sleepDuration time.Duration
-			resetTime := ParseResetTime(executor.RateLimitOutput)
+			resetTime := engine.ParseResetTime(executor.RateLimitOutput)
 			if !resetTime.IsZero() {
 				// Wait until reset time + 10 minute buffer
 				sleepDuration = time.Until(resetTime) + 10*time.Minute

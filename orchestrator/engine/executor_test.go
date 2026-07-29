@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"fmt"
@@ -8,8 +8,9 @@ import (
 	"testing"
 
 	"pgregory.net/rapid"
-)
 
+	"orchestrator/core"
+)
 
 // mockRunner is a CommandRunner for testing.
 type mockRunner struct {
@@ -67,9 +68,9 @@ func (m *mockEvaluator) Evaluate(content, prompt string) (bool, error) {
 	return d, nil
 }
 
-func buildExecutor(pipeline *Pipeline, runner *mockRunner, evaluator *mockEvaluator) *Executor {
+func buildExecutor(pipeline *core.Pipeline, runner *mockRunner, evaluator *mockEvaluator) *Executor {
 	return &Executor{
-		Config:   &Config{},
+		Config:   &core.Config{},
 		Pipeline: pipeline,
 		LLM:      evaluator,
 		DryRun:   false,
@@ -81,11 +82,11 @@ func buildExecutor(pipeline *Pipeline, runner *mockRunner, evaluator *mockEvalua
 // --- Unit tests ---
 
 func TestExecutor_SequentialExecution(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Command: "echo 1"}},
-			{Step: &Step{Name: "step2", Command: "echo 2"}},
-			{Step: &Step{Name: "step3", Agent: "claude", Prompt: "do something"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Command: "echo 1"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2"}},
+			{Step: &core.Step{Name: "step3", Agent: "claude", Prompt: "do something"}},
 		},
 	}
 	runner := &mockRunner{
@@ -112,11 +113,11 @@ func TestExecutor_SequentialExecution(t *testing.T) {
 }
 
 func TestExecutor_FailureStopsPipeline(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Command: "echo 1"}},
-			{Step: &Step{Name: "step2", Command: "fail"}},
-			{Step: &Step{Name: "step3", Command: "echo 3"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Command: "echo 1"}},
+			{Step: &core.Step{Name: "step2", Command: "fail"}},
+			{Step: &core.Step{Name: "step3", Command: "echo 3"}},
 		},
 	}
 	runner := &mockRunner{
@@ -137,18 +138,18 @@ func TestExecutor_FailureStopsPipeline(t *testing.T) {
 }
 
 func TestExecutor_StepCondition_GotoTrue(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{
 				Name:    "step1",
 				Command: "echo 1",
-				Condition: &Condition{
+				Condition: &core.Condition{
 					Prompt: "Should goto?",
 					Goto:   "step3",
 				},
 			}},
-			{Step: &Step{Name: "step2", Command: "echo 2"}},
-			{Step: &Step{Name: "step3", Command: "echo 3"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2"}},
+			{Step: &core.Step{Name: "step3", Command: "echo 3"}},
 		},
 	}
 	runner := &mockRunner{
@@ -172,18 +173,18 @@ func TestExecutor_StepCondition_GotoTrue(t *testing.T) {
 }
 
 func TestExecutor_StepCondition_GotoFalse(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{
 				Name:    "step1",
 				Command: "echo 1",
-				Condition: &Condition{
+				Condition: &core.Condition{
 					Prompt: "Should goto?",
 					Goto:   "step3",
 				},
 			}},
-			{Step: &Step{Name: "step2", Command: "echo 2"}},
-			{Step: &Step{Name: "step3", Command: "echo 3"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2"}},
+			{Step: &core.Step{Name: "step3", Command: "echo 3"}},
 		},
 	}
 	runner := &mockRunner{
@@ -205,16 +206,16 @@ func TestExecutor_StepCondition_GotoFalse(t *testing.T) {
 }
 
 func TestExecutor_StepCondition_NoGotoTrue(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{
 				Name:    "step1",
 				Command: "echo 1",
-				Condition: &Condition{
+				Condition: &core.Condition{
 					Prompt: "Continue?",
 				},
 			}},
-			{Step: &Step{Name: "step2", Command: "echo 2"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2"}},
 		},
 	}
 	runner := &mockRunner{
@@ -235,16 +236,16 @@ func TestExecutor_StepCondition_NoGotoTrue(t *testing.T) {
 }
 
 func TestExecutor_StepCondition_NoGotoFalse(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{
 				Name:    "step1",
 				Command: "echo 1",
-				Condition: &Condition{
+				Condition: &core.Condition{
 					Prompt: "Continue?",
 				},
 			}},
-			{Step: &Step{Name: "step2", Command: "echo 2"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2"}},
 		},
 	}
 	runner := &mockRunner{
@@ -264,14 +265,14 @@ func TestExecutor_StepCondition_NoGotoFalse(t *testing.T) {
 }
 
 func TestExecutor_Loop(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 3,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "run-tests", Command: "go test ./..."}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "run-tests", Command: "go test ./..."}},
 				},
-				Condition: Condition{Prompt: "Still failing?"},
+				Condition: core.Condition{Prompt: "Still failing?"},
 			}},
 		},
 	}
@@ -295,14 +296,14 @@ func TestExecutor_Loop(t *testing.T) {
 }
 
 func TestExecutor_Loop_MaxIterations(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 2,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "s1", Command: "echo hi"}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "s1", Command: "echo hi"}},
 				},
-				Condition: Condition{Prompt: "Continue?"},
+				Condition: core.Condition{Prompt: "Continue?"},
 			}},
 		},
 	}
@@ -325,15 +326,15 @@ func TestExecutor_Loop_MaxIterations(t *testing.T) {
 }
 
 func TestExecutor_DryRun(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Agent: "claude", Prompt: "do stuff", ProjectDir: "/tmp"}},
-			{Step: &Step{Name: "step2", Command: "echo hi"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Agent: "claude", Prompt: "do stuff", ProjectDir: "/tmp"}},
+			{Step: &core.Step{Name: "step2", Command: "echo hi"}},
 		},
 	}
 	runner := &mockRunner{}
 	e := &Executor{
-		Config:   &Config{},
+		Config:   &core.Config{},
 		Pipeline: pipeline,
 		LLM:      &mockEvaluator{},
 		DryRun:   true,
@@ -350,11 +351,11 @@ func TestExecutor_DryRun(t *testing.T) {
 }
 
 func TestExecutor_PerStepVerbose(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "quiet-step", Command: "echo quiet"}},
-			{Step: &Step{Name: "verbose-step", Command: "echo loud", Verbose: true}},
-			{Step: &Step{Name: "quiet-step2", Command: "echo quiet2"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "quiet-step", Command: "echo quiet"}},
+			{Step: &core.Step{Name: "verbose-step", Command: "echo loud", Verbose: true}},
+			{Step: &core.Step{Name: "quiet-step2", Command: "echo quiet2"}},
 		},
 	}
 	runner := &mockRunner{
@@ -384,10 +385,10 @@ func TestExecutor_PerStepVerbose(t *testing.T) {
 }
 
 func TestExecutor_GlobalVerboseOverridesStep(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Command: "echo 1"}},
-			{Step: &Step{Name: "step2", Command: "echo 2", Verbose: true}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Command: "echo 1"}},
+			{Step: &core.Step{Name: "step2", Command: "echo 2", Verbose: true}},
 		},
 	}
 	runner := &mockRunner{
@@ -397,7 +398,7 @@ func TestExecutor_GlobalVerboseOverridesStep(t *testing.T) {
 		},
 	}
 	e := &Executor{
-		Config:   &Config{},
+		Config:   &core.Config{},
 		Pipeline: pipeline,
 		LLM:      &mockEvaluator{},
 		Verbose:  true, // global verbose
@@ -422,16 +423,16 @@ func TestCommandConstruction(t *testing.T) {
 		isCommand := rapid.Bool().Draw(rt, "isCommand")
 		projectDir := rapid.StringMatching(`^(/[a-z]+)+$`).Draw(rt, "projectDir")
 
-		var step Step
+		var step core.Step
 		if isCommand {
-			step = Step{
+			step = core.Step{
 				Name:       "test-step",
 				Command:    "echo hello",
 				ProjectDir: projectDir,
 			}
 		} else {
 			agent := rapid.SampledFrom([]string{"claude", "kiro"}).Draw(rt, "agent")
-			step = Step{
+			step = core.Step{
 				Name:       "test-step",
 				Agent:      agent,
 				Prompt:     "do something",
@@ -442,8 +443,8 @@ func TestCommandConstruction(t *testing.T) {
 		// Capture what would be called
 		captured := &mockRunner{}
 		e := &Executor{
-			Config:   &Config{},
-			Pipeline: &Pipeline{Elements: []PipelineElement{{Step: &step}}},
+			Config:   &core.Config{},
+			Pipeline: &core.Pipeline{Elements: []core.PipelineElement{{Step: &step}}},
 			LLM:      &mockEvaluator{},
 			Runner:   captured,
 		}
@@ -485,12 +486,12 @@ func TestCommandConstruction(t *testing.T) {
 func TestSequentialExecution(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		numSteps := rapid.IntRange(1, 6).Draw(rt, "numSteps")
-		elements := make([]PipelineElement, numSteps)
+		elements := make([]core.PipelineElement, numSteps)
 		expectedOrder := make([]string, numSteps)
 
 		for i := 0; i < numSteps; i++ {
 			name := fmt.Sprintf("step-%d", i)
-			elements[i] = PipelineElement{Step: &Step{Name: name, Command: fmt.Sprintf("echo %d", i)}}
+			elements[i] = core.PipelineElement{Step: &core.Step{Name: name, Command: fmt.Sprintf("echo %d", i)}}
 			expectedOrder[i] = fmt.Sprintf("echo %d", i)
 		}
 
@@ -500,7 +501,7 @@ func TestSequentialExecution(t *testing.T) {
 		}
 
 		runner := &mockRunner{responses: responses}
-		e := buildExecutor(&Pipeline{Elements: elements}, runner, &mockEvaluator{})
+		e := buildExecutor(&core.Pipeline{Elements: elements}, runner, &mockEvaluator{})
 		e.Run()
 
 		if len(runner.calls) != numSteps {
@@ -520,11 +521,11 @@ func TestFailureStopsPipeline(t *testing.T) {
 		numSteps := rapid.IntRange(2, 6).Draw(rt, "numSteps")
 		failAt := rapid.IntRange(0, numSteps-1).Draw(rt, "failAt")
 
-		elements := make([]PipelineElement, numSteps)
+		elements := make([]core.PipelineElement, numSteps)
 		responses := make([]runResponse, numSteps)
 
 		for i := 0; i < numSteps; i++ {
-			elements[i] = PipelineElement{Step: &Step{Name: fmt.Sprintf("step-%d", i), Command: fmt.Sprintf("echo %d", i)}}
+			elements[i] = core.PipelineElement{Step: &core.Step{Name: fmt.Sprintf("step-%d", i), Command: fmt.Sprintf("echo %d", i)}}
 			if i == failAt {
 				responses[i] = runResponse{exitCode: 1}
 			} else {
@@ -533,7 +534,7 @@ func TestFailureStopsPipeline(t *testing.T) {
 		}
 
 		runner := &mockRunner{responses: responses}
-		e := buildExecutor(&Pipeline{Elements: elements}, runner, &mockEvaluator{})
+		e := buildExecutor(&core.Pipeline{Elements: elements}, runner, &mockEvaluator{})
 		code := e.Run()
 
 		if code == 0 {
@@ -565,12 +566,12 @@ func TestLoopIterationControl(t *testing.T) {
 			responses[i] = runResponse{exitCode: 0}
 		}
 
-		pipeline := &Pipeline{
-			Elements: []PipelineElement{
-				{Loop: &Loop{
+		pipeline := &core.Pipeline{
+			Elements: []core.PipelineElement{
+				{Loop: &core.Loop{
 					MaxIterations: maxIter,
-					Elements:      []PipelineElement{{Step: &Step{Name: "s1", Command: "echo test"}}},
-					Condition:     Condition{Prompt: "Continue?"},
+					Elements:      []core.PipelineElement{{Step: &core.Step{Name: "s1", Command: "echo test"}}},
+					Condition:     core.Condition{Prompt: "Continue?"},
 				}},
 			},
 		}
@@ -604,18 +605,18 @@ func TestStepConditionRouting(t *testing.T) {
 		llmDecision := rapid.Bool().Draw(rt, "llmDecision")
 
 		// Pipeline: step1 (with condition optionally targeting step3), step2, step3
-		var cond Condition
+		var cond core.Condition
 		if hasGoto {
-			cond = Condition{Prompt: "Route?", Goto: "step3"}
+			cond = core.Condition{Prompt: "Route?", Goto: "step3"}
 		} else {
-			cond = Condition{Prompt: "Continue?"}
+			cond = core.Condition{Prompt: "Continue?"}
 		}
 
-		pipeline := &Pipeline{
-			Elements: []PipelineElement{
-				{Step: &Step{Name: "step1", Command: "echo 1", Condition: &cond}},
-				{Step: &Step{Name: "step2", Command: "echo 2"}},
-				{Step: &Step{Name: "step3", Command: "echo 3"}},
+		pipeline := &core.Pipeline{
+			Elements: []core.PipelineElement{
+				{Step: &core.Step{Name: "step1", Command: "echo 1", Condition: &cond}},
+				{Step: &core.Step{Name: "step2", Command: "echo 2"}},
+				{Step: &core.Step{Name: "step3", Command: "echo 3"}},
 			},
 		}
 
@@ -673,7 +674,7 @@ func TestStepConditionRouting(t *testing.T) {
 func TestConditionInputSelection(t *testing.T) {
 	t.Run("uses step output when no file", func(t *testing.T) {
 		stepOutput := "step output content"
-		cond := Condition{Prompt: "Done?"}
+		cond := core.Condition{Prompt: "Done?"}
 		e := &Executor{}
 		input, err := e.conditionInput("test-step", &cond, "", stepOutput)
 		if err != nil {
@@ -691,7 +692,7 @@ func TestConditionInputSelection(t *testing.T) {
 		tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 
-		cond := Condition{Prompt: "Done?", File: tmpFile.Name()}
+		cond := core.Condition{Prompt: "Done?", File: tmpFile.Name()}
 		e := &Executor{}
 		input, err := e.conditionInput("test-step", &cond, "", "step output")
 		if err != nil {
@@ -706,7 +707,7 @@ func TestConditionInputSelection(t *testing.T) {
 		useFile := rapid.Bool().Draw(rt, "useFile")
 		stepOutput := "step output"
 
-		var cond Condition
+		var cond core.Condition
 		var expectedContent string
 
 		if useFile {
@@ -718,10 +719,10 @@ func TestConditionInputSelection(t *testing.T) {
 			tmpFile.WriteString(expectedContent)
 			tmpFile.Close()
 			defer os.Remove(tmpFile.Name())
-			cond = Condition{Prompt: "Done?", File: tmpFile.Name()}
+			cond = core.Condition{Prompt: "Done?", File: tmpFile.Name()}
 		} else {
 			expectedContent = stepOutput
-			cond = Condition{Prompt: "Done?"}
+			cond = core.Condition{Prompt: "Done?"}
 		}
 
 		e := &Executor{}
@@ -738,7 +739,7 @@ func TestConditionInputSelection(t *testing.T) {
 // Test for condition file not found at runtime — returns empty string (not an error)
 // so that contains/not_contains conditions can evaluate gracefully.
 func TestConditionFileNotFound(t *testing.T) {
-	cond := Condition{Contains: "- [ ]", File: "/nonexistent/path/missing-file.txt"}
+	cond := core.Condition{Contains: "- [ ]", File: "/nonexistent/path/missing-file.txt"}
 	e := &Executor{}
 	input, err := e.conditionInput("test-step", &cond, "", "step output")
 	if err != nil {
@@ -753,14 +754,14 @@ func TestConditionFileNotFound(t *testing.T) {
 func TestExecutor_LoopRateLimitPause(t *testing.T) {
 	changeDirForExecutorTest(t)
 
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 5,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "create-code", Agent: "claude", Prompt: "implement feature"}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "create-code", Agent: "claude", Prompt: "implement feature"}},
 				},
-				Condition: Condition{Prompt: "Continue?"},
+				Condition: core.Condition{Prompt: "Continue?"},
 			}},
 		},
 	}
@@ -793,14 +794,14 @@ func TestExecutor_LoopRateLimitPause(t *testing.T) {
 
 // Test for loop step failure (issue #22 / Requirement 9.10).
 func TestExecutor_LoopStepFailure(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 3,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "run-tests", Command: "go test ./..."}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "run-tests", Command: "go test ./..."}},
 				},
-				Condition: Condition{Prompt: "Still failing?"},
+				Condition: core.Condition{Prompt: "Still failing?"},
 			}},
 		},
 	}
@@ -820,16 +821,16 @@ func TestExecutor_LoopStepFailure(t *testing.T) {
 }
 func TestExecutor_LoopStepCondition_False(t *testing.T) {
 	// Step condition false inside loop → skip remaining steps and exit loop
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 3,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}}},
-					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &core.Condition{Prompt: "Issues found?"}}},
+					{Step: &core.Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
-				Condition: Condition{Prompt: "Continue?"},
+				Condition: core.Condition{Prompt: "Continue?"},
 			}},
 		},
 	}
@@ -852,24 +853,24 @@ func TestExecutor_LoopStepCondition_False(t *testing.T) {
 
 func TestExecutor_LoopStepCondition_True(t *testing.T) {
 	// Step condition true inside loop → continue to next step
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 3,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}}},
-					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &core.Condition{Prompt: "Issues found?"}}},
+					{Step: &core.Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
-				Condition: Condition{Prompt: "Continue?"},
+				Condition: core.Condition{Prompt: "Continue?"},
 			}},
 		},
 	}
 	runner := &mockRunner{
 		responses: []runResponse{
 			{output: "issues found", exitCode: 0}, // review step iter 1
-			{output: "fixed", exitCode: 0},         // fix step iter 1
-			{output: "no issues", exitCode: 0},     // review step iter 2
+			{output: "fixed", exitCode: 0},        // fix step iter 1
+			{output: "no issues", exitCode: 0},    // review step iter 2
 		},
 	}
 	// iter 1: step condition true → continue to fix; loop condition true → iterate
@@ -887,23 +888,23 @@ func TestExecutor_LoopStepCondition_True(t *testing.T) {
 func TestExecutor_LoopWithoutLoopCondition(t *testing.T) {
 	// Loop with only step conditions, no loop-level condition.
 	// Should iterate until step condition returns false or max_iterations.
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Loop: &Loop{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Loop: &core.Loop{
 				MaxIterations: 5,
-				Elements: []PipelineElement{
-					{Step: &Step{Name: "review", Agent: "kiro", Prompt: "do review",
-						Condition: &Condition{Prompt: "Issues found?"}}},
-					{Step: &Step{Name: "fix", Command: "trayline run --pipeline fix"}},
+				Elements: []core.PipelineElement{
+					{Step: &core.Step{Name: "review", Agent: "kiro", Prompt: "do review",
+						Condition: &core.Condition{Prompt: "Issues found?"}}},
+					{Step: &core.Step{Name: "fix", Command: "trayline run --pipeline fix"}},
 				},
 			}},
 		},
 	}
 	runner := &mockRunner{
 		responses: []runResponse{
-			{output: "issues", exitCode: 0},  // review iter 1
-			{output: "fixed", exitCode: 0},    // fix iter 1
-			{output: "clean", exitCode: 0},    // review iter 2
+			{output: "issues", exitCode: 0}, // review iter 1
+			{output: "fixed", exitCode: 0},  // fix iter 1
+			{output: "clean", exitCode: 0},  // review iter 2
 		},
 	}
 	// iter 1: step condition true → run fix; no loop condition → iterate
@@ -921,9 +922,9 @@ func TestExecutor_LoopWithoutLoopCondition(t *testing.T) {
 
 // Test that --verbose mode streams output to stdout (issue #23).
 func TestVerboseMode_StreamsOutput(t *testing.T) {
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Command: "echo hello-verbose-test"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Command: "echo hello-verbose-test"}},
 		},
 	}
 
@@ -935,7 +936,7 @@ func TestVerboseMode_StreamsOutput(t *testing.T) {
 	os.Stdout = w
 
 	e := &Executor{
-		Config:   &Config{},
+		Config:   &core.Config{},
 		Pipeline: pipeline,
 		LLM:      &mockEvaluator{},
 		DryRun:   false,
@@ -1010,15 +1011,15 @@ func TestFindResumeStepFromSubCheckpoints_MatchFound(t *testing.T) {
 		t.Fatalf("SaveCheckpoint error: %v", err)
 	}
 
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "prep", Command: "echo preparing"}},
-			{Step: &Step{Name: "run-sub", Command: "trayline run processes/3-ui-refactor --var x=1"}},
-			{Step: &Step{Name: "post", Command: "echo done"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "prep", Command: "echo preparing"}},
+			{Step: &core.Step{Name: "run-sub", Command: "trayline run processes/3-ui-refactor --var x=1"}},
+			{Step: &core.Step{Name: "post", Command: "echo done"}},
 		},
 	}
 
-	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	e := &Executor{Config: &core.Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
 	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
 	if got != "run-sub" {
 		t.Errorf("expected step 'run-sub', got %q", got)
@@ -1031,13 +1032,13 @@ func TestFindResumeStepFromSubCheckpoints_NoCheckpoint(t *testing.T) {
 	changeDirForExecutorTest(t)
 	// No checkpoints saved in this temp dir.
 
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
-			{Step: &Step{Name: "step1", Command: "trayline run processes/some-pipeline"}},
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
+			{Step: &core.Step{Name: "step1", Command: "trayline run processes/some-pipeline"}},
 		},
 	}
 
-	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	e := &Executor{Config: &core.Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
 	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
 	if got != "" {
 		t.Errorf("expected empty string when no checkpoints exist, got %q", got)
@@ -1053,17 +1054,16 @@ func TestFindResumeStepFromSubCheckpoints_AgentStepSkipped(t *testing.T) {
 		t.Fatalf("SaveCheckpoint error: %v", err)
 	}
 
-	pipeline := &Pipeline{
-		Elements: []PipelineElement{
+	pipeline := &core.Pipeline{
+		Elements: []core.PipelineElement{
 			// Agent step — has no Command, should be skipped.
-			{Step: &Step{Name: "llm-agent", Agent: "claude", Prompt: "processes/llm-task"}},
+			{Step: &core.Step{Name: "llm-agent", Agent: "claude", Prompt: "processes/llm-task"}},
 		},
 	}
 
-	e := &Executor{Config: &Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
+	e := &Executor{Config: &core.Config{}, Pipeline: pipeline, LLM: &mockEvaluator{}, Runner: &mockRunner{}}
 	got := e.findResumeStepFromSubCheckpoints(pipeline.Elements)
 	if got != "" {
 		t.Errorf("expected empty string for agent step (no Command), got %q", got)
 	}
 }
-

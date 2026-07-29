@@ -1,4 +1,4 @@
-package main
+package llm
 
 import (
 	"fmt"
@@ -21,6 +21,21 @@ func changeDirForTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Chdir(orig) })
+}
+
+// mockEvaluator is a ConditionEvaluator for testing.
+type mockEvaluator struct {
+	decisions []bool
+	idx       int
+}
+
+func (m *mockEvaluator) Evaluate(content, prompt string) (bool, error) {
+	if m.idx >= len(m.decisions) {
+		return false, nil
+	}
+	d := m.decisions[m.idx]
+	m.idx++
+	return d, nil
 }
 
 // mockEvalError wraps mockEvaluator to return a configurable error.

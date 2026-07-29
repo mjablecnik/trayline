@@ -1,7 +1,6 @@
-package main
+package core
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -275,69 +274,6 @@ func TestSubstituteVariables_SurroundingTextPreserved(t *testing.T) {
 	}
 }
 
-func TestDryRunShowsResolvedVariables(t *testing.T) {
-	p := &Pipeline{Elements: []PipelineElement{
-		{Step: &Step{Name: "s1", Command: "echo hello"}},
-	}}
-	vars := map[string]string{"my-var": "resolved-value", "other": "xyz"}
-
-	var buf bytes.Buffer
-	e := &Executor{
-		Config:       &Config{},
-		Pipeline:     p,
-		DryRun:       true,
-		Runner:       &OSCommandRunner{},
-		ResolvedVars: vars,
-	}
-
-	// Capture stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	e.printDryRun()
-	w.Close()
-	os.Stdout = old
-	buf.Reset()
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	if !strings.Contains(output, "my-var") {
-		t.Errorf("dry-run should display variable key 'my-var', got:\n%s", output)
-	}
-	if !strings.Contains(output, "resolved-value") {
-		t.Errorf("dry-run should display resolved value, got:\n%s", output)
-	}
-}
-
-func TestDryRunNoVariablesSectionWhenEmpty(t *testing.T) {
-	p := &Pipeline{Elements: []PipelineElement{
-		{Step: &Step{Name: "s1", Command: "echo hello"}},
-	}}
-
-	var buf bytes.Buffer
-	e := &Executor{
-		Config:       &Config{},
-		Pipeline:     p,
-		DryRun:       true,
-		Runner:       &OSCommandRunner{},
-		ResolvedVars: nil,
-	}
-
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	e.printDryRun()
-	w.Close()
-	os.Stdout = old
-	buf.Reset()
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	if strings.Contains(output, "Variables:") {
-		t.Errorf("dry-run should not print Variables section when empty, got:\n%s", output)
-	}
-}
-
 func TestIntegration_VariableSubstitutionBeforeValidation(t *testing.T) {
 	// Variables in templatable fields (prompt, command, project_dir, condition.prompt, condition.file)
 	// are resolved before ValidatePipeline runs, so validation sees the final resolved values.
@@ -597,50 +533,6 @@ func TestUndefinedVariableDetection(t *testing.T) {
 			if !strings.Contains(err.Error(), k) {
 				rt.Fatalf("error should contain %q, got: %v", k, err)
 			}
-		}
-	})
-}
-
-// Feature: pipeline-variables, Property 7: Dry-run shows resolved values, not placeholders
-func TestDryRunShowsResolvedValues(t *testing.T) {
-	rapid.Check(t, func(rt *rapid.T) {
-		key := genVarKey(rt, "dry-key")
-		val := rapid.StringMatching(`[a-z0-9]{1,10}`).Draw(rt, "dry-val")
-
-		p := &Pipeline{Elements: []PipelineElement{
-			{Step: &Step{Name: "s1", Agent: "claude", Prompt: "use {{" + key + "}}"}},
-		}}
-		vars := map[string]string{key: val}
-		if err := SubstituteVariables(p, vars); err != nil {
-			rt.Fatalf("SubstituteVariables error: %v", err)
-		}
-
-		e := &Executor{
-			Config:       &Config{},
-			Pipeline:     p,
-			DryRun:       true,
-			Runner:       &OSCommandRunner{},
-			ResolvedVars: vars,
-		}
-
-		old := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-		e.printDryRun()
-		w.Close()
-		os.Stdout = old
-
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(r)
-		output := buf.String()
-
-		// Should show the resolved value
-		if !strings.Contains(output, val) {
-			rt.Fatalf("dry-run should contain resolved value %q, got:\n%s", val, output)
-		}
-		// Should NOT show unresolved placeholder
-		if strings.Contains(output, "{{"+key+"}}") {
-			rt.Fatalf("dry-run should not contain placeholder {{%s}}, got:\n%s", key, output)
 		}
 	})
 }

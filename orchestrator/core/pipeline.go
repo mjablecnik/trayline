@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -68,7 +68,7 @@ type Step struct {
 
 // Loop represents a repeatable block of steps (and nested loops) with an optional condition.
 type Loop struct {
-	MaxIterations int              `yaml:"max_iterations"`
+	MaxIterations int               `yaml:"max_iterations"`
 	Elements      []PipelineElement `yaml:"steps"`
 	Condition     Condition         `yaml:"condition"`
 }

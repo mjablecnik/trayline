@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"bytes"
@@ -12,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"orchestrator/core"
+	"orchestrator/llm"
 )
 
 // ANSI color codes for terminal output.
@@ -122,36 +125,37 @@ func runSubprocess(name string, args []string, dir string, env []string, verbose
 
 // Executor runs the pipeline.
 type Executor struct {
-	Config        *Config
-	Pipeline      *Pipeline
-	LLM           ConditionEvaluator
-	DryRun        bool
-	Verbose       bool
-	Runner        CommandRunner
-	ResolvedVars  map[string]string // for dry-run display
-	LogTask          string            // pipeline to run after steps with log:true
-	PipelineName     string            // name of the pipeline (for checkpoint)
-	Restart          bool              // if true, ignore checkpoint and start fresh
-	RateLimitOutput  string            // output from the step that hit rate limit (for reset time parsing)
+	Config          *core.Config
+	Pipeline        *core.Pipeline
+	LLM             llm.ConditionEvaluator
+	DryRun          bool
+	Verbose         bool
+	Runner          CommandRunner
+	ResolvedVars    map[string]string // for dry-run display
+	LogTask         string            // pipeline to run after steps with log:true
+	PipelineName    string            // name of the pipeline (for checkpoint)
+	Restart         bool              // if true, ignore checkpoint and start fresh
+	RateLimitOutput string            // output from the step that hit rate limit (for reset time parsing)
 }
+
 // setLLMContext sets context on the LLM logger if logging is enabled.
 // debugLog writes a message to the LLM debug log if logging is enabled.
 func (e *Executor) debugLog(format string, args ...interface{}) {
-	if logger, ok := e.LLM.(*LLMLogger); ok {
+	if logger, ok := e.LLM.(*llm.LLMLogger); ok {
 		logger.Log(format, args...)
 	}
 }
 
 // debugSection writes a section header to the LLM debug log if logging is enabled.
 func (e *Executor) debugSection(title string) {
-	if logger, ok := e.LLM.(*LLMLogger); ok {
+	if logger, ok := e.LLM.(*llm.LLMLogger); ok {
 		logger.LogSection(title)
 	}
 }
 
 // debugError writes an error to the LLM debug log if logging is enabled.
 func (e *Executor) debugError(context string, err error) {
-	if logger, ok := e.LLM.(*LLMLogger); ok {
+	if logger, ok := e.LLM.(*llm.LLMLogger); ok {
 		logger.LogError(context, err)
 	}
 }
@@ -313,14 +317,14 @@ func (e *Executor) Run() int {
 }
 
 // flattenTopLevelElements returns all top-level pipeline elements in order.
-func (e *Executor) flattenTopLevelElements() []PipelineElement {
+func (e *Executor) flattenTopLevelElements() []core.PipelineElement {
 	return e.Pipeline.Elements
 }
 
 // findResumeStepFromSubCheckpoints checks if any command step in this pipeline
 // invokes a sub-pipeline that has an active checkpoint. If found, returns the
 // step name so the executor can skip all steps before it.
-func (e *Executor) findResumeStepFromSubCheckpoints(elements []PipelineElement) string {
+func (e *Executor) findResumeStepFromSubCheckpoints(elements []core.PipelineElement) string {
 	checkpoints := LoadAllCheckpoints()
 	if len(checkpoints) == 0 {
 		return ""
@@ -390,7 +394,7 @@ func (e *Executor) countTopLevelSteps() int {
 }
 
 // executeStep runs a single step subprocess.
-func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string, int, error) {
+func (e *Executor) executeStep(step *core.Step, stepNum int, totalSteps int) (string, int, error) {
 	stepType := "command"
 	if step.Agent != "" {
 		stepType = "agent:" + step.Agent
@@ -455,7 +459,7 @@ func (e *Executor) executeStep(step *Step, stepNum int, totalSteps int) (string,
 
 // evaluateStepCondition evaluates a step's condition and returns the next element index.
 // Returns -1 as nextIdx to signal "stop pipeline".
-func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements []PipelineElement, currentIdx int) (bool, int, error) {
+func (e *Executor) evaluateStepCondition(step *core.Step, stepOutput string, elements []core.PipelineElement, currentIdx int) (bool, int, error) {
 	e.debugLog("Evaluating condition on step %q (file=%q, contains=%q, goto=%q)", step.Name, step.Condition.File, step.Condition.Contains, step.Condition.Goto)
 
 	input, err := e.conditionInput(step.Name, step.Condition, step.ProjectDir, stepOutput)
@@ -493,7 +497,7 @@ func (e *Executor) evaluateStepCondition(step *Step, stepOutput string, elements
 }
 
 // findElementIndex returns the index of the element with the given step name.
-func (e *Executor) findElementIndex(stepName string, elements []PipelineElement) int {
+func (e *Executor) findElementIndex(stepName string, elements []core.PipelineElement) int {
 	for i, elem := range elements {
 		if elem.Step != nil && elem.Step.Name == stepName {
 			return i
@@ -503,7 +507,7 @@ func (e *Executor) findElementIndex(stepName string, elements []PipelineElement)
 }
 
 // conditionInput resolves the input for a condition (file content or step output).
-func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir string, stepOutput string) (string, error) {
+func (e *Executor) conditionInput(stepName string, cond *core.Condition, projectDir string, stepOutput string) (string, error) {
 	if cond.File == "" {
 		return stepOutput, nil
 	}
@@ -529,9 +533,10 @@ func (e *Executor) conditionInput(stepName string, cond *Condition, projectDir s
 	}
 	return string(data), nil
 }
+
 // evaluateCondition evaluates a condition using string match, regex match, or LLM (prompt).
 // Returns the boolean decision.
-func (e *Executor) evaluateCondition(context string, cond *Condition, input string) (bool, error) {
+func (e *Executor) evaluateCondition(context string, cond *core.Condition, input string) (bool, error) {
 	if cond.Contains != "" {
 		decision := strings.Contains(input, cond.Contains)
 		e.debugLog("%s: contains %q → %v", context, cond.Contains, decision)
@@ -574,7 +579,7 @@ func (e *Executor) evaluateCondition(context string, cond *Condition, input stri
 // executeLoop runs a loop block with iteration control.
 // Loop elements may be steps or nested loops. If a step condition evaluates to false,
 // the remaining elements in the current iteration are skipped and the loop exits.
-func (e *Executor) executeLoop(loop *Loop) (int, error) {
+func (e *Executor) executeLoop(loop *core.Loop) (int, error) {
 	hasLoopCondition := loop.Condition.Prompt != "" || loop.Condition.Contains != "" || loop.Condition.NotContains != "" || loop.Condition.Matches != "" || loop.Condition.NotMatches != ""
 	e.debugSection(fmt.Sprintf("Loop start — max_iterations=%d, has_loop_condition=%v, elements=%d", loop.MaxIterations, hasLoopCondition, len(loop.Elements)))
 
@@ -705,7 +710,7 @@ func (e *Executor) executeLoop(loop *Loop) (int, error) {
 }
 
 // countStepsInElements counts only direct Step elements (not nested loops).
-func countStepsInElements(elements []PipelineElement) int {
+func countStepsInElements(elements []core.PipelineElement) int {
 	count := 0
 	for _, elem := range elements {
 		if elem.Step != nil {
@@ -717,7 +722,7 @@ func countStepsInElements(elements []PipelineElement) int {
 
 // printDryRun prints all steps without executing them.
 // printCondition prints condition details for dry-run output.
-func printCondition(cond *Condition, indent string) {
+func printCondition(cond *core.Condition, indent string) {
 	if cond == nil {
 		return
 	}
@@ -767,7 +772,7 @@ func (e *Executor) printDryRun() {
 }
 
 // printElements recursively prints pipeline elements for dry-run output.
-func printElements(elements []PipelineElement, cwd string, stepNum *int, indent string) {
+func printElements(elements []core.PipelineElement, cwd string, stepNum *int, indent string) {
 	for _, elem := range elements {
 		if elem.Step != nil {
 			*stepNum++

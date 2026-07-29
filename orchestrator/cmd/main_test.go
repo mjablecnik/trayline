@@ -8,7 +8,44 @@ import (
 	"testing"
 
 	"pgregory.net/rapid"
+
+	"orchestrator/core"
+	"orchestrator/engine"
 )
+
+func writeTempPipeline(t *testing.T, content string) string {
+	t.Helper()
+	f, err := os.CreateTemp("", "pipeline-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	f.WriteString(content)
+	f.Close()
+	return f.Name()
+}
+
+// mockRunner is a CommandRunner for testing.
+type mockRunner struct {
+	calls []string
+}
+
+func (m *mockRunner) RunAgent(agent, prompt, model, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
+	m.calls = append(m.calls, "agent:"+agent)
+	return "", 0, nil
+}
+
+func (m *mockRunner) RunCommand(command, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
+	m.calls = append(m.calls, "command:"+command)
+	return "", 0, nil
+}
+
+// mockEvaluator is a ConditionEvaluator for testing.
+type mockEvaluator struct{}
+
+func (m *mockEvaluator) Evaluate(content, prompt string) (bool, error) {
+	return false, nil
+}
 
 func TestMain_MissingPipelineFlag(t *testing.T) {
 	code := run([]string{})
@@ -149,17 +186,17 @@ steps:
 func TestDryRunNoExecution(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		numSteps := rapid.IntRange(1, 4).Draw(rt, "numSteps")
-		elements := make([]PipelineElement, numSteps)
+		elements := make([]core.PipelineElement, numSteps)
 
 		for i := 0; i < numSteps; i++ {
 			name := fmt.Sprintf("step-%d", i+1)
-			elements[i] = PipelineElement{Step: &Step{Name: name, Command: fmt.Sprintf("echo %d", i)}}
+			elements[i] = core.PipelineElement{Step: &core.Step{Name: name, Command: fmt.Sprintf("echo %d", i)}}
 		}
 
 		runner := &mockRunner{}
-		e := &Executor{
-			Config:   &Config{},
-			Pipeline: &Pipeline{Elements: elements},
+		e := &engine.Executor{
+			Config:   &core.Config{},
+			Pipeline: &core.Pipeline{Elements: elements},
 			LLM:      &mockEvaluator{},
 			DryRun:   true,
 			Verbose:  false,
@@ -213,18 +250,6 @@ func TestUsageTextNonEmpty(t *testing.T) {
 	for _, keyword := range []string{"flow", "--dry-run", "--var", "--version"} {
 		if !strings.Contains(text, keyword) {
 			t.Errorf("usageText does not mention %q", keyword)
-		}
-	}
-}
-
-func TestFlowUsageTextNonEmpty(t *testing.T) {
-	text := flowUsageText()
-	if text == "" {
-		t.Fatal("flowUsageText returned empty string")
-	}
-	for _, keyword := range []string{"flow", "--then", "--dry-run", "--var"} {
-		if !strings.Contains(text, keyword) {
-			t.Errorf("flowUsageText does not mention %q", keyword)
 		}
 	}
 }

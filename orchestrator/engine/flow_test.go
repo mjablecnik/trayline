@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"os"
@@ -281,25 +281,6 @@ func TestFlowUsageText_NonEmpty(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("expected %q in flowUsageText", keyword)
-		}
-	}
-}
-
-func TestUsageText_NonEmpty(t *testing.T) {
-	text := usageText()
-	if text == "" {
-		t.Error("expected non-empty usageText")
-	}
-	for _, keyword := range []string{"--var", "--dry-run", "--version", "flow"} {
-		found := false
-		for i := 0; i+len(keyword) <= len(text); i++ {
-			if text[i:i+len(keyword)] == keyword {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected %q in usageText", keyword)
 		}
 	}
 }

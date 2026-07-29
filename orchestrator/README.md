@@ -8,7 +8,7 @@ Compiles into a single static binary with no runtime dependencies beyond the Go 
 
 ```bash
 cd orchestrator
-go build -o trayline-run .
+go build -o trayline-run ./cmd
 ```
 
 ## Usage
@@ -221,16 +221,29 @@ Tests include both unit tests and property-based tests using [pgregory.net/rapid
 
 ```
 orchestrator/
-├── main.go           # CLI entry point, flag parsing
-├── config.go         # Environment loading, configuration
-├── pipeline.go       # YAML parsing, validation, pipeline types
-├── executor.go       # Step execution, loop handling, condition routing
-├── llm.go            # OpenRouter API client, LLM decision parsing
-├── config_test.go    # Config loading tests
-├── pipeline_test.go  # Parsing, validation, round-trip property tests
-├── executor_test.go  # Execution, condition routing, loop property tests
-├── llm_test.go       # LLM client, retry, response parsing tests
-├── main_test.go      # CLI flags, dry-run, integration tests
+├── cmd/
+│   ├── main.go              # CLI entry point, flag parsing, lifecycle wrapper
+│   └── main_test.go         # CLI flags, dry-run, integration tests
+├── core/
+│   ├── config.go            # Environment loading, configuration
+│   ├── config_test.go
+│   ├── pipeline.go          # YAML parsing, validation, pipeline types
+│   ├── pipeline_test.go     # Parsing, validation, round-trip property tests
+│   ├── variables.go         # Variable resolution, substitution
+│   └── variables_test.go
+├── engine/
+│   ├── executor.go          # Step execution, loop handling, condition routing
+│   ├── executor_test.go     # Execution, condition routing, loop property tests
+│   ├── checkpoint.go        # Checkpoint save/load/clear, rate limit detection
+│   ├── checkpoint_test.go
+│   ├── checkpoint_ratelimit_test.go
+│   ├── flow.go              # Flow subcommand, segment parsing, multi-pipeline execution
+│   └── flow_test.go
+├── llm/
+│   ├── client.go            # OpenRouter API client, LLM decision parsing
+│   ├── client_test.go       # LLM client, retry, response parsing tests
+│   ├── logger.go            # LLMLogger debug wrapper
+│   └── logger_test.go
 ├── .env.example      # Environment variable template
 ├── go.mod
 └── go.sum
