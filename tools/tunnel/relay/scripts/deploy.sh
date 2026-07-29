@@ -12,12 +12,19 @@ if [ -z "$APP_NAME" ]; then
     exit 1
 fi
 
-# Determine env file
-ENV_FILE="${DPLOY_ENV_FILE:-$RELAY_DIR/.env-prod}"
+# Determine env file: centralized > local fallback
+TRAYLINE_ENV="${HOME}/.trayline/env/tunnel-relay.env"
+LOCAL_ENV="$RELAY_DIR/.env-prod"
 
-if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: env file '$ENV_FILE' not found." >&2
-    echo "Copy '$RELAY_DIR/.env.example' to '$ENV_FILE' and fill in the secret values." >&2
+if [ -f "$TRAYLINE_ENV" ]; then
+    ENV_FILE="$TRAYLINE_ENV"
+elif [ -f "$LOCAL_ENV" ]; then
+    ENV_FILE="$LOCAL_ENV"
+else
+    echo "Error: no env file found." >&2
+    echo "  Expected: $TRAYLINE_ENV" >&2
+    echo "  Fallback: $LOCAL_ENV" >&2
+    echo "  Run './setup/install.sh' and edit ~/.trayline/env/tunnel-relay.env" >&2
     exit 1
 fi
 
