@@ -2,6 +2,7 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 )
@@ -14,10 +15,19 @@ type Config struct {
 	OpenRouterModel  string
 }
 
-// LoadConfig loads environment variables from .env (if present) and returns a Config.
+// LoadConfig loads environment variables and returns a Config.
+// It tries these .env files in order (first found wins):
+//  1. .env in the current working directory (for development)
+//  2. ~/.trayline/env/orchestrator.env (installed config)
 func LoadConfig() *Config {
-	// Silent if .env doesn't exist
-	_ = godotenv.Load()
+	// Try local .env first (development override)
+	if err := godotenv.Load(); err != nil {
+		// Fall back to installed env file
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			_ = godotenv.Load(filepath.Join(home, ".trayline", "env", "orchestrator.env"))
+		}
+	}
 
 	model := os.Getenv("OPENROUTER_MODEL")
 	if model == "" {

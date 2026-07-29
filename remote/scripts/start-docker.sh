@@ -5,14 +5,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
 # ---------------------------------------------------------------------------
-# Load .env so variables are available for volume/port interpolation below.
+# Load env: prefer ~/.trayline/env/server.env, fall back to local .env
 # ---------------------------------------------------------------------------
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+TRAYLINE_ENV="${HOME}/.trayline/env/server.env"
+if [ -f "$TRAYLINE_ENV" ]; then
+  ENV_FILE="$TRAYLINE_ENV"
+elif [ -f .env ]; then
+  ENV_FILE=".env"
+else
+  echo "ERROR: No env file found." >&2
+  echo "  Expected: $TRAYLINE_ENV" >&2
+  echo "  Fallback: $(pwd)/.env" >&2
+  echo "  Run './setup/install.sh' to create env templates." >&2
+  exit 1
 fi
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+echo "Using env: $ENV_FILE"
 
 NETWORK_NAME="${TRAYLINE_NETWORK:-trayline-net}"
 PROXY_NAME="${TRAYLINE_PROXY:-trayline-proxy}"
@@ -117,7 +130,7 @@ fi
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
-  --env-file .env \
+  --env-file "$ENV_FILE" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -p "${APP_PORT}:${APP_PORT}" \

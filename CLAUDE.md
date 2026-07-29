@@ -12,7 +12,29 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 | `tools/taskline/server/` | Go module `server` — task queue server |
 | `tools/taskline/cli/` | Go module `cli` — task queue CLI |
 | `tools/tunnel/` | Relay + home-agent tunnel utilities (Docker-based, no Go module) |
-| `setup/` | Installer (`install.sh`), config template, shell completions |
+| `setup/` | Unified installer, uninstaller, config templates, shell completions |
+
+## Installation
+
+```bash
+./setup/install.sh              # Full install (Docker + binaries + env + pipelines)
+./setup/install.sh --skip-docker # Skip Docker image builds
+./setup/install-pipelines.sh    # Pipelines + orchestrator + runtime tools only
+./setup/reinstall.sh            # Clean reinstall (uninstall + install --force)
+./setup/uninstall.sh            # Remove everything
+```
+
+## Runtime Configuration
+
+All environment configs are installed to `~/.trayline/env/`:
+
+| File | Service |
+|------|---------|
+| `orchestrator.env` | Pipeline orchestrator (OpenRouter API key) |
+| `server.env` | Agent API server (Docker, loaded via --env-file) |
+| `taskline.env` | Task queue server |
+| `tunnel-relay.env` | Tunnel relay |
+| `tunnel-agent.env` | Tunnel home-agent |
 
 ## Build & Test Commands
 
@@ -37,4 +59,5 @@ cd tools/taskline/cli && go build ./... && go test ./...
 - `.kiro/specs/` — Kiro spec-driven development specs (requirements.md, design.md, tasks.md per feature)
 - `.agents/` — AI agent working files: `MEMORY.md`, `AI_LOG.md`, `tmp/`, `checkpoints/`
 - `setup/config.example` — config template installed to `~/.trayline/config`
+- `~/.trayline/env/` — centralized environment configs for all services (installed by setup/install.sh)
 - `.gitignore` — build artifact and secret patterns for the current directory layout

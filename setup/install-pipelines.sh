@@ -1,49 +1,106 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$SCRIPT_DIR/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 TRAYLINE_HOME="${HOME}/.trayline"
-PIPELINES_SOURCE="$REPO_DIR/pipelines"
+PIPELINES_SOURCE="$REPO_ROOT/pipelines"
 PIPELINES_DEST="$TRAYLINE_HOME/pipelines"
 
-echo "==> Building orchestrator (trayline-run)..."
-if command -v go &>/dev/null; then
-  (cd "$REPO_DIR/orchestrator" && go build -ldflags "-X main.version=1.2.0" -o "$TRAYLINE_HOME/trayline-run" .)
-  chmod +x "$TRAYLINE_HOME/trayline-run"
-  echo "    Built and installed trayline-run"
-else
-  echo "    ERROR: Go is not installed. Cannot build orchestrator." >&2
-  exit 1
-fi
+# Parse flags
+SKIP_TOOLS=false
+for arg in "$@"; do
+  case "$arg" in
+    --skip-tools) SKIP_TOOLS=true ;;
+    -h|--help)
+      cat <<EOF
+Usage: install-pipelines.sh [--skip-tools]
 
-echo "==> Installing tools..."
-sed 's/\r$//' "$REPO_DIR/runtime/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
-chmod +x "$TRAYLINE_HOME/trayline-agent"
-echo "    Installed trayline-agent"
+Installs/updates pipelines, orchestrator binary, and runtime tools.
+This is the fast-path for iterating on pipeline definitions without
+rebuilding Docker images or touching env files.
 
-sed 's/\r$//' "$REPO_DIR/runtime/sync.sh" > "$TRAYLINE_HOME/sync.sh"
-chmod +x "$TRAYLINE_HOME/sync.sh"
-echo "    Installed sync.sh"
+Flags:
+  --skip-tools   Skip building orchestrator and copying runtime scripts
+                 (used internally by install.sh to avoid double work)
+  -h, --help     Show this help
+EOF
+      exit 0
+      ;;
+    *) echo "Unknown flag: $arg" >&2; exit 1 ;;
+  esac
+done
 
-sed 's/\r$//' "$SCRIPT_DIR/.rsyncignore" > "$TRAYLINE_HOME/.rsyncignore"
-echo "    Installed .rsyncignore"
-
-echo "==> Removing old pipelines..."
-rm -f "$PIPELINES_DEST"/*.yaml
-
-echo "==> Installing pipelines..."
+mkdir -p "$TRAYLINE_HOME"
 mkdir -p "$PIPELINES_DEST"
 
-for f in "$PIPELINES_SOURCE"/*.yaml(N); do
-  cp "$f" "$PIPELINES_DEST/$(basename "$f")"
-  echo "    Installed $(basename "$f")"
+# ---------------------------------------------------------------------------
+# Build orchestrator and install runtime tools (unless called from install.sh)
+# ---------------------------------------------------------------------------
+if ! $SKIP_TOOLS; then
+  if command -v go &>/dev/null; then
+    echo "==> Building orchestrator (trayline-run)..."
+    (cd "$REPO_ROOT/orchestrator" && go build -o "$TRAYLINE_HOME/trayline-run" .)
+    chmod +x "$TRAYLINE_HOME/trayline-run"
+  else
+    echo "==> Go not found. Skipping orchestrator build." >&2
+  fi
+
+  echo "==> Installing runtime tools..."
+  sed 's/\r$//' "$REPO_ROOT/runtime/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
+  chmod +x "$TRAYLINE_HOME/trayline-agent"
+
+  sed 's/\r$//' "$REPO_ROOT/runtime/sync.sh" > "$TRAYLINE_HOME/sync.sh"
+  chmod +x "$TRAYLINE_HOME/sync.sh"
+
+  sed 's/\r$//' "$SCRIPT_DIR/.rsyncignore" > "$TRAYLINE_HOME/.rsyncignore"
+fi
+
+# ---------------------------------------------------------------------------
+# Sync pipelines — copy new/updated files, remove deleted ones
+# ---------------------------------------------------------------------------
+echo "==> Syncing pipelines..."
+
+# Copy lifecycle.yaml
+if [[ -f "$PIPELINES_SOURCE/lifecycle.yaml" ]]; then
+  cp "$PIPELINES_SOURCE/lifecycle.yaml" "$PIPELINES_DEST/lifecycle.yaml"
+  echo "    Updated lifecycle.yaml"
+fi
+
+# Sync subdirectories (tasks, processes, workflows)
+for dir in tasks processes workflows; do
+  SRC_DIR="$PIPELINES_SOURCE/$dir"
+  DST_DIR="$PIPELINES_DEST/$dir"
+
+  if [[ ! -d "$SRC_DIR" ]]; then
+    continue
+  fi
+
+  mkdir -p "$DST_DIR"
+
+  # Copy new/updated files
+  for f in "$SRC_DIR"/*.yaml; do
+    [[ -f "$f" ]] || continue
+    BASENAME="$(basename "$f")"
+    dest="$DST_DIR/$BASENAME"
+    if [[ ! -f "$dest" ]] || [[ "$f" -nt "$dest" ]]; then
+      cp "$f" "$dest"
+      echo "    Updated $dir/$BASENAME"
+    else
+      echo "    Skipped $dir/$BASENAME (up to date)"
+    fi
+  done
+
+  # Remove files that no longer exist in source
+  for f in "$DST_DIR"/*.yaml; do
+    [[ -f "$f" ]] || continue
+    BASENAME="$(basename "$f")"
+    if [[ ! -f "$SRC_DIR/$BASENAME" ]]; then
+      rm "$f"
+      echo "    Removed $dir/$BASENAME (deleted from source)"
+    fi
+  done
 done
 
 echo ""
-echo "Done! Installed to $TRAYLINE_HOME:"
-echo "  trayline-run     (orchestrator)"
-echo "  trayline-agent   (agent runner)"
-echo "  sync.sh          (rsync wrapper)"
-echo "  .rsyncignore     (rsync exclude list)"
-echo "  pipelines/       (all pipeline YAML files)"
+echo "Done! Pipelines installed to $PIPELINES_DEST"
