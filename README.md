@@ -19,7 +19,7 @@ claude login
 ### 2. Run the installer
 
 ```bash
-./install.sh
+./setup/install.sh
 ```
 
 Builds the Docker image and installs `trayline` to `~/bin` with all internal tools in `~/.trayline/`.
@@ -139,20 +139,37 @@ Proxy denies: `volumes`, `secrets`, `swarm`, `auth`, `nodes`, `configs`.
 
 ```
 trayline/
-├── install.sh            # Installer script
-├── Dockerfile            # Sandbox container image
-├── orchestrator/         # Go pipeline orchestrator (trayline-run)
-├── pipelines/
+├── .agents/              # AI agent working files: memory, logs, checkpoints
+├── .kiro/                # Kiro spec-driven development specs
+├── runtime/              # Execution artifacts: CLI wrapper, agent runner, sandbox image
+│   ├── sandbox/
+│   │   └── Dockerfile    # Sandbox container image
+│   ├── trayline          # Main CLI wrapper (installed to ~/bin/)
+│   ├── trayline-agent    # Docker sandbox runner for AI agents
+│   └── sync.sh           # Git + rsync sync wrapper
+├── orchestrator/         # Go pipeline orchestrator (trayline-run) that runs pipelines
+├── pipelines/            # YAML pipeline definitions consumed by the orchestrator
 │   ├── lifecycle.yaml    # Before/after hooks for every run
 │   ├── tasks/            # Atomic operations (check-build, release, sync)
 │   ├── processes/        # Standalone processes (create-code, code-review, etc.)
 │   └── workflows/        # Composed processes (feature-implementation, etc.)
-├── completions/          # Zsh completions
-└── scripts/
-    ├── trayline          # Main CLI wrapper (installed to ~/bin/)
-    ├── trayline-agent    # Docker sandbox runner for AI agents
-    └── sync.sh           # Git + rsync sync wrapper
+├── remote/               # Merged server + client Go module for the agent API
+├── tools/                # Independent utilities usable outside trayline
+│   ├── taskline/         # Task queue server + CLI
+│   └── tunnel/           # Tunnel/relay utilities
+└── setup/                # Installer, config template, and shell completions
+    ├── install.sh        # Installer script
+    ├── config.example    # Config template
+    ├── .rsyncignore      # Rsync exclude list
+    └── completions/      # Zsh completions
 ```
+
+### Dependency Direction
+
+- `setup/` references every other directory via path lookups in `install.sh` — it's the only directory allowed to do so.
+- `orchestrator/` invokes `runtime/` scripts and reads `pipelines/` YAML at execution time only, never as compile-time imports.
+- `remote/` builds/runs the `runtime/sandbox/Dockerfile` image at runtime; it has no compile-time dependency on `orchestrator/` or `tools/`.
+- `runtime/` and `tools/` have no dependencies on any other top-level directory — they are self-contained.
 
 ## Default Pipelines
 
