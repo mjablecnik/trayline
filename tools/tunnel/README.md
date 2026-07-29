@@ -1,9 +1,9 @@
 # VPN Tunnel Proxy
 
-Provides secure remote access to the Trayline API running on a home server without port forwarding. A WireGuard server and Caddy reverse proxy run on Fly.io; a lightweight client container on the home server establishes an outbound tunnel.
+Provides secure remote access to the Trayline API running on a home server without port forwarding. A [chisel](https://github.com/jpillora/chisel) server runs on Fly.io as the public relay; a chisel client on the home server dials out and opens a reverse tunnel back to it.
 
 ```
-External Client → Fly.io HTTPS :443 → Caddy → WireGuard tunnel → Home Agent → Trayline API
+External Client → Fly.io HTTPS :443 → Chisel Relay (reverse tunnel) → Home Agent → Trayline API
 ```
 
 ## Prerequisites
@@ -11,16 +11,14 @@ External Client → Fly.io HTTPS :443 → Caddy → WireGuard tunnel → Home Ag
 | Tool | Purpose | Install |
 |------|---------|---------|
 | Docker | Build and run containers | [docs.docker.com](https://docs.docker.com/get-docker/) |
-| WireGuard tools (`wg`) | Key generation | `apt install wireguard-tools` / `brew install wireguard-tools` |
 | Fly.io CLI (`fly`) | Deploy relay to Fly.io | [fly.io/docs/hands-on/install-flyctl](https://fly.io/docs/hands-on/install-flyctl/) |
 
 ## Directory Structure
 
 ```
 tunnel/
-├── relay/                        # Fly.io container (WireGuard server + Caddy)
+├── relay/                        # Fly.io container (chisel server)
 │   ├── Dockerfile
-│   ├── Caddyfile
 │   ├── entrypoint.sh
 │   ├── health.sh
 │   ├── fly.toml
@@ -31,97 +29,75 @@ tunnel/
 │       ├── start-docker.sh       # Run relay locally for testing
 │       ├── stop-docker.sh
 │       └── deploy.sh             # Deploy to Fly.io
-├── home-agent/                   # Home server container (WireGuard client)
+├── home-agent/                   # Home server container (chisel client)
 │   ├── Dockerfile
 │   ├── entrypoint.sh
 │   ├── .env.example              # Copy to .env and fill in values
 │   └── scripts/
 │       ├── build.sh
-│       ├── start-wireguard.sh
+│       ├── start-wireguard.sh    # Starts the home agent container (name predates the chisel migration)
 │       └── stop-wireguard.sh
 └── scripts/
-    └── generate-keys.sh          # Generate WireGuard key pairs
+    └── generate-keys.sh          # Generate chisel auth credentials
 ```
 
 ## Setup
 
-### 1. Generate WireGuard Keys
+### 1. Generate Chisel Auth Credentials
 
-Run from any directory — the script uses absolute paths internally:
+Run from the `tools/tunnel/` directory:
 
 ```bash
-./tunnel/scripts/generate-keys.sh
+./scripts/generate-keys.sh
 ```
 
 Output looks like:
 
 ```
-# --- Relay Container (tunnel/relay/.env) ---
-WG_PRIVATE_KEY=<relay-private-key>
-WG_PEER_PUBLIC_KEY=<home-agent-public-key>
-WG_PRESHARED_KEY=<preshared-key>
+# Chisel Authentication Credentials
+# Use the same values in relay/.env-prod and home-agent/.env
 
-# --- Home Agent (tunnel/home-agent/.env) ---
-WG_PRIVATE_KEY=<home-agent-private-key>
-WG_PEER_PUBLIC_KEY=<relay-public-key>
-WG_PRESHARED_KEY=<preshared-key>
+CHISEL_AUTH_USER=trayline
+CHISEL_AUTH_PASS=<random-password>
 ```
 
-Copy each block into its corresponding `.env` file. Keys are never written to disk automatically.
+Copy these values into both `.env` files below — the relay and home agent must share the same credentials.
 
 ### 2. Configure the Relay
 
 ```bash
-cp tunnel/relay/.env.example tunnel/relay/.env
+cp relay/.env.example relay/.env
 ```
 
-Edit `tunnel/relay/.env` and fill in the values from step 1, plus:
+Edit `relay/.env`:
 
 ```env
-# From generate-keys.sh output:
-WG_PRIVATE_KEY=<relay-private-key>
-WG_PEER_PUBLIC_KEY=<home-agent-public-key>
-WG_PRESHARED_KEY=<preshared-key>
-
-# Defaults (change if needed):
-WG_SERVER_IP=10.0.0.1
-WG_SUBNET=24
-WG_LISTEN_PORT=51820
-WG_PEER_ALLOWED_IPS=10.0.0.2/32
-WG_HOME_AGENT_IP=10.0.0.2
-UPSTREAM_PORT=8080
-
-# Set your Fly.io app domain:
-RELAY_DOMAIN=trayline-relay.fly.dev
+CHISEL_AUTH_USER=trayline
+CHISEL_AUTH_PASS=<random-password>
 ```
 
 ### 3. Configure the Home Agent
 
 ```bash
-cp tunnel/home-agent/.env.example tunnel/home-agent/.env
+cp home-agent/.env.example home-agent/.env
 ```
 
-Edit `tunnel/home-agent/.env`:
+Edit `home-agent/.env`:
 
 ```env
-# From generate-keys.sh output:
-WG_PRIVATE_KEY=<home-agent-private-key>
-WG_PEER_PUBLIC_KEY=<relay-public-key>
-WG_PRESHARED_KEY=<preshared-key>
+# Same credentials as the relay:
+CHISEL_AUTH_USER=trayline
+CHISEL_AUTH_PASS=<random-password>
 
-# Tunnel network:
-WG_CLIENT_IP=10.0.0.2
-WG_SUBNET=24
-WG_PEER_ALLOWED_IPS=10.0.0.1/32
-WG_KEEPALIVE=25
+# Relay address (its public Fly.io URL once deployed):
+RELAY_URL=https://trayline-relay.fly.dev
 
-# After deploying to Fly.io, set this to the relay's public address:
-WG_PEER_ENDPOINT=trayline-relay.fly.dev:51820
+# Local port on the relay that forwards to the Trayline server:
+RELAY_PORT=9000
 
 # Trayline server connection (Docker network name and port):
-UPSTREAM_PORT=8080
 TRAYLINE_HOST=trayline-server
-TRAYLINE_PORT=8080
+TRAYLINE_PORT=9000
 ```
 
 ## Local Testing
@@ -131,16 +107,16 @@ Run both containers locally to verify the tunnel before deploying.
 ### Start the Relay (Local)
 
 ```bash
-cd tunnel/relay
+cd relay
 ./scripts/start-docker.sh
 ```
 
-This builds the image and starts the relay on ports 443 (HTTPS) and 51820/UDP (WireGuard).
+This builds the image and starts the relay on port 8080.
 
 ### Start the Home Agent
 
 ```bash
-cd tunnel/home-agent
+cd home-agent
 ./scripts/start-wireguard.sh
 ```
 
@@ -150,31 +126,29 @@ This ensures the `trayline-net` Docker network exists and starts the home agent 
 
 ```bash
 # Stop relay
-tunnel/relay/scripts/stop-docker.sh
+relay/scripts/stop-docker.sh
 
 # Stop home agent
-tunnel/home-agent/scripts/stop-wireguard.sh
+home-agent/scripts/stop-wireguard.sh
 ```
 
 Both stop scripts exit cleanly if the container is not running.
 
 ### Check Health
 
-```bash
-curl -k https://localhost/health
-```
-
-Expected response when healthy:
+The relay's `health.sh` serves a raw HTTP response on request (used by `fly.toml`'s TCP health check, not exposed as a routed HTTP endpoint by default):
 
 ```json
-{
-  "wireguard": "up",
-  "proxy": "listening",
-  "peer_handshake_seconds_ago": 12
-}
+{"chisel": "running"}
 ```
 
-Returns HTTP 503 with `"status": "degraded"` when the tunnel peer has not completed a handshake in the last 180 seconds.
+or, if the chisel process has died:
+
+```json
+{"chisel": "stopped"}
+```
+
+with HTTP 503.
 
 ## Fly.io Deployment
 
@@ -185,73 +159,55 @@ Returns HTTP 503 with `"status": "degraded"` when the tunnel peer has not comple
 fly auth login
 
 # Copy production env file and fill in secrets
-cp tunnel/relay/.env.example tunnel/relay/.env-prod
+cp relay/.env.example relay/.env-prod
 # Edit .env-prod with production values
 
 # Deploy
-cd tunnel/relay
+cd relay
 ./scripts/deploy.sh
 ```
 
 The deploy script:
 1. Parses the app name from `fly.toml` (`trayline-relay`)
 2. Creates the Fly.io app if it does not exist
-3. Allocates a dedicated IPv4 address (required for WireGuard UDP)
-4. Sets secrets from `.env-prod` (skips keys already in `fly.toml [env]`)
-5. Runs `fly deploy`
+3. Sets secrets from `.env-prod` (skips keys already in `fly.toml [env]`)
+4. Runs `fly deploy`
 
 ### Custom Env File
 
 ```bash
-DPLOY_ENV_FILE=/path/to/custom.env ./tunnel/relay/scripts/deploy.sh
+DPLOY_ENV_FILE=/path/to/custom.env ./relay/scripts/deploy.sh
 ```
 
-### Update Home Agent Endpoint
+### Point the Home Agent at the Deployed Relay
 
-After the first deploy, get the relay's public IP or hostname:
-
-```bash
-fly ips list --app trayline-relay
-```
-
-Update `WG_PEER_ENDPOINT` in `tunnel/home-agent/.env` to `<ip>:51820` or `trayline-relay.fly.dev:51820`.
+Set `RELAY_URL` in `home-agent/.env` to the relay's public Fly.io URL (`https://trayline-relay.fly.dev` by default), then restart the home agent container.
 
 ## Troubleshooting
 
-### WireGuard interface fails to start
+### Home agent can't connect to the relay
 
-The relay entrypoint waits up to 30 seconds for `wg0` to come up. If it fails, the container exits with a non-zero code. Check logs:
+Check both containers' logs:
 
 ```bash
+docker logs trayline-home-agent
 docker logs trayline-relay
 # or on Fly.io:
 fly logs --app trayline-relay
 ```
 
 Common causes:
-- Missing `NET_ADMIN` capability — ensure `--cap-add=NET_ADMIN` is passed
-- Invalid `WG_PRIVATE_KEY` — regenerate with `generate-keys.sh`
+- `CHISEL_AUTH_USER`/`CHISEL_AUTH_PASS` mismatch between `relay/.env` and `home-agent/.env` — re-run `generate-keys.sh` and update both files
+- `RELAY_URL` in `home-agent/.env` does not point at a reachable relay address
+- Relay not yet deployed/running
 
-### Tunnel shows "disconnected" in home agent logs
+### Health check returns 503 / `{"chisel": "stopped"}`
 
-The home agent polls `wg show wg0 latest-handshakes` every 30 seconds. If the handshake age exceeds 180 seconds:
-- Verify `WG_PEER_ENDPOINT` in home agent `.env` points to the correct Fly.io address and port 51820
-- Confirm UDP port 51820 is reachable from the home network
-- Check relay logs for incoming connection attempts
+The chisel process inside that container has exited. Check the container logs for the underlying error (usually an auth failure or the relay being unreachable from the home agent).
 
-### Health endpoint returns 503
+### Trayline traffic not reaching the server
 
-```bash
-curl -k https://<relay-domain>/health
-```
-
-- `"wireguard": "down"` — WireGuard interface did not start
-- `"proxy": "not listening"` — Caddy is not accepting connections on port 443
-- `"status": "degraded"` — WireGuard is up but no handshake within 180 seconds (home agent not connected)
-
-### socat forwarding not working
-
-The home agent uses `socat` to bridge traffic from the WireGuard tunnel IP to the Trayline server. Verify:
+The home agent forwards `RELAY_PORT` on the relay's tunnel loopback (`127.0.0.1`) to `TRAYLINE_HOST:TRAYLINE_PORT` via chisel's reverse forwarding (`R:127.0.0.1:<RELAY_PORT>:<TRAYLINE_HOST>:<TRAYLINE_PORT>`). Verify:
 - `TRAYLINE_HOST` matches the Docker container name on `trayline-net`
 - `TRAYLINE_PORT` matches the port the Trayline server is listening on
 - Both the home agent and Trayline server are on the `trayline-net` Docker network
@@ -259,10 +215,6 @@ The home agent uses `socat` to bridge traffic from the WireGuard tunnel IP to th
 ```bash
 docker network inspect trayline-net
 ```
-
-### Key mismatch
-
-If you see WireGuard authentication failures, the public keys in each endpoint's config may not match. Re-run `generate-keys.sh`, update both `.env` files, and restart both containers.
 
 ### Stop script errors
 
