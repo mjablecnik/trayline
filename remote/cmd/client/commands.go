@@ -134,12 +134,12 @@ func Dispatch(args []string) int {
 	fs := flag.NewFlagSet("trayline-client", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	serverFlag  := fs.String("server", "", "")
-	tokenFlag   := fs.String("token", "", "")
-	quietFlag   := fs.Bool("quiet", false, "")
+	serverFlag := fs.String("server", "", "")
+	tokenFlag := fs.String("token", "", "")
+	quietFlag := fs.Bool("quiet", false, "")
 	verboseFlag := fs.Bool("verbose", false, "")
-	helpFlag    := fs.Bool("help", false, "")
-	vFlag       := fs.Bool("v", false, "")
+	helpFlag := fs.Bool("help", false, "")
+	vFlag := fs.Bool("v", false, "")
 	versionFlag := fs.Bool("version", false, "")
 
 	if err := fs.Parse(args); err != nil {

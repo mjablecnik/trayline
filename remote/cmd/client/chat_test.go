@@ -20,12 +20,12 @@ import (
 // Property 3: WebSocket URL construction includes provided parameters
 func TestProperty_WSURLConstruction(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		agent     := rapid.StringMatching(`[a-z][a-z0-9]{0,15}`).Draw(rt, "agent")
-		model     := rapid.OneOf(rapid.Just(""), rapid.StringMatching(`[a-z0-9-]{1,20}`)).Draw(rt, "model")
-		system    := rapid.OneOf(rapid.Just(""), rapid.StringMatching(`[a-zA-Z0-9 ]{1,50}`)).Draw(rt, "system")
+		agent := rapid.StringMatching(`[a-z][a-z0-9]{0,15}`).Draw(rt, "agent")
+		model := rapid.OneOf(rapid.Just(""), rapid.StringMatching(`[a-z0-9-]{1,20}`)).Draw(rt, "model")
+		system := rapid.OneOf(rapid.Just(""), rapid.StringMatching(`[a-zA-Z0-9 ]{1,50}`)).Draw(rt, "system")
 		sessionID := rapid.OneOf(rapid.Just(""), rapid.StringMatching(`[a-z0-9]{4,16}`)).Draw(rt, "sessionID")
 
-		path   := buildChatPath(sessionID)
+		path := buildChatPath(sessionID)
 		params := buildChatParams(agent, model, system)
 
 		// Path assertion
@@ -178,7 +178,7 @@ func expectCode(t *testing.T, ch <-chan int, wantCode int) {
 // TestChatLoop_SessionLifecycle tests: session_started → send → output → done → /quit
 func TestChatLoop_SessionLifecycle(t *testing.T) {
 	clientMsgCh := make(chan WSClientMessage, 4)
-	serverDone  := make(chan struct{})
+	serverDone := make(chan struct{})
 
 	srv := wsTestServer(t, func(conn *websocket.Conn) {
 		writeSrvMsg(t, conn, WSServerMessage{Type: "session_started", SessionID: "sess-abc"})
@@ -210,8 +210,8 @@ func TestChatLoop_SessionLifecycle(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -267,8 +267,8 @@ func TestChatLoop_SessionResumed(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -291,8 +291,8 @@ func TestChatLoop_UnexpectedClose(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	expectCode(t, codeCh, 1)
@@ -325,8 +325,8 @@ func TestChatLoop_EmptyInputFiltered(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(40 * time.Millisecond)
@@ -369,7 +369,7 @@ func TestHandleChat_HTTP404(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cfg  := &Config{ServerURL: srv.URL, Token: "tok"}
+	cfg := &Config{ServerURL: srv.URL, Token: "tok"}
 	code := handleChat([]string{"--agent", "claude", "--session", "missing-id"}, cfg)
 	if code != 1 {
 		t.Fatalf("expected exit code 1, got %d", code)
@@ -383,7 +383,7 @@ func TestHandleChat_HTTP409(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cfg  := &Config{ServerURL: srv.URL, Token: "tok"}
+	cfg := &Config{ServerURL: srv.URL, Token: "tok"}
 	code := handleChat([]string{"--agent", "claude", "--session", "busy-id"}, cfg)
 	if code != 1 {
 		t.Fatalf("expected exit code 1, got %d", code)
@@ -392,7 +392,7 @@ func TestHandleChat_HTTP409(t *testing.T) {
 
 // TestHandleChat_MissingAgent tests that omitting --agent returns exit code 2.
 func TestHandleChat_MissingAgent(t *testing.T) {
-	cfg  := &Config{ServerURL: "http://localhost:9999", Token: "tok"}
+	cfg := &Config{ServerURL: "http://localhost:9999", Token: "tok"}
 	code := handleChat([]string{}, cfg)
 	if code != 2 {
 		t.Fatalf("expected exit code 2, got %d", code)
@@ -421,8 +421,8 @@ func TestChatLoop_FirstSIGINT_SendsInterrupt(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -475,8 +475,8 @@ func TestChatLoop_SecondSIGINT_ExitsCode130(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -507,8 +507,8 @@ func TestChatLoop_SIGTERM_ExitsCode0(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -549,8 +549,8 @@ func TestBuildChatParams(t *testing.T) {
 // TestEncodeBinaryFrame verifies the binary frame format matches the server's expected layout.
 func TestEncodeBinaryFrame(t *testing.T) {
 	filename := "report.pdf"
-	content  := []byte("hello world")
-	frame    := encodeBinaryFrame(filename, content)
+	content := []byte("hello world")
+	frame := encodeBinaryFrame(filename, content)
 
 	if len(frame) < 4 {
 		t.Fatalf("frame too short: %d bytes", len(frame))
@@ -615,8 +615,8 @@ func TestChatLoop_FileCommand_Success(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -669,8 +669,8 @@ func TestChatLoop_FileCommand_NonExistent(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(50 * time.Millisecond)
@@ -708,8 +708,8 @@ func TestChatLoop_FileUploadedAck(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	defer stdinW.Close()
 
-	sigCh  := make(chan os.Signal, 2)
-	cfg    := &Config{Token: "test"}
+	sigCh := make(chan os.Signal, 2)
+	cfg := &Config{Token: "test"}
 	codeCh := startLoop(clientConn, cfg, stdinR, sigCh)
 
 	time.Sleep(100 * time.Millisecond)

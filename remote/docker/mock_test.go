@@ -15,21 +15,21 @@ import (
 )
 
 type MockContainerClient struct {
-	mu          sync.Mutex
-	nextID      int
-	containers  map[string]chan struct{}
-	StartOrder  []string
-	CreateErr   error
-	StartErr    error
-	AutoComplete bool
-	AutoExitCode int
-	LogContent  []byte
-	WaitErr     error
-	StopCount   int32
-	RemoveCount int32
+	mu            sync.Mutex
+	nextID        int
+	containers    map[string]chan struct{}
+	StartOrder    []string
+	CreateErr     error
+	StartErr      error
+	AutoComplete  bool
+	AutoExitCode  int
+	LogContent    []byte
+	WaitErr       error
+	StopCount     int32
+	RemoveCount   int32
 	InspectResult dockertypes.ContainerJSON
-	InspectErr  error
-	AttachErr   error
+	InspectErr    error
+	AttachErr     error
 }
 
 func NewMockContainerClient() *MockContainerClient {

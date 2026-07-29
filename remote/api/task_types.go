@@ -22,7 +22,7 @@ type RunResponse struct {
 	Agent       string           `json:"agent"`
 	Result      string           `json:"result,omitempty"`
 	Error       string           `json:"error,omitempty"`
-	Valid        *bool            `json:"valid,omitempty"`
+	Valid       *bool            `json:"valid,omitempty"`
 	CreatedAt   time.Time        `json:"created_at"`
 	CompletedAt *time.Time       `json:"completed_at,omitempty"`
 }

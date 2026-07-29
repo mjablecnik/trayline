@@ -26,9 +26,9 @@ func handleRun(args []string, cfg *Config) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	agentFlag  := fs.String("agent", "", "")
+	agentFlag := fs.String("agent", "", "")
 	promptFlag := fs.String("prompt", "", "")
-	modelFlag  := fs.String("model", "", "")
+	modelFlag := fs.String("model", "", "")
 	systemFlag := fs.String("system", "", "")
 	formatFlag := fs.String("format", "", "")
 	var fileFlag stringSliceFlag

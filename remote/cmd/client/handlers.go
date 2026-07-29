@@ -32,4 +32,3 @@ func handleHealth(args []string, cfg *Config) int {
 	fmt.Println("Server is healthy")
 	return 0
 }
-

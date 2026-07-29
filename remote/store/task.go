@@ -39,7 +39,7 @@ type Task struct {
 	CompletedAt  *time.Time         `json:"completed_at,omitempty"`
 	ContainerID  string             `json:"-"`
 	CancelFunc   context.CancelFunc `json:"-"`
-	Done         chan struct{}       `json:"-"` // closed when task reaches a terminal state
+	Done         chan struct{}      `json:"-"` // closed when task reaches a terminal state
 }
 
 // TaskStore is a thread-safe store for one-shot tasks with a 100-task cap.

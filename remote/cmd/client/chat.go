@@ -25,9 +25,9 @@ func handleChat(args []string, cfg *Config) int {
 	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	agentFlag   := fs.String("agent", "", "")
-	modelFlag   := fs.String("model", "", "")
-	systemFlag  := fs.String("system", "", "")
+	agentFlag := fs.String("agent", "", "")
+	modelFlag := fs.String("model", "", "")
+	systemFlag := fs.String("system", "", "")
 	sessionFlag := fs.String("session", "", "")
 
 	if err := fs.Parse(args); err != nil {
