@@ -1,9 +1,16 @@
-testdata/
+# Build artifacts
+orchestrator/bin/
+remote/bin/
+tools/taskline/server/bin/
+tools/taskline/cli/bin/
+tools/taskline/server/server
+tools/taskline/cli/cli
+
+# Environment and secrets
 .env
 llm-debug.log
-tunnel/**/.env
-tunnel/**/.env-prod
-taskline/server/bin/
-taskline/cli/bin/
-taskline/server/server
-taskline/cli/cli
+tools/tunnel/**/.env
+tools/tunnel/**/.env-prod
+
+# Test data
+testdata/
