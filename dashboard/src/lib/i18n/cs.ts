@@ -55,6 +55,12 @@ const cs: Record<keyof typeof en, string> = {
 	'env.error.empty_key': 'Klíč je povinný',
 	'env.error.invalid_key': 'Neplatný název proměnné',
 	'env.error.duplicate': 'Duplicitní klíč',
+	'env.empty': 'V tomto projektu nebyly nalezeny žádné soubory .env.',
+	'env.error': 'Soubory prostředí se nepodařilo načíst.',
+	'env.confirmNavigate': 'Máte neuložené změny. Opustit stránku bez uložení?',
+	'env.saveSuccess': 'Uloženo.',
+	'env.saveError': 'Tento soubor se nepodařilo uložit.',
+	'env.reference': 'Reference (.env.example)',
 
 	'error.connection.title': 'Server je nedostupný',
 	'error.connection.message':

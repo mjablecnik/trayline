@@ -53,6 +53,12 @@ export default {
 	'env.error.empty_key': 'Key is required',
 	'env.error.invalid_key': 'Invalid variable name',
 	'env.error.duplicate': 'Duplicate key',
+	'env.empty': 'No .env files found in this project.',
+	'env.error': 'Could not load environment files.',
+	'env.confirmNavigate': 'You have unsaved changes. Leave without saving?',
+	'env.saveSuccess': 'Saved.',
+	'env.saveError': 'Could not save this file.',
+	'env.reference': 'Reference (.env.example)',
 
 	'error.connection.title': 'Cannot reach the server',
 	'error.connection.message':

@@ -41,22 +41,22 @@
 - [x] Run on every input change (reactive)
 
 ## Task 6: Implement environment page
-- [ ] Update `src/routes/[project]/env/+page.svelte`
-- [ ] Fetch env files from API on mount
-- [ ] Render EnvFileTabs + EnvEditor for active file
-- [ ] Switching tabs loads that file's variables into editor
-- [ ] Loading state: skeleton table
-- [ ] Empty state: "No .env files found" message
-- [ ] Error state: inline error banner
+- [x] Update `src/routes/[project]/env/+page.svelte`
+- [x] Fetch env files from API on mount
+- [x] Render EnvFileTabs + EnvEditor for active file
+- [x] Switching tabs loads that file's variables into editor
+- [x] Loading state: skeleton table
+- [x] Empty state: "No .env files found" message
+- [x] Error state: inline error banner
 
 ## Task 7: Implement save functionality
-- [ ] On save click: call `PUT /projects/{name}/env`
-- [ ] Success → brief green success message, mark file as clean
-- [ ] Error → show API error message inline below save button
-- [ ] Confirm dialog on tab switch / navigation with unsaved changes
+- [x] On save click: call `PUT /projects/{name}/env`
+- [x] Success → brief green success message, mark file as clean
+- [x] Error → show API error message inline below save button
+- [x] Confirm dialog on tab switch / navigation with unsaved changes
 
 ## Task 8: Implement reference view
-- [ ] Show `.env.example` variables below editor (when editing other .env files)
-- [ ] Muted text styling, read-only
-- [ ] Only shown when .env.example exists in the file list
-- [ ] Helps user see expected keys and placeholder values
+- [x] Show `.env.example` variables below editor (when editing other .env files)
+- [x] Muted text styling, read-only
+- [x] Only shown when .env.example exists in the file list
+- [x] Helps user see expected keys and placeholder values
