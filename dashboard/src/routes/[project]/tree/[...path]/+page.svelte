@@ -78,16 +78,14 @@
 			{path}
 			entries={state.data.entries}
 		/>
-	{:else if state.status === 'file' && state.data.content !== null}
+	{:else if state.status === 'file'}
 		<FileViewer
 			path={state.data.path}
 			content={state.data.content}
 			language={state.data.language}
 			size={state.data.size}
+			binary={state.data.binary}
+			truncated={state.data.truncated}
 		/>
-	{:else if state.status === 'file'}
-		<p class="px-2 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-			{$t('files.error')}
-		</p>
 	{/if}
 </div>

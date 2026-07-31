@@ -42,13 +42,13 @@
 - [x] 404 state: "File or directory not found"
 
 ## Task 6: Handle edge cases
-- [ ] Binary file: show "Binary file (X KB)" message + download button
-- [ ] Truncated file (> 1 MB): show "File too large" message + download button
-- [ ] Empty file: show "Empty file" in muted text
-- [ ] "Raw" button: open content in new tab or trigger download
+- [x] Binary file: show "Binary file (X KB)" message + download button
+- [x] Truncated file (> 1 MB): show "File too large" message + download button
+- [x] Empty file: show "Empty file" in muted text
+- [x] "Raw" button: open content in new tab or trigger download
 
 ## Task 7: URL and navigation
-- [ ] Navigating directories updates browser URL
-- [ ] Back/forward button works correctly
-- [ ] Direct URL access to any path works (deep linking)
-- [ ] Root path (`/{project}/tree`) shows top-level directory
+- [x] Navigating directories updates browser URL
+- [x] Back/forward button works correctly
+- [x] Direct URL access to any path works (deep linking)
+- [x] Root path (`/{project}/tree`) shows top-level directory
