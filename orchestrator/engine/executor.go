@@ -527,10 +527,14 @@ func (e *Executor) conditionInput(stepName string, cond *core.Condition, project
 		if os.IsNotExist(err) {
 			// File does not exist — treat as empty input so contains/not_contains
 			// conditions evaluate against an empty string (contains→false, not_contains→true).
+			fmt.Printf("%s  %s📂 Condition file: %s (NOT FOUND — treating as empty)%s\n", indent(), colorMagenta, path, colorReset)
+			e.debugLog("Condition file %q does not exist — using empty input", path)
 			return "", nil
 		}
 		return "", fmt.Errorf("step %q: reading condition file: %w", stepName, err)
 	}
+	fmt.Printf("%s  %s📂 Condition file: %s (%d bytes)%s\n", indent(), colorMagenta, path, len(data), colorReset)
+	e.debugLog("Condition file %q read (%d bytes)", path, len(data))
 	return string(data), nil
 }
 
@@ -553,9 +557,11 @@ func (e *Executor) evaluateCondition(context string, cond *core.Condition, input
 
 	if cond.Matches != "" {
 		re := regexp.MustCompile(cond.Matches)
-		decision := re.MatchString(input)
-		e.debugLog("%s: matches %q → %v", context, cond.Matches, decision)
-		fmt.Printf("%s  %s⚡ %s: matches(%q)=%v%s\n", indent(), colorMagenta, context, cond.Matches, decision, colorReset)
+		allMatches := re.FindAllString(input, -1)
+		matchCount := len(allMatches)
+		decision := matchCount > 0
+		e.debugLog("%s: matches %q → %v (%d occurrences)", context, cond.Matches, decision, matchCount)
+		fmt.Printf("%s  %s⚡ %s: matches(%q)=%v (%d occurrences found)%s\n", indent(), colorMagenta, context, cond.Matches, decision, matchCount, colorReset)
 		return decision, nil
 	}
 
