@@ -35,6 +35,12 @@ type Config struct {
 	ClaudeHostDir string
 	// ClaudeConfigHostFile is the host path to ~/.claude.json (global config/token).
 	ClaudeConfigHostFile string
+
+	// ProjectsDir is the host directory scanned for dashboard projects (git repos).
+	ProjectsDir string
+	// DashboardOrigin is the allowed CORS origin for the dashboard frontend.
+	// Empty disables CORS handling.
+	DashboardOrigin string
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -171,6 +177,22 @@ func LoadConfig() (*Config, error) {
 	cfg.KiroCredsHostDir = os.Getenv("KIRO_CREDS_HOST_DIR")
 	cfg.ClaudeHostDir = os.Getenv("CLAUDE_HOST_DIR")
 	cfg.ClaudeConfigHostFile = os.Getenv("CLAUDE_CONFIG_HOST_FILE")
+
+	// PROJECTS_DIR (required)
+	cfg.ProjectsDir = os.Getenv("PROJECTS_DIR")
+	if cfg.ProjectsDir == "" {
+		return nil, fmt.Errorf("PROJECTS_DIR is required and must not be empty")
+	}
+	info, err := os.Stat(cfg.ProjectsDir)
+	if err != nil {
+		return nil, fmt.Errorf("PROJECTS_DIR %q is not accessible: %w", cfg.ProjectsDir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("PROJECTS_DIR %q is not a directory", cfg.ProjectsDir)
+	}
+
+	// DASHBOARD_ORIGIN (optional; empty disables CORS)
+	cfg.DashboardOrigin = os.Getenv("DASHBOARD_ORIGIN")
 
 	return cfg, nil
 }

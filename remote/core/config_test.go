@@ -25,6 +25,7 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		os.Setenv("API_TOKEN", "test-token")
 		os.Setenv("MAX_CONCURRENT_TASKS", "2")
 		os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		os.Setenv("PROJECTS_DIR", "/tmp")
 		os.Unsetenv("SESSION_TIMEOUT")
 		os.Unsetenv("TASK_TIMEOUT")
 		os.Unsetenv("RATE_LIMIT")
@@ -51,6 +52,7 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 				t.Skip("os.Setenv rejected value (null bytes not allowed in env vars)")
 			}
 			os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+			os.Setenv("PROJECTS_DIR", "/tmp")
 			os.Unsetenv("SESSION_TIMEOUT")
 			os.Unsetenv("TASK_TIMEOUT")
 			os.Unsetenv("RATE_LIMIT")
@@ -70,6 +72,7 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 			os.Setenv("API_TOKEN", "test-token")
 			os.Setenv("MAX_CONCURRENT_TASKS", "2")
 			os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+			os.Setenv("PROJECTS_DIR", "/tmp")
 			os.Setenv("SESSION_TIMEOUT", invalid)
 			os.Unsetenv("TASK_TIMEOUT")
 			os.Unsetenv("RATE_LIMIT")
@@ -90,6 +93,7 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 			os.Setenv("API_TOKEN", "some-token")
 			os.Setenv("MAX_CONCURRENT_TASKS", strconv.Itoa(maxTasks))
 			os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+			os.Setenv("PROJECTS_DIR", "/tmp")
 			os.Unsetenv("SESSION_TIMEOUT")
 			os.Unsetenv("TASK_TIMEOUT")
 			os.Unsetenv("RATE_LIMIT")
@@ -121,6 +125,7 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 	t.Run("missing WORKSPACE_HOST_DIR fails", func(t *testing.T) {
 		os.Setenv("APP_PORT", "8080")
 		os.Setenv("API_TOKEN", "test-token")
+		os.Setenv("PROJECTS_DIR", "/tmp")
 		os.Unsetenv("WORKSPACE_HOST_DIR")
 
 		_, err := LoadConfig()
@@ -129,10 +134,85 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		}
 	})
 
+	t.Run("missing PROJECTS_DIR fails", func(t *testing.T) {
+		os.Setenv("APP_PORT", "8080")
+		os.Setenv("API_TOKEN", "test-token")
+		os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		os.Unsetenv("PROJECTS_DIR")
+
+		_, err := LoadConfig()
+		if err == nil {
+			t.Fatal("expected error when PROJECTS_DIR is missing")
+		}
+	})
+
+	t.Run("PROJECTS_DIR not a directory fails", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "not-a-dir")
+		if err != nil {
+			t.Fatalf("failed to create temp file: %v", err)
+		}
+		f.Close()
+
+		os.Setenv("APP_PORT", "8080")
+		os.Setenv("API_TOKEN", "test-token")
+		os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		os.Setenv("PROJECTS_DIR", f.Name())
+
+		_, err = LoadConfig()
+		if err == nil {
+			t.Fatal("expected error when PROJECTS_DIR is not a directory")
+		}
+	})
+
+	t.Run("PROJECTS_DIR does not exist fails", func(t *testing.T) {
+		os.Setenv("APP_PORT", "8080")
+		os.Setenv("API_TOKEN", "test-token")
+		os.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		os.Setenv("PROJECTS_DIR", "/nonexistent/path/does-not-exist")
+
+		_, err := LoadConfig()
+		if err == nil {
+			t.Fatal("expected error when PROJECTS_DIR does not exist")
+		}
+	})
+
+	t.Run("DASHBOARD_ORIGIN empty by default", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		os.Unsetenv("DASHBOARD_ORIGIN")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if cfg.DashboardOrigin != "" {
+			t.Errorf("expected empty DashboardOrigin by default, got %q", cfg.DashboardOrigin)
+		}
+	})
+
+	t.Run("DASHBOARD_ORIGIN set is honored", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("DASHBOARD_ORIGIN", "http://localhost:5173")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if cfg.DashboardOrigin != "http://localhost:5173" {
+			t.Errorf("expected DashboardOrigin to be set, got %q", cfg.DashboardOrigin)
+		}
+	})
+
 	t.Run("defaults applied when optional vars unset", func(t *testing.T) {
 		t.Setenv("APP_PORT", "8080")
 		t.Setenv("API_TOKEN", "test-token")
 		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
 		os.Unsetenv("SESSION_TIMEOUT")
 		os.Unsetenv("TASK_TIMEOUT")
 		os.Unsetenv("RATE_LIMIT")

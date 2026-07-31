@@ -11,14 +11,18 @@ import (
 )
 
 // NewRouter builds and returns the HTTP ServeMux with all routes and middleware applied.
-// Middleware chain: rate limiter → auth → handler (health bypasses both).
+// Middleware chain: recovery → CORS → rate limiter → auth → requestID → mux.
 func NewRouter(
 	health *HealthHandler,
 	taskH *TaskHandler,
 	sessionH *SessionHandler,
+	gitH *GitHandler,
+	envH *EnvHandler,
+	projectH *ProjectHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
+	dashboardOrigin string,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -37,8 +41,23 @@ func NewRouter(
 	mux.HandleFunc("GET /sessions", sessionH.HandleGetSessions)
 	mux.HandleFunc("POST /sessions/{id}/terminate", sessionH.HandleTerminateSession)
 
-	// Apply middleware: recovery → rate limiter → auth → mux.
-	return recoveryMiddleware(logger, rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux))))
+	// Project endpoints (dashboard).
+	mux.HandleFunc("GET /projects", projectH.HandleListProjects)
+	mux.HandleFunc("GET /projects/{name}", projectH.HandleGetProject)
+	mux.HandleFunc("GET /projects/{name}/tree/{ref}/{path...}", projectH.HandleGetTree)
+	mux.HandleFunc("GET /projects/{name}/blob/{ref}/{path...}", projectH.HandleGetBlob)
+
+	// Git endpoints.
+	mux.HandleFunc("GET /projects/{name}/commits", gitH.HandleGetCommits)
+	mux.HandleFunc("GET /projects/{name}/commits/{hash}", gitH.HandleGetCommitDetail)
+	mux.HandleFunc("GET /projects/{name}/status", gitH.HandleGetStatus)
+
+	// Env endpoints.
+	mux.HandleFunc("GET /projects/{name}/env", envH.HandleGetEnv)
+	mux.HandleFunc("PUT /projects/{name}/env", envH.HandlePutEnv)
+
+	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
+	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))
 }
 
 // requestIDMiddleware attaches a unique request ID to every request context.

@@ -15,6 +15,7 @@ import (
 	"remote/api"
 	"remote/core"
 	"remote/docker"
+	"remote/git"
 	"remote/store"
 )
 
@@ -65,8 +66,12 @@ func main() {
 	// Background idle-timeout checker for sessions.
 	sessionH.StartIdleTimeoutChecker(ctx)
 
+	gitH := api.NewGitHandler(cfg.ProjectsDir, git.NewRunner(), logger)
+	envH := api.NewEnvHandler(cfg.ProjectsDir, logger)
+	projectH := api.NewProjectHandler(cfg.ProjectsDir, git.NewRunner(), logger)
+
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, cfg.APIToken, rl, logger)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
