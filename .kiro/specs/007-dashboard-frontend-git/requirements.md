@@ -11,29 +11,29 @@ Dependencies: 004-dashboard-frontend-setup, 005-dashboard-frontend-projects (pro
 ## Requirements
 
 ### REQ-1: Commit List (Commits Tab)
-- [ ] Fetch commits from `GET /projects/{name}/commits?ref={branch}&limit=50`
-- [ ] Display as a list: short hash, commit message, author, relative date
-- [ ] Commit message truncated if too long (single line, ellipsis)
-- [ ] Click commit → navigates to commit detail page
-- [ ] "Load more" button at bottom when `has_more: true`
-- [ ] Loading state: skeleton rows
-- [ ] Empty state: "No commits found" message
+- [x] Fetch commits from `GET /projects/{name}/commits?ref={branch}&limit=50`
+- [x] Display as a list: short hash, commit message, author, relative date
+- [x] Commit message truncated if too long (single line, ellipsis)
+- [x] Click commit → navigates to commit detail page
+- [x] "Load more" button at bottom when `has_more: true`
+- [x] Loading state: skeleton rows
+- [x] Empty state: "No commits found" message
 
 ### REQ-2: Commit Detail Page
-- [ ] Route: `/{project}/commits/{hash}`
-- [ ] Header: full commit message, author, date, stats (files changed, +insertions, -deletions)
-- [ ] Diff rendered with syntax highlighting (added lines green background, removed lines red background)
-- [ ] File sections within the diff clearly separated with file path headers
-- [ ] Back navigation to commit list
-- [ ] Loading state while fetching commit detail
+- [x] Route: `/{project}/commits/{hash}`
+- [x] Header: full commit message, author, date, stats (files changed, +insertions, -deletions)
+- [x] Diff rendered with syntax highlighting (added lines green background, removed lines red background)
+- [x] File sections within the diff clearly separated with file path headers
+- [x] Back navigation to commit list
+- [x] Loading state while fetching commit detail
 
 ### REQ-3: Diff Rendering
-- [ ] Parse unified diff format into visual diff view
-- [ ] Line numbers for both old and new file (side or inline)
-- [ ] Color coding: green for additions, red for deletions, neutral for context lines
-- [ ] File headers with path and +/- stats per file
-- [ ] Collapsible file sections (all expanded by default)
-- [ ] Handle large diffs gracefully (show "Diff too large" if > 500 KB per file)
+- [x] Parse unified diff format into visual diff view
+- [x] Line numbers for both old and new file (side or inline)
+- [x] Color coding: green for additions, red for deletions, neutral for context lines
+- [x] File headers with path and +/- stats per file
+- [x] Collapsible file sections (all expanded by default)
+- [x] Handle large diffs gracefully (show "Diff too large" if > 500 KB per file)
 
 ### REQ-4: Uncommitted Changes (Changes Tab)
 - [ ] Fetch from `GET /projects/{name}/status`

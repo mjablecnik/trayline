@@ -1,42 +1,42 @@
 # Tasks: 007 — Dashboard Frontend Git History & Changes
 
 ## Task 1: Implement CommitRow component
-- [ ] Create `src/lib/components/CommitRow.svelte`
-- [ ] Display: short hash (monospace), message (truncated ~80 chars), author, relative date
-- [ ] Click → navigate to `/{project}/commits/{hash}`
-- [ ] Hover state, cursor pointer
+- [x] Create `src/lib/components/CommitRow.svelte`
+- [x] Display: short hash (monospace), message (truncated ~80 chars), author, relative date
+- [x] Click → navigate to `/{project}/commits/{hash}`
+- [x] Hover state, cursor pointer
 
 ## Task 2: Implement commit list page
-- [ ] Update `src/routes/[project]/commits/+page.svelte`
-- [ ] Fetch commits from API with limit=50, offset=0
-- [ ] Render list of CommitRow components
-- [ ] "Load more" button when has_more is true
-- [ ] Load more appends to existing list (increments offset)
-- [ ] Loading state: skeleton rows
-- [ ] Empty state: "No commits found"
+- [x] Update `src/routes/[project]/commits/+page.svelte`
+- [x] Fetch commits from API with limit=50, offset=0
+- [x] Render list of CommitRow components
+- [x] "Load more" button when has_more is true
+- [x] Load more appends to existing list (increments offset)
+- [x] Loading state: skeleton rows
+- [x] Empty state: "No commits found"
 
 ## Task 3: Implement DiffViewer component
-- [ ] Create `src/lib/components/DiffViewer.svelte`
-- [ ] Accept raw unified diff string
-- [ ] Parse into file sections (split on `diff --git` boundaries)
-- [ ] For each file: extract path, parse hunks, classify lines (add/del/context)
-- [ ] Render with color coding: green background additions, red deletions
+- [x] Create `src/lib/components/DiffViewer.svelte`
+- [x] Accept raw unified diff string
+- [x] Parse into file sections (split on `diff --git` boundaries)
+- [x] For each file: extract path, parse hunks, classify lines (add/del/context)
+- [x] Render with color coding: green background additions, red deletions
 
 ## Task 4: Implement DiffFileSection component
-- [ ] Create `src/lib/components/DiffFileSection.svelte`
-- [ ] File header: path + stats (+N −M) as colored badges
-- [ ] Collapsible (click header to expand/collapse)
-- [ ] Line numbers (old + new) in muted columns
-- [ ] Monospace font for diff content
-- [ ] Handle "diff too large" placeholder
+- [x] Create `src/lib/components/DiffFileSection.svelte`
+- [x] File header: path + stats (+N −M) as colored badges
+- [x] Collapsible (click header to expand/collapse)
+- [x] Line numbers (old + new) in muted columns
+- [x] Monospace font for diff content
+- [x] Handle "diff too large" placeholder
 
 ## Task 5: Implement commit detail page
-- [ ] Update `src/routes/[project]/commits/[hash]/+page.svelte`
-- [ ] Fetch commit detail from API
-- [ ] Header: full message, author, date, stats summary
-- [ ] Render full diff using DiffViewer
-- [ ] Back button → return to commit list
-- [ ] Loading state while fetching
+- [x] Update `src/routes/[project]/commits/[hash]/+page.svelte`
+- [x] Fetch commit detail from API
+- [x] Header: full message, author, date, stats summary
+- [x] Render full diff using DiffViewer
+- [x] Back button → return to commit list
+- [x] Loading state while fetching
 
 ## Task 6: Implement FileStatusBadge component
 - [ ] Create `src/lib/components/FileStatusBadge.svelte`
@@ -55,9 +55,9 @@
 - [ ] Loading state: skeleton
 
 ## Task 8: Implement diff parser utility
-- [ ] Create `src/lib/utils/diff.ts`
-- [ ] Parse unified diff string into structured `DiffFile[]` array
-- [ ] Handle multi-file diffs (split on `diff --git` lines)
-- [ ] Parse hunk headers (`@@ -n,m +n,m @@`)
-- [ ] Classify lines: `+`=add, `-`=del, ` `=context
-- [ ] Calculate line numbers for both sides
+- [x] Create `src/lib/utils/diff.ts`
+- [x] Parse unified diff string into structured `DiffFile[]` array
+- [x] Handle multi-file diffs (split on `diff --git` lines)
+- [x] Parse hunk headers (`@@ -n,m +n,m @@`)
+- [x] Classify lines: `+`=add, `-`=del, ` `=context
+- [x] Calculate line numbers for both sides

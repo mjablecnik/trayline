@@ -1,0 +1,68 @@
+export default {
+	'app.name': 'Trayline',
+
+	'nav.projects': 'Projects',
+	'nav.logout': 'Log out',
+	'nav.menu': 'Menu',
+
+	'auth.title': 'Trayline Dashboard',
+	'auth.subtitle': 'Enter your API token to connect.',
+	'auth.placeholder': 'Enter API token...',
+	'auth.connect': 'Connect',
+	'auth.error': 'Could not connect with this token. Please check it and try again.',
+
+	'projects.empty': 'No synced projects found.',
+	'projects.error': 'Could not load projects.',
+	'projects.branch': 'Branch',
+	'projects.uncommittedChanges': 'Uncommitted changes',
+
+	'project.error': 'Could not load this project.',
+
+	'tabs.files': 'Files',
+	'tabs.commits': 'Commits',
+	'tabs.changes': 'Changes',
+	'tabs.env': 'Environment',
+
+	'commits.empty': 'No commits found',
+	'commits.error': 'Could not load commits.',
+	'commits.loadMore': 'Load more',
+	'commits.detail.back': 'Back to commits',
+	'commits.detail.error': 'Could not load this commit.',
+	'commits.detail.files': '{count} files',
+
+	'diff.tooLarge': 'Diff too large to display',
+
+	'files.emptyDir': 'This directory is empty.',
+	'files.emptyFile': 'Empty file',
+	'files.notFound': 'File or directory not found.',
+	'files.error': 'Could not load this path.',
+	'files.binary': 'Binary file ({size}) — cannot display',
+	'files.truncated': 'File too large to display ({size})',
+	'files.raw': 'Raw',
+	'files.root': 'Root',
+
+	'env.key': 'Key',
+	'env.value': 'Value',
+	'env.keyPlaceholder': 'VARIABLE_NAME',
+	'env.addVariable': 'Add variable',
+	'env.save': 'Save',
+	'env.delete': 'Delete variable',
+	'env.confirmDelete': 'Delete this variable?',
+	'env.reveal': 'Show value',
+	'env.hide': 'Hide value',
+	'env.error.empty_key': 'Key is required',
+	'env.error.invalid_key': 'Invalid variable name',
+	'env.error.duplicate': 'Duplicate key',
+
+	'error.connection.title': 'Cannot reach the server',
+	'error.connection.message':
+		'The dashboard could not connect to the Trayline server. Check your connection and try again.',
+	'error.connection.retry': 'Retry',
+
+	'error.fallback.title': 'Something went wrong',
+	'error.fallback.message': 'An unexpected error occurred. Please try again.',
+	'error.fallback.retry': 'Reload',
+
+	'common.loading': 'Loading...',
+	'common.retry': 'Retry'
+};

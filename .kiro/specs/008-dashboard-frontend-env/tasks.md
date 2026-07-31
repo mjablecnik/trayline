@@ -1,44 +1,44 @@
 # Tasks: 008 — Dashboard Frontend Environment Editor
 
 ## Task 1: Implement EnvFileTabs component
-- [ ] Create `src/lib/components/EnvFileTabs.svelte`
-- [ ] Accept list of filenames, active filename
-- [ ] Render horizontal tab bar with filename buttons
-- [ ] Active tab highlighted
-- [ ] Unsaved changes indicator (dot) on modified tabs
-- [ ] Scrollable on mobile (overflow-x: auto)
+- [x] Create `src/lib/components/EnvFileTabs.svelte`
+- [x] Accept list of filenames, active filename
+- [x] Render horizontal tab bar with filename buttons
+- [x] Active tab highlighted
+- [x] Unsaved changes indicator (dot) on modified tabs
+- [x] Scrollable on mobile (overflow-x: auto)
 
 ## Task 2: Implement MaskedInput component
-- [ ] Create `src/lib/components/MaskedInput.svelte`
-- [ ] Props: value (bindable), sensitive (boolean)
-- [ ] If sensitive: show dots (type=password) with eye toggle
-- [ ] Toggle reveals actual value (switches to type=text)
-- [ ] If not sensitive: always show as text input
-- [ ] Consistent sizing with other form inputs
+- [x] Create `src/lib/components/MaskedInput.svelte`
+- [x] Props: value (bindable), sensitive (boolean)
+- [x] If sensitive: show dots (type=password) with eye toggle
+- [x] Toggle reveals actual value (switches to type=text)
+- [x] If not sensitive: always show as text input
+- [x] Consistent sizing with other form inputs
 
 ## Task 3: Implement EnvRow component
-- [ ] Create `src/lib/components/EnvRow.svelte`
-- [ ] Display: key input (or label), value (MaskedInput), delete button
-- [ ] Key input for new rows (editable), label for existing rows
-- [ ] Inline validation error below key field (red text)
-- [ ] Delete button (trash icon) with confirm on click
-- [ ] Responsive: stack key/value vertically on mobile
+- [x] Create `src/lib/components/EnvRow.svelte`
+- [x] Display: key input (or label), value (MaskedInput), delete button
+- [x] Key input for new rows (editable), label for existing rows
+- [x] Inline validation error below key field (red text)
+- [x] Delete button (trash icon) with confirm on click
+- [x] Responsive: stack key/value vertically on mobile
 
 ## Task 4: Implement EnvEditor component
-- [ ] Create `src/lib/components/EnvEditor.svelte`
-- [ ] Accept variables array for current file
-- [ ] Render list of EnvRow components
-- [ ] "Add variable" button at bottom (appends empty row)
-- [ ] Real-time validation on all rows
-- [ ] Save button (disabled when validation errors exist)
-- [ ] Track dirty state (compare against original snapshot)
+- [x] Create `src/lib/components/EnvEditor.svelte`
+- [x] Accept variables array for current file
+- [x] Render list of EnvRow components
+- [x] "Add variable" button at bottom (appends empty row)
+- [x] Real-time validation on all rows
+- [x] Save button (disabled when validation errors exist)
+- [x] Track dirty state (compare against original snapshot)
 
 ## Task 5: Implement validation logic
-- [ ] Create validation helper in `src/lib/utils/env.ts`
-- [ ] Key regex: `^[A-Za-z_][A-Za-z0-9_]*$`
-- [ ] Check empty key, invalid format, duplicates
-- [ ] Return localized error messages
-- [ ] Run on every input change (reactive)
+- [x] Create validation helper in `src/lib/utils/env.ts`
+- [x] Key regex: `^[A-Za-z_][A-Za-z0-9_]*$`
+- [x] Check empty key, invalid format, duplicates
+- [x] Return localized error messages
+- [x] Run on every input change (reactive)
 
 ## Task 6: Implement environment page
 - [ ] Update `src/routes/[project]/env/+page.svelte`
