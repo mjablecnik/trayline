@@ -106,7 +106,7 @@ func TestProperty_QueueStatusResponseStructure(t *testing.T) {
 		case "running":
 			proc := newFakeProcess(0)
 			runner.enqueue("sleep 100", proc)
-			if _, err := q.AddTask("sleep 100", "", "", "", nil); err != nil {
+			if _, err := q.AddTask("sleep 100", "", "", nil); err != nil {
 				t.Fatalf("AddTask: %v", err)
 			}
 			go w.Run()
@@ -120,13 +120,13 @@ func TestProperty_QueueStatusResponseStructure(t *testing.T) {
 				proc := newFakeProcess(0)
 				cmd := rapid.SampledFrom([]string{"a", "b", "c", "d"}).Draw(t, "extraCmd")
 				runner.enqueue(cmd, proc)
-				_, _ = q.AddTask(cmd, "", "", "", nil)
+				_, _ = q.AddTask(cmd, "", "", nil)
 			}
 		case "halted":
 			proc := newFakeProcess(1)
 			proc.finish()
 			runner.enqueue("false", proc)
-			if _, err := q.AddTask("false", "", "", "", nil); err != nil {
+			if _, err := q.AddTask("false", "", "", nil); err != nil {
 				t.Fatalf("AddTask: %v", err)
 			}
 			go w.Run()
@@ -233,7 +233,7 @@ func TestHandleDeleteTask_RunningTaskConflict(t *testing.T) {
 	_, q, w, runner, mux := newTestHandler()
 	proc := newFakeProcess(0)
 	runner.enqueue("sleep 100", proc)
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestHandleDeleteTask_RunningTaskConflict(t *testing.T) {
 
 func TestHandleUpdateTask_NoFieldsRejected(t *testing.T) {
 	_, q, _, _, mux := newTestHandler()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestHandleUpdateTask_NoFieldsRejected(t *testing.T) {
 
 func TestHandleUpdateTask_AppliesFields(t *testing.T) {
 	_, q, _, _, mux := newTestHandler()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestHandleStop_Success(t *testing.T) {
 	proc := newFakeProcess(0)
 	proc.exitOnTerm = true
 	runner.enqueue("sleep 100", proc)
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestHandlerPersist_WritesStateFileAfterCreate(t *testing.T) {
 
 func TestHandleRetry_Success(t *testing.T) {
 	_, q, w, runner, mux := newTestHandler()
-	task, err := q.AddTask("will-fail", "", "", "", nil)
+	task, err := q.AddTask("will-fail", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestHandleRetry_Success(t *testing.T) {
 
 func TestHandleSkip_Success(t *testing.T) {
 	_, q, _, _, mux := newTestHandler()
-	task, err := q.AddTask("will-fail", "", "", "", nil)
+	task, err := q.AddTask("will-fail", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestHandleCreateTask_NegativePositionRejected(t *testing.T) {
 
 func TestHandleUpdateTask_MalformedJSON(t *testing.T) {
 	_, q, _, _, mux := newTestHandler()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}

@@ -10,7 +10,7 @@ func TestRecoverRunningTask_RunningTaskMarkedFailedAndHalted(t *testing.T) {
 	statePath := dir + "/state.json"
 
 	q := newTestQueue()
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestRecoverRunningTask_RunningTaskMarkedFailedAndHalted(t *testing.T) {
 
 func TestRecoverRunningTask_NoRunningTaskIsNoop(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRecoverRunningTask_NoRunningTaskIsNoop(t *testing.T) {
 
 func TestRecoverRunningTask_EmptyStateFileDoesNotWriteOrPanic(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestRecoverRunningTask_EmptyStateFileDoesNotWriteOrPanic(t *testing.T) {
 
 func TestWaitForIdle_ReturnsTrueImmediatelyWhenNoTaskRunning(t *testing.T) {
 	q := newTestQueue()
-	if _, err := q.AddTask("echo hi", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("echo hi", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestWaitForIdle_ReturnsTrueImmediatelyWhenNoTaskRunning(t *testing.T) {
 
 func TestWaitForIdle_ReturnsFalseAfterTimeoutWhileTaskStillRunning(t *testing.T) {
 	q := newTestQueue()
-	if _, err := q.AddTask("sleep 100", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("sleep 100", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
 	if running := q.StartNext(); running == nil {

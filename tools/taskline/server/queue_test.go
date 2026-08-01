@@ -26,7 +26,7 @@ func TestProperty_TaskCreationProducesValidStructure(t *testing.T) {
 
 		q := NewQueue(NewNameGenerator())
 		before := time.Now().UTC()
-		task, err := q.AddTask(command, "", "", "", nil)
+		task, err := q.AddTask(command, "", "", nil)
 		if err != nil {
 			t.Fatalf("unexpected error adding command %q: %v", command, err)
 		}
@@ -58,7 +58,7 @@ func TestProperty_PositionInsertionCorrectness(t *testing.T) {
 
 		q := NewQueue(NewNameGenerator())
 		for i := 0; i < n; i++ {
-			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", "", nil); err != nil {
+			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", nil); err != nil {
 				t.Fatalf("unexpected error seeding pending task: %v", err)
 			}
 		}
@@ -112,7 +112,7 @@ func TestProperty_NameUniquenessInvariant(t *testing.T) {
 		for i := 0; i < steps; i++ {
 			addOrRemove := rapid.Bool().Draw(t, "addOrRemove")
 			if addOrRemove || len(q.Tasks) == 0 {
-				task, err := q.AddTask(genCommand(t, "command"), "", "", "", nil)
+				task, err := q.AddTask(genCommand(t, "command"), "", "", nil)
 				if err != nil {
 					t.Fatalf("unexpected error adding task: %v", err)
 				}
@@ -202,7 +202,7 @@ func TestProperty_FailureHaltsQueue(t *testing.T) {
 		q := NewQueue(NewNameGenerator())
 		n := rapid.IntRange(1, 5).Draw(t, "n")
 		for i := 0; i < n; i++ {
-			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", "", nil); err != nil {
+			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", nil); err != nil {
 				t.Fatalf("unexpected error seeding pending task: %v", err)
 			}
 		}
@@ -244,7 +244,7 @@ func TestProperty_RetryResetsFailedTask(t *testing.T) {
 		q := NewQueue(NewNameGenerator())
 		n := rapid.IntRange(1, 5).Draw(t, "n")
 		for i := 0; i < n; i++ {
-			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", "", nil); err != nil {
+			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", nil); err != nil {
 				t.Fatalf("unexpected error seeding pending task: %v", err)
 			}
 		}
@@ -297,7 +297,7 @@ func TestProperty_SkipRemovesFailedTask(t *testing.T) {
 		q := NewQueue(NewNameGenerator())
 		n := rapid.IntRange(1, 5).Draw(t, "n")
 		for i := 0; i < n; i++ {
-			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", "", nil); err != nil {
+			if _, err := q.AddTask(genCommand(t, "seedCommand"), "", "", nil); err != nil {
 				t.Fatalf("unexpected error seeding pending task: %v", err)
 			}
 		}
@@ -341,7 +341,7 @@ func TestProperty_TaskListOrdering(t *testing.T) {
 		n := rapid.IntRange(0, 6).Draw(t, "n")
 		var pendingIDsInOrder []string
 		for i := 0; i < n; i++ {
-			task, err := q.AddTask(genCommand(t, "seedCommand"), "", "", "", nil)
+			task, err := q.AddTask(genCommand(t, "seedCommand"), "", "", nil)
 			if err != nil {
 				t.Fatalf("unexpected error seeding pending task: %v", err)
 			}
@@ -396,7 +396,7 @@ func TestProperty_TaskListOrdering(t *testing.T) {
 func TestProperty_TaskUpdateAppliesFieldsCorrectly(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		q := NewQueue(NewNameGenerator())
-		task, err := q.AddTask(genCommand(t, "command"), "", "", "", nil)
+		task, err := q.AddTask(genCommand(t, "command"), "", "", nil)
 		if err != nil {
 			t.Fatalf("unexpected error adding task: %v", err)
 		}
@@ -462,7 +462,7 @@ func TestDeleteTask_NotFoundReturnsError(t *testing.T) {
 
 func TestDeleteTask_RunningTaskReturnsError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -475,7 +475,7 @@ func TestDeleteTask_RunningTaskReturnsError(t *testing.T) {
 
 func TestDeleteTask_FailedTaskTransitionsQueueToIdle(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -498,7 +498,7 @@ func TestDeleteTask_FailedTaskTransitionsQueueToIdle(t *testing.T) {
 
 func TestUpdateTask_InvalidNameReturnsValidationError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -526,7 +526,7 @@ func TestUpdateTask_NameCollisionReturnsErrNameTaken(t *testing.T) {
 
 func TestUpdateTask_RunningTaskReturnsError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -539,7 +539,7 @@ func TestUpdateTask_RunningTaskReturnsError(t *testing.T) {
 
 func TestUpdateTask_FailedTaskReturnsImmutableError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -571,7 +571,7 @@ func TestUpdateTask_SameNameIsAllowed(t *testing.T) {
 
 func TestResume_HaltedQueueReturnsError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	if _, err := q.AddTask("echo hi", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("echo hi", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
 	q.StartNext()
@@ -586,7 +586,7 @@ func TestResume_HaltedQueueReturnsError(t *testing.T) {
 
 func TestResume_AlreadyRunningReturnsError(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	if _, err := q.AddTask("echo hi", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("echo hi", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
 
@@ -643,10 +643,10 @@ func TestStartNext_NotRunningQueueReturnsNil(t *testing.T) {
 
 func TestStartNext_AlreadyRunningTaskReturnsNil(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	if _, err := q.AddTask("echo a", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("echo a", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
-	if _, err := q.AddTask("echo b", "", "", "", nil); err != nil {
+	if _, err := q.AddTask("echo b", "", "", nil); err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
 
@@ -661,7 +661,7 @@ func TestStartNext_AlreadyRunningTaskReturnsNil(t *testing.T) {
 
 func TestStartNext_NoPendingTasksReturnsNil(t *testing.T) {
 	q := NewQueue(NewNameGenerator())
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}

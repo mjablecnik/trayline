@@ -223,7 +223,8 @@ func (w *Worker) ForceKill() (*Task, error) {
 
 func (w *Worker) executeTask(task *Task) {
 	proc, err := w.runner.Start(task.Command, task.Cwd, w.output)
-	if err != nil {		logError("task %s (%s): failed to spawn command: %v", task.ID, task.Name, err)
+	if err != nil {
+		logError("task %s (%s): failed to spawn command: %v", task.ID, task.Name, err)
 		w.finishTask(task, ExitCodeSpawnFailure)
 		return
 	}

@@ -143,7 +143,7 @@ func waitFor(t *testing.T, timeout time.Duration, cond func() bool) {
 
 func TestWorker_SuccessfulTaskRemovedAndQueueIdles(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestWorker_SuccessfulTaskRemovedAndQueueIdles(t *testing.T) {
 
 func TestWorker_FailedTaskHaltsQueueAndNotifies(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("false", "", "", "", nil)
+	task, err := q.AddTask("false", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestWorker_FailedTaskHaltsQueueAndNotifies(t *testing.T) {
 
 func TestWorker_SpawnFailureMarksTaskFailed(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("nonexistent-binary", "", "", "", nil)
+	task, err := q.AddTask("nonexistent-binary", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -239,11 +239,11 @@ func TestWorker_SpawnFailureMarksTaskFailed(t *testing.T) {
 
 func TestWorker_SequentialExecutionOrder(t *testing.T) {
 	q := newTestQueue()
-	first, err := q.AddTask("cmd-a", "", "", "", nil)
+	first, err := q.AddTask("cmd-a", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
-	_, err = q.AddTask("cmd-b", "", "", "", nil)
+	_, err = q.AddTask("cmd-b", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestWorker_SequentialExecutionOrder(t *testing.T) {
 
 func TestWorker_StopSendsSigtermAndMarksStopped(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestWorker_StopSendsSigtermAndMarksStopped(t *testing.T) {
 
 func TestWorker_StopEscalatesToSigkillAfterGraceTimeout(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -394,11 +394,11 @@ func TestWorker_StopWithNoRunningTaskReturnsError(t *testing.T) {
 
 func TestWorker_HaltedQueueDoesNotStartNextTask(t *testing.T) {
 	q := newTestQueue()
-	_, err := q.AddTask("false", "", "", "", nil)
+	_, err := q.AddTask("false", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
-	_, err = q.AddTask("echo second", "", "", "", nil)
+	_, err = q.AddTask("echo second", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestWorker_HaltedQueueDoesNotStartNextTask(t *testing.T) {
 
 func TestWorker_ForceKillSendsOnlySigkillAndMarksStopped(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("sleep 100", "", "", "", nil)
+	task, err := q.AddTask("sleep 100", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestWorker_ForceKillWithNoRunningTaskReturnsError(t *testing.T) {
 
 func TestWorker_FinishTask_SuccessSendsNoNotification(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -511,7 +511,7 @@ func TestWorker_FinishTask_SuccessSendsNoNotification(t *testing.T) {
 
 func TestWorker_FinishTask_FailureNotifiesOnce(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("false", "", "", "", nil)
+	task, err := q.AddTask("false", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -531,7 +531,7 @@ func TestWorker_FinishTask_FailureNotifiesOnce(t *testing.T) {
 
 func TestWorker_FinishTask_PersistErrorToUnwritableStateFileIsLoggedNotPanicked(t *testing.T) {
 	q := newTestQueue()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
@@ -562,7 +562,7 @@ func TestWorker_PersistsStateAfterEachTask(t *testing.T) {
 	statePath := dir + "/state.json"
 
 	q := newTestQueue()
-	task, err := q.AddTask("echo hi", "", "", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("AddTask: %v", err)
 	}
