@@ -44,6 +44,7 @@ Standalone processes with clear output. Each process focuses on one development 
 | `9-improvements` | Finds and applies validation, DX, and test improvements. | `specs-name`, `path`, `number` |
 | `10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. | `path`, `number` |
 | `11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. | `path`, `number` |
+| `12-create-spec` | Generates a Kiro spec (requirements.md, design.md, tasks.md) from a brief or codebase analysis. | `specs-name`, `brief`, `path` |
 
 ## Workflows
 

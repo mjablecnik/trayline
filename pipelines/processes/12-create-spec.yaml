@@ -1,0 +1,148 @@
+variables:
+  specs-name: ""
+  brief: ""
+  path: "this"
+
+steps:
+  - name: "create-spec"
+    agent: "kiro"
+    prompt: |
+      FIRST: Check if .kiro/specs/{{specs-name}}/ already exists and contains all three files:
+      requirements.md, design.md, and tasks.md.
+
+      If all three files exist AND tasks.md contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted. Skip spec generation and say
+      "Skipping spec generation — spec already exists at .kiro/specs/{{specs-name}}/".
+
+      ONLY if the spec does not exist or is incomplete, proceed:
+
+      {{#if brief}}
+      Read the file {{brief}} in the project root directory.
+      This file contains a short brief — a high-level description of what needs to be built.
+      Use it as the source of truth for the spec.
+      {{/if}}
+
+      Analyze the existing codebase in {{path}} carefully:
+      - Understand the project architecture, tech stack, conventions, and existing patterns
+      - Identify relevant existing files, components, services, and utilities
+      - Note naming conventions, code style, and folder structure
+      - Understand what already exists so you don't re-spec what's already implemented
+
+      Your goal is to create a complete Kiro spec in .kiro/specs/{{specs-name}}/.
+      Create the directory if it doesn't exist.
+
+      Produce exactly three files, following these formats precisely:
+
+      ---
+
+      FILE 1: .kiro/specs/{{specs-name}}/requirements.md
+
+      Use this exact structure:
+
+      ```
+      # Requirements: <NNN> — <Feature Name>
+
+      ## Overview
+
+      <2-4 sentence summary of what this spec covers. Include the source of truth reference
+      if there is a SPEC.md or similar document (e.g. "Source of truth: dashboard/SPEC.md (FR-1, FR-2)").
+      Mention dependencies on other specs by their NNN-name if applicable.>
+
+      ## Requirements
+
+      ### REQ-1: <Requirement Group Name>
+      - [ ] <Concrete, testable requirement. One checkbox per distinct thing to implement.>
+      - [ ] <Another requirement in the same group.>
+
+      ### REQ-2: <Requirement Group Name>
+      - [ ] <...>
+      ```
+
+      Rules for requirements.md:
+      - The spec number NNN must match {{specs-name}} (extract the leading digits)
+      - Group related requirements under REQ-N sections (3-10 sections total)
+      - Each checkbox item is a single, independently verifiable requirement
+      - Be specific and concrete — mention exact file paths, API routes, env var names, data types
+      - Use checkboxes: `- [ ]` (never `- [x]` — requirements start unchecked)
+      - Do NOT include implementation details — that goes in design.md
+      - Each REQ section should focus on a single concern (auth, data model, endpoint, component, etc.)
+
+      ---
+
+      FILE 2: .kiro/specs/{{specs-name}}/design.md
+
+      Use this exact structure:
+
+      ```
+      # Design: <NNN> — <Feature Name>
+
+      ## Overview
+
+      <1-3 sentence technical summary of the approach. What is being built and how.>
+
+      ## File Structure
+
+      <Directory tree showing NEW and MODIFIED files. Mark each:
+      - NEW files with `# NEW`
+      - Modified files with `# MODIFIED`
+      - Unchanged referenced files with `# (existing, unchanged)`
+      Only include files relevant to this spec.>
+
+      ## <Component/Module Name>
+
+      <Detailed design for each major component. Include:
+      - Interface definitions (TypeScript interfaces, Go structs, function signatures)
+      - Data flow descriptions
+      - Algorithm or logic explanations where non-trivial
+      - ASCII layout diagrams for UI components
+      - Code examples for non-obvious patterns
+      Each section = one file, component, or logical unit.>
+      ```
+
+      Rules for design.md:
+      - The spec number NNN must match requirements.md
+      - Use code blocks with language tags (```go, ```typescript, ```svelte, etc.)
+      - Include actual type definitions and function signatures (not pseudocode)
+      - For UI components: include layout ASCII diagrams showing the visual structure
+      - For API changes: include request/response type definitions
+      - For data layer changes: include schema or struct definitions
+      - Be precise about field names, types, and JSON keys — these are what the implementer uses
+      - Do NOT include task checklists — that goes in tasks.md
+
+      ---
+
+      FILE 3: .kiro/specs/{{specs-name}}/tasks.md
+
+      Use this exact structure:
+
+      ```
+      # Tasks: <NNN> — <Feature Name>
+
+      ## Task 1: <Short task title>
+      - [ ] <Concrete subtask — one specific thing to create, modify, or implement>
+      - [ ] <Another subtask in the same task>
+      - [ ] <...>
+
+      ## Task 2: <Short task title>
+      - [ ] <...>
+      ```
+
+      Rules for tasks.md:
+      - The spec number NNN must match requirements.md and design.md
+      - Tasks are ordered by dependency (setup and foundation first, features last, polish last)
+      - Each Task N maps to a logical unit of work (one file, one component, one endpoint, etc.)
+      - Each checkbox subtask is one specific, concrete action (create file X, add field Y, implement function Z)
+      - Never merge unrelated work into one task
+      - Use checkboxes: `- [ ]` (all tasks start unchecked)
+      - Reference exact file paths from design.md (e.g., "Create `remote/api/project_handler.go`")
+      - Tasks should be implementable in order without circular dependencies
+      - Aim for 8-20 tasks total (more for complex features, fewer for simple ones)
+      - Each task should take ~30-90 minutes to implement
+
+      ---
+
+      After creating all three files, print a summary:
+      - Spec name and location
+      - Number of REQ sections in requirements.md
+      - Number of tasks in tasks.md
+      - Any assumptions made or dependencies identified
