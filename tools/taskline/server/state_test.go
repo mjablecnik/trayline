@@ -99,7 +99,7 @@ func TestProperty_StatePersistenceRoundTrip(t *testing.T) {
 
 func TestSaveState_AtomicWriteAndReload(t *testing.T) {
 	q := &Queue{State: QueueIdle, Tasks: []*Task{}, names: NewNameGenerator()}
-	if _, err := q.AddTask("echo hi", "", nil); err != nil {
+	if _, err := q.AddTask("echo hi", "", "", nil); err != nil {
 		t.Fatalf("unexpected error adding task: %v", err)
 	}
 
@@ -285,7 +285,7 @@ func TestLoadState_RestoredIdentifiersAreNotReused(t *testing.T) {
 
 	seedNames := NewNameGenerator()
 	q := &Queue{State: QueueIdle, Tasks: []*Task{}, names: seedNames}
-	task, err := q.AddTask("echo hi", "", nil)
+	task, err := q.AddTask("echo hi", "", "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error adding task: %v", err)
 	}

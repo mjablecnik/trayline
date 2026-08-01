@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -113,7 +114,12 @@ func cmdAdd(client *Client, args []string, stdout, stderr io.Writer) int {
 		position = &n
 	}
 
-	resp, err := client.CreateTask(command, name, position)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return serverError(stderr, fmt.Errorf("get working directory: %w", err))
+	}
+
+	resp, err := client.CreateTask(command, name, cwd, position)
 	if err != nil {
 		return serverError(stderr, err)
 	}

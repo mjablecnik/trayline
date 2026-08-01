@@ -111,12 +111,13 @@ func NewClient(baseURL string) *Client {
 }
 
 // CreateTask sends POST /tasks.
-func (c *Client) CreateTask(command, name string, position *int) (*CreateTaskResponse, error) {
+func (c *Client) CreateTask(command, name, cwd string, position *int) (*CreateTaskResponse, error) {
 	body := struct {
 		Command  string `json:"command"`
 		Name     string `json:"name,omitempty"`
+		Cwd      string `json:"cwd,omitempty"`
 		Position *int   `json:"position,omitempty"`
-	}{Command: command, Name: name, Position: position}
+	}{Command: command, Name: name, Cwd: cwd, Position: position}
 
 	var resp CreateTaskResponse
 	if err := c.do(http.MethodPost, "/tasks", body, &resp); err != nil {

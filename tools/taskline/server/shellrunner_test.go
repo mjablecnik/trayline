@@ -22,7 +22,7 @@ func TestShellRunner_StartRunsCommandViaShell(t *testing.T) {
 	requireSh(t)
 
 	var out bytes.Buffer
-	proc, err := ShellRunner{}.Start("echo hi", &out)
+	proc, err := ShellRunner{}.Start("echo hi", "", &out)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestShellRunner_NonZeroExitCodePropagated(t *testing.T) {
 	requireSh(t)
 
 	var out bytes.Buffer
-	proc, err := ShellRunner{}.Start("exit 7", &out)
+	proc, err := ShellRunner{}.Start("exit 7", "", &out)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestShellRunner_StdoutAndStderrBothGoToOutput(t *testing.T) {
 	requireSh(t)
 
 	var out bytes.Buffer
-	proc, err := ShellRunner{}.Start("echo out-line; echo err-line 1>&2", &out)
+	proc, err := ShellRunner{}.Start("echo out-line; echo err-line 1>&2", "", &out)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestShellRunner_SignalTerminatesProcess(t *testing.T) {
 	requireSh(t)
 
 	var out bytes.Buffer
-	proc, err := ShellRunner{}.Start("sleep 100", &out)
+	proc, err := ShellRunner{}.Start("sleep 100", "", &out)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}

@@ -41,6 +41,7 @@ func toTaskResponse(t *Task) taskResponse {
 type createTaskRequest struct {
 	Command  string `json:"command"`
 	Name     string `json:"name,omitempty"`
+	Cwd      string `json:"cwd,omitempty"`
 	Position *int   `json:"position,omitempty"`
 }
 
@@ -156,7 +157,7 @@ func (h *Handler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.queue.AddTask(req.Command, req.Name, req.Position)
+	task, err := h.queue.AddTask(req.Command, req.Name, req.Cwd, req.Position)
 	if err != nil {
 		writeQueueError(w, err)
 		return

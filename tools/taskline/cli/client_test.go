@@ -50,7 +50,7 @@ func TestClient_CreateTask_SendsMethodPathAndBody(t *testing.T) {
 	})
 
 	pos := 2
-	resp, err := c.CreateTask("echo hi", "my-task", &pos)
+	resp, err := c.CreateTask("echo hi", "my-task", "/some/path", &pos)
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestClient_CreateTask_OmitsNameAndPositionWhenUnset(t *testing.T) {
 		json.NewEncoder(w).Encode(CreateTaskResponse{ID: "x", Name: "y", Command: "echo hi", Status: "pending"})
 	})
 
-	if _, err := c.CreateTask("echo hi", "", nil); err != nil {
+	if _, err := c.CreateTask("echo hi", "", "", nil); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	if _, ok := rawBody["name"]; ok {

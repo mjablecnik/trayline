@@ -30,6 +30,7 @@ type Task struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	Command   string     `json:"command"`
+	Cwd       string     `json:"cwd,omitempty"`
 	Status    TaskStatus `json:"status"`
 	ExitCode  *int       `json:"exit_code,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -89,8 +90,10 @@ func NewQueue(names *NameGenerator) *Queue {
 // non-nil, the task is inserted at that index among the queue's current
 // pending tasks (0 meaning first); a position at or beyond the number of
 // pending tasks appends the task to the end of the queue. If the queue was
-// idle, it transitions to running.
-func (q *Queue) AddTask(command, name string, position *int) (*Task, error) {
+// idle, it transitions to running. cwd is the working directory in which the
+// command should be executed; if empty, the server's own working directory
+// is used.
+func (q *Queue) AddTask(command, name, cwd string, position *int) (*Task, error) {
 	if strings.TrimSpace(command) == "" {
 		return nil, ErrEmptyCommand
 	}
@@ -118,6 +121,7 @@ func (q *Queue) AddTask(command, name string, position *int) (*Task, error) {
 		ID:        q.names.GenerateID(),
 		Name:      resolvedName,
 		Command:   command,
+		Cwd:       cwd,
 		Status:    TaskPending,
 		CreatedAt: time.Now().UTC(),
 	}

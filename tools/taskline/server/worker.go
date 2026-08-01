@@ -38,9 +38,10 @@ type Process interface {
 
 // CommandRunner abstracts command execution for testability.
 type CommandRunner interface {
-	// Start spawns command, piping its stdout and stderr to output, and
-	// returns a handle to the running Process.
-	Start(command string, output io.Writer) (Process, error)
+	// Start spawns command in dir, piping its stdout and stderr to output, and
+	// returns a handle to the running Process. If dir is empty, the process
+	// inherits the server's working directory.
+	Start(command, dir string, output io.Writer) (Process, error)
 }
 
 // ShellRunner is the production CommandRunner: it executes commands via
@@ -49,10 +50,13 @@ type CommandRunner interface {
 type ShellRunner struct{}
 
 // Start implements CommandRunner.
-func (ShellRunner) Start(command string, output io.Writer) (Process, error) {
+func (ShellRunner) Start(command, dir string, output io.Writer) (Process, error) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = output
 	cmd.Stderr = output
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -218,9 +222,8 @@ func (w *Worker) ForceKill() (*Task, error) {
 }
 
 func (w *Worker) executeTask(task *Task) {
-	proc, err := w.runner.Start(task.Command, w.output)
-	if err != nil {
-		logError("task %s (%s): failed to spawn command: %v", task.ID, task.Name, err)
+	proc, err := w.runner.Start(task.Command, task.Cwd, w.output)
+	if err != nil {		logError("task %s (%s): failed to spawn command: %v", task.ID, task.Name, err)
 		w.finishTask(task, ExitCodeSpawnFailure)
 		return
 	}
