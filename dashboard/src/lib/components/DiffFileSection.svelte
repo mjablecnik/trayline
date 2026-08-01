@@ -1,10 +1,15 @@
 <script lang="ts">
+	import { untrack, type Snippet } from 'svelte';
 	import type { DiffFile, DiffLineType } from '$lib/utils/diff';
 	import { t } from '$lib/i18n';
 
-	let { file }: { file: DiffFile } = $props();
+	let {
+		file,
+		initialExpanded = true,
+		leading
+	}: { file: DiffFile; initialExpanded?: boolean; leading?: Snippet } = $props();
 
-	let expanded = $state(true);
+	let expanded = $state(untrack(() => initialExpanded));
 
 	function lineClass(type: DiffLineType): string {
 		if (type === 'add') return 'bg-green-50 dark:bg-green-900/20';
@@ -40,6 +45,9 @@
 			>
 				<path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
 			</svg>
+			{#if leading}
+				{@render leading()}
+			{/if}
 			<span class="truncate font-mono text-sm text-slate-700 dark:text-slate-200">{file.path}</span>
 		</span>
 		<span class="flex shrink-0 items-center gap-2 font-mono text-xs font-medium">

@@ -39,20 +39,20 @@
 - [x] Loading state while fetching
 
 ## Task 6: Implement FileStatusBadge component
-- [ ] Create `src/lib/components/FileStatusBadge.svelte`
-- [ ] Colored circle + status text
-- [ ] Colors: modified=yellow/amber, added/untracked=green, deleted=red
-- [ ] Compact design (inline with file path)
+- [x] Create `src/lib/components/FileStatusBadge.svelte`
+- [x] Colored circle + status text
+- [x] Colors: modified=yellow/amber, added/untracked=green, deleted=red
+- [x] Compact design (inline with file path)
 
 ## Task 7: Implement changes page
-- [ ] Update `src/routes/[project]/changes/+page.svelte`
-- [ ] Fetch from `GET /projects/{name}/status`
-- [ ] If clean → show "Working tree clean" centered message
-- [ ] If dirty → show summary line + file list
-- [ ] Each file row: status badge + path + expand/collapse toggle
-- [ ] First file expanded by default, rest collapsed
-- [ ] Expanded shows inline diff (reuse DiffFileSection component)
-- [ ] Loading state: skeleton
+- [x] Update `src/routes/[project]/changes/+page.svelte`
+- [x] Fetch from `GET /projects/{name}/status`
+- [x] If clean → show "Working tree clean" centered message
+- [x] If dirty → show summary line + file list
+- [x] Each file row: status badge + path + expand/collapse toggle
+- [x] First file expanded by default, rest collapsed
+- [x] Expanded shows inline diff (reuse DiffFileSection component)
+- [x] Loading state: skeleton
 
 ## Task 8: Implement diff parser utility
 - [x] Create `src/lib/utils/diff.ts`

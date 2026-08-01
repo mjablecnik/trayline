@@ -36,15 +36,15 @@ Dependencies: 004-dashboard-frontend-setup, 005-dashboard-frontend-projects (pro
 - [x] Handle large diffs gracefully (show "Diff too large" if > 500 KB per file)
 
 ### REQ-4: Uncommitted Changes (Changes Tab)
-- [ ] Fetch from `GET /projects/{name}/status`
-- [ ] Show summary line: "X files changed, Y insertions, Z deletions"
-- [ ] List changed files with status badges: modified (yellow), added (green), deleted (red), untracked (grey)
-- [ ] Click file → expands/collapses inline diff for that file
-- [ ] Diffs rendered with same styling as commit detail
-- [ ] If `clean: true`, show "Working tree clean — no uncommitted changes" message
-- [ ] Loading state: skeleton
+- [x] Fetch from `GET /projects/{name}/status`
+- [x] Show summary line: "X files changed, Y insertions, Z deletions"
+- [x] List changed files with status badges: modified (yellow), added (green), deleted (red), untracked (grey)
+- [x] Click file → expands/collapses inline diff for that file
+- [x] Diffs rendered with same styling as commit detail
+- [x] If `clean: true`, show "Working tree clean — no uncommitted changes" message
+- [x] Loading state: skeleton
 
 ### REQ-5: Responsive Behavior
-- [ ] Mobile: commit list items stack, diff view scrolls horizontally
-- [ ] Diff line numbers hidden on very narrow screens (< 400px)
-- [ ] File path headers truncated with ellipsis on mobile
+- [x] Mobile: commit list items stack, diff view scrolls horizontally
+- [x] Diff line numbers hidden on very narrow screens (< 400px)
+- [x] File path headers truncated with ellipsis on mobile

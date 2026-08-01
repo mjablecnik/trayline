@@ -142,7 +142,7 @@ export interface CommitDetail extends CommitLogEntry {
 	diff: string;
 }
 
-export type StatusFileState = 'modified' | 'untracked' | 'deleted';
+export type StatusFileState = 'modified' | 'added' | 'untracked' | 'deleted';
 
 export interface StatusFile {
 	path: string;

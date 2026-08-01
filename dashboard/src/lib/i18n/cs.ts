@@ -34,6 +34,15 @@ const cs: Record<keyof typeof en, string> = {
 
 	'diff.tooLarge': 'Diff je příliš velký na zobrazení',
 
+	'changes.clean': 'Pracovní strom je čistý — žádné neuložené změny',
+	'changes.error': 'Změny se nepodařilo načíst.',
+	'changes.summary': '{files} souborů změněno, {insertions} přidání, {deletions} odebrání',
+	'changes.noDiff': 'Diff není k dispozici',
+	'changes.status.modified': 'Změněno',
+	'changes.status.added': 'Přidáno',
+	'changes.status.untracked': 'Nesledováno',
+	'changes.status.deleted': 'Smazáno',
+
 	'files.emptyDir': 'Tento adresář je prázdný.',
 	'files.emptyFile': 'Prázdný soubor',
 	'files.notFound': 'Soubor nebo adresář nebyl nalezen.',

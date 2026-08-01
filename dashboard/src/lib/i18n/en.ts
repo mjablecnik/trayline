@@ -32,6 +32,15 @@ export default {
 
 	'diff.tooLarge': 'Diff too large to display',
 
+	'changes.clean': 'Working tree clean — no uncommitted changes',
+	'changes.error': 'Could not load changes.',
+	'changes.summary': '{files} files changed, {insertions} insertions, {deletions} deletions',
+	'changes.noDiff': 'No diff available',
+	'changes.status.modified': 'Modified',
+	'changes.status.added': 'Added',
+	'changes.status.untracked': 'Untracked',
+	'changes.status.deleted': 'Deleted',
+
 	'files.emptyDir': 'This directory is empty.',
 	'files.emptyFile': 'Empty file',
 	'files.notFound': 'File or directory not found.',
