@@ -40,7 +40,7 @@ mkdir -p "$PIPELINES_DEST"
 if ! $SKIP_TOOLS; then
   if command -v go &>/dev/null; then
     echo "==> Building orchestrator (trayline-run)..."
-    (cd "$REPO_ROOT/orchestrator" && go build -o "$TRAYLINE_HOME/trayline-run" .)
+    (cd "$REPO_ROOT/orchestrator" && go build -o "$TRAYLINE_HOME/trayline-run" ./cmd)
     chmod +x "$TRAYLINE_HOME/trayline-run"
   else
     echo "==> Go not found. Skipping orchestrator build." >&2
