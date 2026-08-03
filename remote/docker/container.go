@@ -107,27 +107,33 @@ type pendingItem struct {
 }
 
 // ContainerManager manages agent container lifecycle and enforces concurrency limits.
+//
+// Task slots and chat slots are separate pools so that a backlog of one-shot
+// tasks (e.g. an automated pipeline submitting many RunOneShot calls) can
+// never starve out interactive chat sessions, and vice versa.
 type ContainerManager struct {
 	client ContainerClient
 	config *core.Config
 	logger *core.Logger
 
-	mu      sync.Mutex
-	slots   int            // available concurrency slots
-	pending []*pendingItem // sorted by createdAt ascending (FIFO)
+	mu        sync.Mutex
+	taskSlots int            // available one-shot task concurrency slots
+	pending   []*pendingItem // sorted by createdAt ascending (FIFO), task slots only
+	chatSlots int            // available interactive chat session slots
 }
 
-// NewContainerManager creates a ContainerManager with the given concurrency limit.
+// NewContainerManager creates a ContainerManager with the given concurrency limits.
 func NewContainerManager(client ContainerClient, config *core.Config, logger *core.Logger) *ContainerManager {
 	return &ContainerManager{
-		client: client,
-		config: config,
-		logger: logger,
-		slots:  config.MaxConcurrentTasks,
+		client:    client,
+		config:    config,
+		logger:    logger,
+		taskSlots: config.MaxConcurrentTasks,
+		chatSlots: config.MaxChatSessions,
 	}
 }
 
-// acquireSlot blocks until a concurrency slot is available, respecting FIFO order by createdAt.
+// acquireSlot blocks until a task slot is available, respecting FIFO order by createdAt.
 // Returns an error if ctx is cancelled before a slot is acquired.
 func (m *ContainerManager) acquireSlot(ctx context.Context, createdAt time.Time) error {
 	item := &pendingItem{
@@ -147,7 +153,7 @@ func (m *ContainerManager) acquireSlot(ctx context.Context, createdAt time.Time)
 		m.mu.Lock()
 		if item.dispatched {
 			// Slot was granted while we were cancelling — return it.
-			m.slots++
+			m.taskSlots++
 			m.tryDispatch()
 			m.mu.Unlock()
 		} else {
@@ -158,24 +164,24 @@ func (m *ContainerManager) acquireSlot(ctx context.Context, createdAt time.Time)
 	}
 }
 
-// releaseSlot returns a concurrency slot, possibly granting it to a waiting task.
+// releaseSlot returns a task slot, possibly granting it to a waiting task.
 func (m *ContainerManager) releaseSlot() {
 	m.mu.Lock()
-	m.slots++
+	m.taskSlots++
 	m.tryDispatch()
 	m.mu.Unlock()
 }
 
-// tryDispatch grants available slots to the oldest non-cancelled waiting tasks.
+// tryDispatch grants available task slots to the oldest non-cancelled waiting tasks.
 // Must be called with m.mu held.
 func (m *ContainerManager) tryDispatch() {
-	for m.slots > 0 && len(m.pending) > 0 {
+	for m.taskSlots > 0 && len(m.pending) > 0 {
 		item := m.pending[0]
 		m.pending = m.pending[1:]
 		if item.cancelled {
 			continue
 		}
-		m.slots--
+		m.taskSlots--
 		item.dispatched = true
 		close(item.ready)
 	}
@@ -192,30 +198,60 @@ func (m *ContainerManager) insertPendingSorted(item *pendingItem) {
 	m.pending[idx] = item
 }
 
-// AvailableSlots returns the number of available concurrency slots.
+// AvailableSlots returns the number of available one-shot task concurrency slots.
 func (m *ContainerManager) AvailableSlots() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.slots
+	return m.taskSlots
 }
 
-// TryAcquireSlot non-blocking acquires one concurrency slot.
+// AvailableChatSlots returns the number of available interactive chat session slots.
+func (m *ContainerManager) AvailableChatSlots() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.chatSlots
+}
+
+// TryAcquireSlot non-blocking acquires one chat session slot, from a pool
+// reserved separately from one-shot task slots so a busy task pipeline can't
+// starve interactive chat sessions of capacity.
 // Returns true if the slot was acquired; caller must call ReleaseChatSlot when done.
 func (m *ContainerManager) TryAcquireSlot() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.slots > 0 {
-		m.slots--
+	if m.chatSlots > 0 {
+		m.chatSlots--
 		return true
 	}
 	return false
 }
 
-// PendingCount returns the number of tasks waiting for a slot.
+// PendingCount returns the number of one-shot tasks waiting for a slot.
 func (m *ContainerManager) PendingCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.pending)
+}
+
+// claudeCredentialSeedScript copies the read-only-mounted Claude credential
+// snapshot (~/.claude-src, ~/.claude.json-src) into HOME before exec'ing the
+// real command. Every agent container mounts the same host
+// ~/.claude and ~/.claude.json; the claude CLI rewrites those files on
+// nearly every invocation, so mounting them read-write directly would let
+// concurrent containers race on the same file and corrupt it. Seeding a
+// private writable copy per container avoids that while still letting the
+// CLI persist its own state for the lifetime of the container.
+const claudeCredentialSeedScript = `
+if [ -d "$HOME/.claude-src" ]; then mkdir -p "$HOME/.claude" && cp -a "$HOME/.claude-src/." "$HOME/.claude/"; fi
+if [ -f "$HOME/.claude.json-src" ]; then cp "$HOME/.claude.json-src" "$HOME/.claude.json"; fi
+exec "$@"
+`
+
+// wrapWithClaudeCredentialSeed prefixes cmd with the credential seed script.
+// Arguments are passed through "$@" so prompt text is never interpolated
+// into the shell script itself.
+func wrapWithClaudeCredentialSeed(cmd []string) []string {
+	return append([]string{"sh", "-c", claudeCredentialSeedScript, "sh"}, cmd...)
 }
 
 // buildOneShotCmd constructs the CLI command for a one-shot task invocation.
@@ -238,7 +274,7 @@ func buildOneShotCmd(agent, prompt, model, system string) []string {
 		if system != "" {
 			cmd = append(cmd, "--system-prompt", system)
 		}
-		return cmd
+		return wrapWithClaudeCredentialSeed(cmd)
 	default:
 		return nil
 	}
@@ -267,7 +303,7 @@ func buildChatCmd(agent, model, system string) []string {
 		if system != "" {
 			cmd = append(cmd, "--append-system-prompt", system)
 		}
-		return cmd
+		return wrapWithClaudeCredentialSeed(cmd)
 	default:
 		return nil
 	}
@@ -332,9 +368,11 @@ func (m *ContainerManager) StartContainer(ctx context.Context, containerID strin
 	return m.client.ContainerStart(ctx, containerID, dockertypes.ContainerStartOptions{})
 }
 
-// ReleaseChatSlot returns the concurrency slot held by a chat session.
+// ReleaseChatSlot returns the chat session slot held by a chat session.
 func (m *ContainerManager) ReleaseChatSlot() {
-	m.releaseSlot()
+	m.mu.Lock()
+	m.chatSlots++
+	m.mu.Unlock()
 }
 
 // AttachChatContainer attaches stdin/stdout/stderr to a running interactive container.
@@ -426,11 +464,14 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
 		}
 	case "claude":
+		// Mounted read-only at a "-src" path; the container's entrypoint copies
+		// these into a private writable location (see wrapWithClaudeCredentialSeed)
+		// instead of every container writing back to the same host file.
 		if m.config.ClaudeHostDir != "" {
-			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude-src:ro")
 		}
 		if m.config.ClaudeConfigHostFile != "" {
-			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json")
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
 		}
 	}
 
@@ -453,11 +494,14 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
 		}
 	case "claude":
+		// Mounted read-only at a "-src" path; the container's entrypoint copies
+		// these into a private writable location (see wrapWithClaudeCredentialSeed)
+		// instead of every container writing back to the same host file.
 		if m.config.ClaudeHostDir != "" {
-			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude-src:ro")
 		}
 		if m.config.ClaudeConfigHostFile != "" {
-			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json")
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
 		}
 	}
 

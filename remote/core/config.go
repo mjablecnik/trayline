@@ -14,6 +14,7 @@ type Config struct {
 	Port               int
 	APIToken           string
 	MaxConcurrentTasks int
+	MaxChatSessions    int
 	WorkspaceDir       string
 	WorkspaceHostDir   string
 	SessionTimeout     time.Duration
@@ -79,6 +80,18 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("MAX_CONCURRENT_TASKS must be an integer between 1 and 32, got %q", maxStr)
 		}
 		cfg.MaxConcurrentTasks = max
+	}
+
+	// MAX_CHAT_SESSIONS
+	maxChatStr := os.Getenv("MAX_CHAT_SESSIONS")
+	if maxChatStr == "" {
+		cfg.MaxChatSessions = 4
+	} else {
+		maxChat, err := strconv.Atoi(maxChatStr)
+		if err != nil || maxChat < 1 || maxChat > 32 {
+			return nil, fmt.Errorf("MAX_CHAT_SESSIONS must be an integer between 1 and 32, got %q", maxChatStr)
+		}
+		cfg.MaxChatSessions = maxChat
 	}
 
 	// WORKSPACE_DIR

@@ -100,8 +100,15 @@ func TestPropertyAgentCommandConstruction(t *testing.T) {
 			if len(cmd) == 0 {
 				t.Fatal("expected non-empty command")
 			}
-			if cmd[0] != "claude" {
-				t.Fatalf("expected claude binary, got %q", cmd[0])
+			// claude commands are wrapped in a shell seed step that copies
+			// credentials from the read-only host mount into a private writable
+			// location before exec'ing the real binary (avoids concurrent
+			// containers racing on the same host ~/.claude.json).
+			if cmd[0] != "sh" || cmd[1] != "-c" {
+				t.Fatalf("expected shell-wrapped command, got %v", cmd)
+			}
+			if !containsStr(cmd, "claude") {
+				t.Fatal("expected claude binary in wrapped command")
 			}
 			if !containsStr(cmd, "--dangerously-skip-permissions") {
 				t.Fatal("expected --dangerously-skip-permissions flag")
@@ -115,6 +122,28 @@ func TestPropertyAgentCommandConstruction(t *testing.T) {
 				if idx == -1 || idx+1 >= len(cmd) || cmd[idx+1] != model {
 					t.Fatalf("expected --model %q in command %v", model, cmd)
 				}
+			}
+		})
+	})
+
+	t.Run("chat claude", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			model := rapid.String().Draw(t, "model")
+			system := rapid.String().Draw(t, "system")
+
+			cmd := buildChatCmd("claude", model, system)
+
+			if len(cmd) == 0 {
+				t.Fatal("expected non-empty command")
+			}
+			if cmd[0] != "sh" || cmd[1] != "-c" {
+				t.Fatalf("expected shell-wrapped command, got %v", cmd)
+			}
+			if !containsStr(cmd, "claude") {
+				t.Fatal("expected claude binary in wrapped command")
+			}
+			if !containsStr(cmd, "--output-format") {
+				t.Fatal("expected --output-format flag")
 			}
 		})
 	})
@@ -178,6 +207,36 @@ func TestPropertyProjectContainerBindsScoping(t *testing.T) {
 			t.Fatalf("expected first bind %q, got %q", expected, binds[0])
 		}
 	})
+}
+
+// --- Claude credential mounts are read-only, seeded into a private writable copy ---
+
+func TestClaudeCredentialBindsAreReadOnly(t *testing.T) {
+	cfg := &core.Config{
+		ProjectsDir:          "/projects",
+		WorkspaceHostDir:     "/workspace-host",
+		ClaudeHostDir:        "/host/.claude",
+		ClaudeConfigHostFile: "/host/.claude.json",
+	}
+	m := NewContainerManager(&MockContainerClient{}, cfg, core.NewLogger(""))
+
+	for _, binds := range [][]string{
+		m.buildContainerBinds("claude"),
+		m.BuildProjectContainerBinds("claude", "myproject"),
+	} {
+		if !containsStr(binds, "/host/.claude:/home/agent/.claude-src:ro") {
+			t.Fatalf("expected read-only .claude-src bind, got %v", binds)
+		}
+		if !containsStr(binds, "/host/.claude.json:/home/agent/.claude.json-src:ro") {
+			t.Fatalf("expected read-only .claude.json-src bind, got %v", binds)
+		}
+		if containsStr(binds, "/host/.claude:/home/agent/.claude") {
+			t.Fatalf("did not expect a directly writable .claude bind, got %v", binds)
+		}
+		if containsStr(binds, "/host/.claude.json:/home/agent/.claude.json") {
+			t.Fatalf("did not expect a directly writable .claude.json bind, got %v", binds)
+		}
+	}
 }
 
 // --- Property 10: Concurrency semaphore enforcement ---
@@ -247,9 +306,9 @@ func TestPropertyFIFODequeuing(t *testing.T) {
 		}
 
 		mgr := &ContainerManager{
-			config:  &core.Config{MaxConcurrentTasks: 1},
-			pending: nil,
-			slots:   0,
+			config:    &core.Config{MaxConcurrentTasks: 1},
+			pending:   nil,
+			taskSlots: 0,
 		}
 
 		items := make([]*pendingItem, n)
@@ -266,7 +325,7 @@ func TestPropertyFIFODequeuing(t *testing.T) {
 		prevTS := time.Time{}
 		for round := 0; round < n; round++ {
 			mgr.mu.Lock()
-			mgr.slots = 1
+			mgr.taskSlots = 1
 			mgr.tryDispatch()
 			mgr.mu.Unlock()
 
@@ -303,7 +362,7 @@ func TestPropertyFIFODequeuing(t *testing.T) {
 
 			prevTS = dispatchedTS
 			mgr.mu.Lock()
-			mgr.slots = 0
+			mgr.taskSlots = 0
 			mgr.mu.Unlock()
 		}
 
