@@ -430,7 +430,7 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
 		}
 		if m.config.ClaudeConfigHostFile != "" {
-			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json:ro")
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json")
 		}
 	}
 
@@ -457,7 +457,7 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
 		}
 		if m.config.ClaudeConfigHostFile != "" {
-			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json:ro")
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json")
 		}
 	}
 
