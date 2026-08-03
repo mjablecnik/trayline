@@ -67,15 +67,17 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 
 	logger := core.NewLogger(testAuthToken)
 	taskH := NewTaskHandler(store.NewTaskStore(), noopRunner{}, logger, nil, t.TempDir(), MaxUploadFileSize, MaxUploadFileCount, 32000)
-	cfg := &core.Config{APIToken: testAuthToken, SessionTimeout: time.Minute}
+	cfg := &core.Config{APIToken: testAuthToken, SessionTimeout: time.Minute, ProjectsDir: projectsDir}
 	cm := docker.NewContainerManager(noopContainerClient{}, cfg, logger)
-	sessionH := NewSessionHandler(store.NewSessionStore(), cm, logger, cfg, nil)
+	sessionStore := store.NewSessionStore()
+	sessionH := NewSessionHandler(sessionStore, cm, logger, cfg, nil)
 	gitH := NewGitHandler(projectsDir, git.NewRunner(), logger)
 	envH := NewEnvHandler(projectsDir, logger)
 	projectH := NewProjectHandler(projectsDir, git.NewRunner(), logger)
+	projectAgentH := NewProjectAgentHandler(sessionStore, cm, logger, cfg, nil)
 	rl := NewRateLimiter(1000)
 
-	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, testAuthToken, rl, logger, dashboardOrigin)
+	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, testAuthToken, rl, logger, dashboardOrigin)
 	return router, projectsDir
 }
 

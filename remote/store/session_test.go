@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"pgregory.net/rapid"
 )
 
 func TestSessionStore_AddAndGet(t *testing.T) {
@@ -73,6 +75,50 @@ func TestSessionStore_AllCountMatchesInserts(t *testing.T) {
 	if len(all) != 3 {
 		t.Errorf("expected 3 sessions from All(), got %d", len(all))
 	}
+}
+
+// Feature: project-ai-agent, Property 6: Session listing is project-filtered and time-sorted
+func TestPropertyListByProjectFilterAndSort(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		projects := []string{"proj-a", "proj-b", "proj-c"}
+		n := rapid.IntRange(0, 20).Draw(t, "n")
+		target := rapid.SampledFrom(projects).Draw(t, "target")
+
+		s := NewSessionStore()
+		base := time.Now()
+		wantCount := 0
+		for i := 0; i < n; i++ {
+			project := rapid.SampledFrom(projects).Draw(t, "project")
+			offset := rapid.IntRange(0, 10000).Draw(t, "offset")
+			sess := &Session{
+				ID:            "sess-" + string(rune('a'+i%26)) + string(rune('A'+(i/26)%26)),
+				Agent:         "claude",
+				Project:       project,
+				CreatedAt:     base,
+				LastMessageAt: base.Add(time.Duration(offset) * time.Millisecond),
+			}
+			s.Add(sess)
+			if project == target {
+				wantCount++
+			}
+		}
+
+		result := s.ListByProject(target)
+		if result == nil {
+			t.Fatal("expected non-nil slice from ListByProject")
+		}
+		if len(result) != wantCount {
+			t.Fatalf("expected %d sessions for project %q, got %d", wantCount, target, len(result))
+		}
+		for i, sess := range result {
+			if sess.Project != target {
+				t.Fatalf("result[%d] has project %q, want %q", i, sess.Project, target)
+			}
+			if i > 0 && result[i-1].LastMessageAt.Before(sess.LastMessageAt) {
+				t.Fatalf("result not sorted descending by LastMessageAt at index %d", i)
+			}
+		}
+	})
 }
 
 func TestSessionStore_ConcurrentAddGet(t *testing.T) {

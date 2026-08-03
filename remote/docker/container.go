@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"sync"
@@ -428,6 +429,73 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	}
 
 	return binds
+}
+
+// BuildProjectContainerBinds constructs volume binds for a project-scoped agent container.
+// Mounts PROJECTS_DIR/{projectName} as /workspace instead of the full workspace.
+func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string) []string {
+	const agentHome = "/home/agent"
+	projectHostPath := filepath.Join(m.config.ProjectsDir, projectName)
+	binds := []string{projectHostPath + ":" + workspaceMount}
+
+	switch agent {
+	case "kiro":
+		if m.config.KiroHostDir != "" {
+			binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro")
+		}
+		if m.config.KiroCredsHostDir != "" {
+			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
+		}
+	case "claude":
+		if m.config.ClaudeHostDir != "" {
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude")
+		}
+		if m.config.ClaudeConfigHostFile != "" {
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json:ro")
+		}
+	}
+
+	return binds
+}
+
+// StartProjectChatContainer creates a persistent interactive container scoped to a single
+// project directory (mounted at /workspace) but does NOT start it. The caller must attach
+// (via AttachChatContainer) before starting (via StartContainer), and must have pre-acquired
+// a slot via TryAcquireSlot before calling this. The caller must also call ReleaseChatSlot
+// and StopAndRemoveContainer when the session ends.
+func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent, model, system, projectName string) (string, error) {
+	cmd := buildChatCmd(agent, model, system)
+	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
+	useTTY := agent != "claude"
+
+	cfg := &container.Config{
+		Image:       SandboxImage,
+		Cmd:         cmd,
+		Env:         m.buildContainerEnv(),
+		Tty:         useTTY,
+		AttachStdin: true,
+		OpenStdin:   true,
+		StdinOnce:   false,
+		WorkingDir:  workspaceMount,
+	}
+
+	hostCfg := &container.HostConfig{
+		Binds:      m.BuildProjectContainerBinds(agent, projectName),
+		AutoRemove: false,
+	}
+
+	netCfg := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			sandboxNetwork: {},
+		},
+	}
+
+	resp, err := m.client.ContainerCreate(ctx, cfg, hostCfg, netCfg, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+	return resp.ID, nil
 }
 
 // createAndStartContainer creates and starts a container with the given command.

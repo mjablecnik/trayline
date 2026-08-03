@@ -6,63 +6,63 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
 
 ## Tasks
 
-- [ ] 1. Extend session store with project scoping
-  - [ ] 1.1 Add `Project` field to `Session` struct in `remote/store/session.go`
+- [x] 1. Extend session store with project scoping
+  - [x] 1.1 Add `Project` field to `Session` struct in `remote/store/session.go`
     - Add `Project string` with JSON tag `json:"project,omitempty"`
     - _Requirements: 1.1, 4.2, 4.3_
 
-  - [ ] 1.2 Implement `ListByProject` method on `SessionStore` in `remote/store/session.go`
+  - [x] 1.2 Implement `ListByProject` method on `SessionStore` in `remote/store/session.go`
     - Filter sessions by `Project == name`
     - Sort by `LastMessageAt` descending
     - Return empty slice (not nil) when no sessions match
     - _Requirements: 4.2, 4.3_
 
-  - [ ]* 1.3 Write property test for `ListByProject` filtering and sorting
+  - [x]* 1.3 Write property test for `ListByProject` filtering and sorting
     - **Property 6: Session listing is project-filtered and time-sorted**
     - **Validates: Requirements 4.2, 4.3**
 
-- [ ] 2. Add project-scoped container bind methods
-  - [ ] 2.1 Implement `BuildProjectContainerBinds` in `remote/docker/container.go`
+- [x] 2. Add project-scoped container bind methods
+  - [x] 2.1 Implement `BuildProjectContainerBinds` in `remote/docker/container.go`
     - Construct bind string `PROJECTS_DIR/{projectName}:/workspace` as first element
     - Include agent-specific credential binds (kiro: `.kiro` + `.local/share/kiro-cli`; claude: `.claude` + `.claude.json`)
     - _Requirements: 1.1, 1.4_
 
-  - [ ] 2.2 Implement `StartProjectChatContainer` in `remote/docker/container.go`
+  - [x] 2.2 Implement `StartProjectChatContainer` in `remote/docker/container.go`
     - Create container with `WorkingDir: /workspace`
     - Use `BuildProjectContainerBinds` for host config binds
     - Reuse `buildChatCmd`, `buildContainerEnv`, and network config patterns from existing `StartChatContainer`
     - _Requirements: 1.1, 1.4_
 
-  - [ ]* 2.3 Write property test for `BuildProjectContainerBinds` output format
+  - [x]* 2.3 Write property test for `BuildProjectContainerBinds` output format
     - **Property 1: Project bind mount is correctly scoped**
     - **Validates: Requirements 1.1**
 
-- [ ] 3. Checkpoint — Backend foundation
+- [x] 3. Checkpoint — Backend foundation
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Implement ProjectAgentHandler structure and validation
-  - [ ] 4.1 Create `remote/api/project_agent_handler.go` with handler struct and constructor
+- [x] 4. Implement ProjectAgentHandler structure and validation
+  - [x] 4.1 Create `remote/api/project_agent_handler.go` with handler struct and constructor
     - Define `ProjectAgentHandler` struct with `store`, `cm`, `logger`, `config`, `stateMgr` fields
     - Implement `NewProjectAgentHandler` constructor
     - _Requirements: 1.2, 1.5, 1.6_
 
-  - [ ] 4.2 Implement project name validation in `project_agent_handler.go`
+  - [x] 4.2 Implement project name validation in `project_agent_handler.go`
     - `validProjectName` regex: `^[a-zA-Z0-9._-]+$`
     - Reject `..` sequences and empty names
     - `projectExists` checks `PROJECTS_DIR/{name}/.git` is a directory
     - Return HTTP 400 (VALIDATION_ERROR) for invalid chars, HTTP 404 (NOT_FOUND) for missing project
     - _Requirements: 1.5, 1.6, 1.7_
 
-  - [ ]* 4.3 Write property test for project name validation
+  - [x]* 4.3 Write property test for project name validation
     - **Property 3: Forbidden project name characters are rejected**
     - **Validates: Requirements 1.6**
 
-  - [ ]* 4.4 Write property test for invalid agent string rejection
+  - [x]* 4.4 Write property test for invalid agent string rejection
     - **Property 2: Invalid agent strings are rejected**
     - **Validates: Requirements 1.3, 2.9**
 
-- [ ] 5. Implement ProjectAgentHandler endpoints
-  - [ ] 5.1 Implement `HandleProjectChat` WebSocket endpoint
+- [x] 5. Implement ProjectAgentHandler endpoints
+  - [x] 5.1 Implement `HandleProjectChat` WebSocket endpoint
     - Validate project name and existence
     - Validate `agent` query param (must be "kiro" or "claude"), optionally accept `model` and `system`
     - Call `StartProjectChatContainer` with project name
@@ -75,7 +75,7 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Queue messages while agent is processing
     - _Requirements: 2.1–2.11, 1.2, 1.3, 1.8, 6.1_
 
-  - [ ] 5.2 Implement `HandleProjectChatReconnect` WebSocket endpoint
+  - [x] 5.2 Implement `HandleProjectChatReconnect` WebSocket endpoint
     - Validate project name and session ID
     - Verify `sess.Project == name` (404 if mismatch)
     - Check for existing active connection (409 if connected)
@@ -84,13 +84,13 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Resume stream output and read client loop
     - _Requirements: 3.1–3.5_
 
-  - [ ] 5.3 Implement `HandleProjectSessions` endpoint
+  - [x] 5.3 Implement `HandleProjectSessions` endpoint
     - Validate project name and existence
     - Call `ListByProject(name)` and map to `projectSessionSummary` slice
     - Return JSON array (empty array when no sessions)
     - _Requirements: 4.1–4.5_
 
-  - [ ] 5.4 Implement `HandleTerminateProjectSession` endpoint
+  - [x] 5.4 Implement `HandleTerminateProjectSession` endpoint
     - Validate project name and session ID
     - Verify `sess.Project == name` (404 if mismatch)
     - Stop container with 10s graceful timeout, remove it
@@ -98,16 +98,16 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Return `{"session_id": "...", "status": "terminated"}`
     - _Requirements: 5.1–5.5_
 
-  - [ ]* 5.5 Write property test for unrecognized WebSocket message types
+  - [x]* 5.5 Write property test for unrecognized WebSocket message types
     - **Property 5: Unrecognized WebSocket message types produce an error**
     - **Validates: Requirements 2.10**
 
-- [ ] 6. Create response types and register routes
-  - [ ] 6.1 Create `remote/api/project_agent_types.go`
+- [x] 6. Create response types and register routes
+  - [x] 6.1 Create `remote/api/project_agent_types.go`
     - Define `projectSessionSummary` struct with JSON tags: `session_id`, `agent`, `model`, `created_at`, `last_message_at`
     - _Requirements: 4.2_
 
-  - [ ] 6.2 Register project agent routes in `remote/api/router.go`
+  - [x] 6.2 Register project agent routes in `remote/api/router.go`
     - Add `projectAgentH *ProjectAgentHandler` parameter to `NewRouter`
     - Register `GET /projects/{name}/chat` → `HandleProjectChat`
     - Register `GET /projects/{name}/chat/{id}` → `HandleProjectChatReconnect`
@@ -116,7 +116,7 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Instantiate `ProjectAgentHandler` in main and pass to router
     - _Requirements: 2.1, 3.1, 4.1, 5.1_
 
-- [ ] 7. Checkpoint — Backend complete
+- [x] 7. Checkpoint — Backend complete
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Add frontend API methods and i18n translations

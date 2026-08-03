@@ -69,9 +69,10 @@ func main() {
 	gitH := api.NewGitHandler(cfg.ProjectsDir, git.NewRunner(), logger)
 	envH := api.NewEnvHandler(cfg.ProjectsDir, logger)
 	projectH := api.NewProjectHandler(cfg.ProjectsDir, git.NewRunner(), logger)
+	projectAgentH := api.NewProjectAgentHandler(sessionStore, cm, logger, cfg, stateMgr)
 
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

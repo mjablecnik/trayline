@@ -19,6 +19,7 @@ func NewRouter(
 	gitH *GitHandler,
 	envH *EnvHandler,
 	projectH *ProjectHandler,
+	projectAgentH *ProjectAgentHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
@@ -55,6 +56,12 @@ func NewRouter(
 	// Env endpoints.
 	mux.HandleFunc("GET /projects/{name}/env", envH.HandleGetEnv)
 	mux.HandleFunc("PUT /projects/{name}/env", envH.HandlePutEnv)
+
+	// Project agent endpoints.
+	mux.HandleFunc("GET /projects/{name}/chat", projectAgentH.HandleProjectChat)
+	mux.HandleFunc("GET /projects/{name}/chat/{id}", projectAgentH.HandleProjectChatReconnect)
+	mux.HandleFunc("GET /projects/{name}/sessions", projectAgentH.HandleProjectSessions)
+	mux.HandleFunc("POST /projects/{name}/sessions/{id}/terminate", projectAgentH.HandleTerminateProjectSession)
 
 	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
 	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))

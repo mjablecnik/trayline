@@ -12,4 +12,6 @@ type WSServerMessage struct {
 	SessionID string `json:"sessionId,omitempty"`
 	Data      string `json:"data,omitempty"`
 	Message   string `json:"message,omitempty"`
+	Agent     string `json:"agent,omitempty"`
+	Model     string `json:"model,omitempty"`
 }

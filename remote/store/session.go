@@ -16,6 +16,7 @@ type Session struct {
 	Agent         string             `json:"agent"`
 	Model         string             `json:"model,omitempty"`
 	System        string             `json:"-"`
+	Project       string             `json:"project,omitempty"`
 	CreatedAt     time.Time          `json:"created_at"`
 	LastMessageAt time.Time          `json:"last_message_at"`
 	ContainerID   string             `json:"-"`
@@ -87,6 +88,25 @@ func (s *SessionStore) List() []*Session {
 		return all[i].LastMessageAt.After(all[j].LastMessageAt)
 	})
 	return all
+}
+
+// ListByProject returns active sessions for a given project, ordered by
+// last_message_at descending. Returns an empty (non-nil) slice when no
+// sessions belong to the project.
+func (s *SessionStore) ListByProject(project string) []*Session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]*Session, 0)
+	for _, sess := range s.sessions {
+		if sess.Project == project {
+			result = append(result, sess)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].LastMessageAt.After(result[j].LastMessageAt)
+	})
+	return result
 }
 
 // All returns all sessions (unordered). Used for state persistence.

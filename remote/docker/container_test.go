@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -144,6 +145,35 @@ func TestPropertyAgentCommandConstruction(t *testing.T) {
 		}
 		if buildChatCmd("unknown", "", "") != nil {
 			t.Fatal("expected nil for unknown agent in chat")
+		}
+	})
+}
+
+// --- Feature: project-ai-agent, Property 1: Project bind mount is correctly scoped ---
+
+func TestPropertyProjectContainerBindsScoping(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		projectsDir := "/projects"
+		agent := rapid.SampledFrom([]string{"kiro", "claude", "unknown", ""}).Draw(t, "agent")
+		projectName := rapid.StringMatching(`[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,39}`).Draw(t, "projectName")
+
+		cfg := &core.Config{
+			ProjectsDir:          projectsDir,
+			KiroHostDir:          "/host/.kiro",
+			KiroCredsHostDir:     "/host/.local/share/kiro-cli",
+			ClaudeHostDir:        "/host/.claude",
+			ClaudeConfigHostFile: "/host/.claude.json",
+		}
+		m := NewContainerManager(&MockContainerClient{}, cfg, core.NewLogger(""))
+
+		binds := m.BuildProjectContainerBinds(agent, projectName)
+
+		if len(binds) == 0 {
+			t.Fatal("expected at least one bind")
+		}
+		expected := filepath.Join(projectsDir, projectName) + ":" + workspaceMount
+		if binds[0] != expected {
+			t.Fatalf("expected first bind %q, got %q", expected, binds[0])
 		}
 	})
 }
