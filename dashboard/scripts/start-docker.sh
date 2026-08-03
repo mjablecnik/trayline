@@ -31,6 +31,7 @@ source "$ENV_FILE"
 set +a
 
 PUBLIC_API_URL="${PUBLIC_API_URL:?PUBLIC_API_URL must be set in $ENV_FILE}"
+DASHBOARD_PORT="${DASHBOARD_PORT:-5173}"
 
 echo "==> Building Docker image: $IMAGE_NAME"
 docker build --build-arg "PUBLIC_API_URL=${PUBLIC_API_URL}" -t "$IMAGE_NAME" "$DASHBOARD_DIR"
@@ -41,10 +42,10 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker rm "$CONTAINER_NAME" 2>/dev/null || true
 fi
 
-echo "==> Starting container: $CONTAINER_NAME"
+echo "==> Starting container: $CONTAINER_NAME on port $DASHBOARD_PORT"
 docker run -d \
     --name "$CONTAINER_NAME" \
-    -p 8080:8080 \
+    -p "${DASHBOARD_PORT}:8080" \
     "$IMAGE_NAME"
 
-echo "==> Container started: $CONTAINER_NAME"
+echo "==> Container started: $CONTAINER_NAME (http://localhost:${DASHBOARD_PORT})"
