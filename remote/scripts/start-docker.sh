@@ -83,24 +83,8 @@ fi
 APP_PORT="${APP_PORT:-8080}"
 
 # ---------------------------------------------------------------------------
-# Check that APP_PORT is not already in use (skip if trayline-server occupies
-# it — that container will be removed shortly).
+# Build the server image.
 # ---------------------------------------------------------------------------
-if ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep -q ":${APP_PORT}" || \
-   netstat -tlnp 2>/dev/null | grep -q ":${APP_PORT} "; then
-  # Allow the port to be held by the existing trayline-server container only.
-  HOLDER=$(ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep ":${APP_PORT}" || \
-           netstat -tlnp 2>/dev/null | grep ":${APP_PORT} " || true)
-  if echo "$HOLDER" | grep -q "docker-proxy\|trayline-server"; then
-    echo "Port ${APP_PORT} is held by the existing trayline-server — it will be replaced."
-  else
-    echo "ERROR: Port ${APP_PORT} is already in use by another process:" >&2
-    echo "$HOLDER" >&2
-    echo "Set a different APP_PORT in .env or stop the conflicting process." >&2
-    exit 1
-  fi
-fi
-
 bash scripts/build.sh
 
 # ---------------------------------------------------------------------------
@@ -109,6 +93,20 @@ bash scripts/build.sh
 if docker ps -a --filter "name=^/trayline-server$" --format '{{.Names}}' | grep -q "^trayline-server$"; then
   echo "Removing existing trayline-server container..."
   docker rm -f trayline-server
+fi
+
+# ---------------------------------------------------------------------------
+# Check that APP_PORT is not already in use by another process (after removing
+# the old container so we don't conflict with ourselves on restart).
+# ---------------------------------------------------------------------------
+if ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep -q ":${APP_PORT}" || \
+   netstat -tlnp 2>/dev/null | grep -q ":${APP_PORT} "; then
+  HOLDER=$(ss -tlnp "sport = :${APP_PORT}" 2>/dev/null | grep ":${APP_PORT}" || \
+           netstat -tlnp 2>/dev/null | grep ":${APP_PORT} " || true)
+  echo "ERROR: Port ${APP_PORT} is already in use by another process:" >&2
+  echo "$HOLDER" >&2
+  echo "Set a different APP_PORT in .env or stop the conflicting process." >&2
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------
