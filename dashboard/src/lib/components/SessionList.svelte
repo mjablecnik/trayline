@@ -38,6 +38,8 @@
 	}
 
 	$effect(() => {
+		// Re-run whenever projectName changes (navigated to a different project)
+		void projectName;
 		load();
 	});
 

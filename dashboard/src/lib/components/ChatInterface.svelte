@@ -283,6 +283,23 @@
 		}
 	}
 
+	// Disconnect and reset when the project changes (user navigated to a different project).
+	let prevProjectName = $state<string>(projectName);
+	$effect(() => {
+		if (projectName !== prevProjectName) {
+			prevProjectName = projectName;
+			if (ws) {
+				clientInitiatedClose = true;
+				ws.close();
+				ws = null;
+			}
+			banner = { kind: 'none' };
+			processing = false;
+			lastSessionId = null;
+			userScrolledUp = false;
+		}
+	});
+
 	// Reconnect automatically when the parent points us at a different (existing) session,
 	// e.g. the user picked one from SessionList.
 	$effect(() => {

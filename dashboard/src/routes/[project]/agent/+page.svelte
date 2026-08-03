@@ -9,6 +9,19 @@
 
 	let activeSessionId = $state<string | null>(null);
 
+	// Reset agent state when switching projects
+	let prevProject = $state<string>('');
+	$effect(() => {
+		if (projectName && projectName !== prevProject) {
+			if (prevProject) {
+				// We switched away from a previous project — clean up
+				activeSessionId = null;
+				agentStore.reset();
+			}
+			prevProject = projectName;
+		}
+	});
+
 	function handleSelect(sessionId: string) {
 		activeSessionId = sessionId;
 	}
