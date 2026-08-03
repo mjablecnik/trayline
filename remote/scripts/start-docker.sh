@@ -116,6 +116,7 @@ fi
 # ---------------------------------------------------------------------------
 WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
 WORKSPACE_HOST_DIR="${WORKSPACE_HOST_DIR:?WORKSPACE_HOST_DIR must be set in .env}"
+PROJECTS_DIR="${PROJECTS_DIR:?PROJECTS_DIR must be set in .env}"
 
 # ---------------------------------------------------------------------------
 # Ensure workspace directory exists on the host.
@@ -133,6 +134,7 @@ docker run -d \
   --env-file "$ENV_FILE" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
+  -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
   -p "${APP_PORT}:${APP_PORT}" \
   trayline-server
 
