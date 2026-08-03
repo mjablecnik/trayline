@@ -138,6 +138,36 @@ func (h *ProjectAgentHandler) writeWSToSession(sessionID string, msg WSServerMes
 	}
 }
 
+// wsAuth reads the first WebSocket message and validates it as an auth message.
+// Returns true if auth succeeded. On failure, sends an error and closes the connection.
+func (h *ProjectAgentHandler) wsAuth(conn *websocket.Conn) bool {
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_, data, err := conn.ReadMessage()
+	conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		conn.Close()
+		return false
+	}
+
+	var msg struct {
+		Type  string `json:"type"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil || msg.Type != "auth" || msg.Token == "" {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "first message must be {\"type\": \"auth\", \"token\": \"...\"}"})
+		conn.Close()
+		return false
+	}
+
+	if !ValidateWSToken(msg.Token, h.config.APIToken) {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "invalid token"})
+		conn.Close()
+		return false
+	}
+
+	return true
+}
+
 // HandleProjectChat handles WS /projects/{name}/chat.
 func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
@@ -174,6 +204,15 @@ func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.R
 		h.cm.ReleaseChatSlot()
 		h.logger.Error(r.Context(), "websocket upgrade failed: "+err.Error())
 		return
+	}
+
+	// Authenticate: first message must be {"type": "auth", "token": "..."}.
+	// CLI clients that send Bearer header in the upgrade request skip this step.
+	if r.Header.Get("Authorization") == "" {
+		if !h.wsAuth(conn) {
+			h.cm.ReleaseChatSlot()
+			return
+		}
 	}
 
 	now := time.Now()
@@ -283,6 +322,16 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 		h.logger.Error(r.Context(), "websocket upgrade failed: "+err.Error())
 		return
 	}
+
+	// Authenticate: first message must be {"type": "auth", "token": "..."}.
+	// CLI clients that send Bearer header in the upgrade request skip this step.
+	if r.Header.Get("Authorization") == "" {
+		if !h.wsAuth(conn) {
+			sess.ConnMu.Unlock()
+			return
+		}
+	}
+
 	sess.Conn = conn
 	sess.ConnMu.Unlock()
 

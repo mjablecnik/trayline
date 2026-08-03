@@ -3,6 +3,7 @@
 	import AgentSelector from '$lib/components/AgentSelector.svelte';
 	import ChatMessageBubble from '$lib/components/ChatMessage.svelte';
 	import { buildWsUrl } from '$lib/api';
+	import { getToken } from '$lib/auth';
 	import { t } from '$lib/i18n';
 	import { agentStore } from '$lib/stores/agent';
 	import { canSubmitMessage } from '$lib/utils/chat';
@@ -74,6 +75,14 @@
 				? { kind: 'startError', message: $t('agent.connectionError') }
 				: { kind: 'sessionLost' };
 		}, CONNECT_TIMEOUT_MS);
+
+		socket.onopen = () => {
+			// Send auth message as first frame after connection opens.
+			const token = getToken();
+			if (token) {
+				socket.send(JSON.stringify({ type: 'auth', token }));
+			}
+		};
 
 		socket.onmessage = (event) => {
 			let msg: { type: string; sessionId?: string; data?: string; message?: string };
