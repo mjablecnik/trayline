@@ -6,13 +6,24 @@ DASHBOARD_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 IMAGE_NAME="trayline-dashboard"
 CONTAINER_NAME="trayline-dashboard"
-ENV_FILE="$DASHBOARD_DIR/.env"
 
-if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: env file '$ENV_FILE' not found." >&2
-    echo "Copy '$DASHBOARD_DIR/.env.example' to '$ENV_FILE' and fill in the values." >&2
+# ---------------------------------------------------------------------------
+# Load env: prefer ~/.trayline/env/dashboard.env, fall back to local .env
+# ---------------------------------------------------------------------------
+TRAYLINE_ENV="${HOME}/.trayline/env/dashboard.env"
+if [ -f "$TRAYLINE_ENV" ]; then
+    ENV_FILE="$TRAYLINE_ENV"
+elif [ -f "$DASHBOARD_DIR/.env" ]; then
+    ENV_FILE="$DASHBOARD_DIR/.env"
+else
+    echo "ERROR: No env file found." >&2
+    echo "  Expected: $TRAYLINE_ENV" >&2
+    echo "  Fallback: $DASHBOARD_DIR/.env" >&2
+    echo "  Copy '$DASHBOARD_DIR/.env.example' and fill in the values." >&2
     exit 1
 fi
+
+echo "Using env: $ENV_FILE"
 
 set -a
 # shellcheck disable=SC1090
