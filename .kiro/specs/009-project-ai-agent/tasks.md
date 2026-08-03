@@ -119,39 +119,39 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
 - [x] 7. Checkpoint — Backend complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Add frontend API methods and i18n translations
-  - [ ] 8.1 Add agent session API methods to `dashboard/src/lib/api.ts`
+- [x] 8. Add frontend API methods and i18n translations
+  - [x] 8.1 Add agent session API methods to `dashboard/src/lib/api.ts`
     - Define `AgentSession` interface: `session_id`, `agent`, `model?`, `created_at`, `last_message_at`
     - Add `getProjectSessions(name)` method
     - Add `terminateProjectSession(name, sessionId)` method
     - Add `buildWsUrl(projectName, agent, model?, sessionId?)` helper for WebSocket URL construction
     - _Requirements: 10.1, 10.6, 9.4_
 
-  - [ ] 8.2 Add i18n translations for agent tab in `dashboard/src/lib/i18n/en.ts`
+  - [x] 8.2 Add i18n translations for agent tab in `dashboard/src/lib/i18n/en.ts`
     - Add all `tabs.agent` and `agent.*` keys as defined in design
     - _Requirements: 7.3_
 
-  - [ ] 8.3 Add i18n translations for agent tab in `dashboard/src/lib/i18n/cs.ts`
+  - [x] 8.3 Add i18n translations for agent tab in `dashboard/src/lib/i18n/cs.ts`
     - Add all Czech translations as defined in design
     - _Requirements: 7.3_
 
-- [ ] 9. Create agent store
-  - [ ] 9.1 Create `dashboard/src/lib/stores/agent.ts`
+- [x] 9. Create agent store
+  - [x] 9.1 Create `dashboard/src/lib/stores/agent.ts`
     - Define `ConnectionState`, `ChatMessage`, `AgentSessionState` types
     - Implement `createAgentStore` with methods: `setAgent`, `setModel`, `setConnecting`, `setConnected`, `setDisconnected`, `addUserMessage`, `appendAgentOutput`, `markAgentDone`, `switchToSession`, `reset`
     - Maintain `sessionHistories` map for preserving message history across session switches
     - _Requirements: 10.3, 10.4, 11.5_
 
-  - [ ]* 9.2 Write property test for output chunk accumulation in agent store
+  - [x]* 9.2 Write property test for output chunk accumulation in agent store
     - **Property 9: Output chunks accumulate correctly**
     - **Validates: Requirements 8.4**
 
-  - [ ]* 9.3 Write property test for message history preservation across session switches
+  - [x]* 9.3 Write property test for message history preservation across session switches
     - **Property 10: Client message history survives session switches and connection errors**
     - **Validates: Requirements 10.4, 11.5**
 
-- [ ] 10. Implement ChatMessage component
-  - [ ] 10.1 Create `dashboard/src/lib/components/ChatMessage.svelte`
+- [x] 10. Implement ChatMessage component
+  - [x] 10.1 Create `dashboard/src/lib/components/ChatMessage.svelte`
     - Accept `message: ChatMessage` prop
     - User messages: right-aligned, sky-500 background, white text
     - Agent messages: left-aligned, slate-100 dark:slate-800 background
@@ -160,8 +160,8 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Show inline error (red text) below bubble if `message.error` is set
     - _Requirements: 8.6_
 
-- [ ] 11. Implement AgentSelector component
-  - [ ] 11.1 Create `dashboard/src/lib/components/AgentSelector.svelte`
+- [x] 11. Implement AgentSelector component
+  - [x] 11.1 Create `dashboard/src/lib/components/AgentSelector.svelte`
     - Agent `<select>` with placeholder, options "kiro" and "claude" (no pre-selection)
     - Model `<input type="text">` with i18n placeholder, maxlength=100
     - "Start Agent" button — disabled until agent is selected
@@ -170,8 +170,8 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Display inline error on connection failure, re-enable button
     - _Requirements: 9.1–9.4, 11.2_
 
-- [ ] 12. Implement SessionList component
-  - [ ] 12.1 Create `dashboard/src/lib/components/SessionList.svelte`
+- [x] 12. Implement SessionList component
+  - [x] 12.1 Create `dashboard/src/lib/components/SessionList.svelte`
     - Accept `projectName`, `activeSessionId`, `onSelect`, `onTerminate`, `onNewSession` props
     - Fetch sessions from API on mount and after create/terminate
     - Display each session: agent type, model, relative last_message_at time
@@ -181,8 +181,8 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Show inline error + retry on fetch failure
     - _Requirements: 10.1, 10.2, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 13. Implement ChatInterface component
-  - [ ] 13.1 Create `dashboard/src/lib/components/ChatInterface.svelte`
+- [x] 13. Implement ChatInterface component
+  - [x] 13.1 Create `dashboard/src/lib/components/ChatInterface.svelte`
     - Accept `projectName` prop
     - Manage WebSocket lifecycle: connect, send, receive, disconnect, reconnect
     - Message input: `<textarea>` with auto-grow (max 6 lines)
@@ -200,25 +200,25 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Handle send failure: inline error below message, retain text in input
     - _Requirements: 8.1–8.8, 9.5–9.7, 11.1–11.6_
 
-  - [ ]* 13.2 Write property test for whitespace-only message rejection
+  - [x]* 13.2 Write property test for whitespace-only message rejection
     - **Property 8: Whitespace-only messages are rejected**
     - **Validates: Requirements 8.3**
 
-  - [ ]* 13.3 Write property test for message submission behavior
+  - [x]* 13.3 Write property test for message submission behavior
     - **Property 7: Valid message submission updates history and clears input**
     - **Validates: Requirements 8.2**
 
-- [ ] 14. Checkpoint — Frontend components complete
+- [x] 14. Checkpoint — Frontend components complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Assemble Agent tab page and wire TabBar
-  - [ ] 15.1 Create `dashboard/src/routes/[project]/agent/+page.svelte`
+- [x] 15. Assemble Agent tab page and wire TabBar
+  - [x] 15.1 Create `dashboard/src/routes/[project]/agent/+page.svelte`
     - Compose SessionList (sidebar/left) + ChatInterface or AgentSelector (main area)
     - Show AgentSelector when no active session; ChatInterface when connected
     - On mobile: collapse session list into dropdown above chat
     - _Requirements: 7.2, 9.3, 10.2_
 
-  - [ ] 15.2 Add Agent tab to `dashboard/src/lib/components/TabBar.svelte`
+  - [x] 15.2 Add Agent tab to `dashboard/src/lib/components/TabBar.svelte`
     - Add tab link to `/{project}/agent` as last item
     - Do NOT append `?ref=` query parameter
     - Use `tabs.agent` i18n key for label

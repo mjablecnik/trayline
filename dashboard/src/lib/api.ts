@@ -181,6 +181,30 @@ export interface PutEnvRequest {
 	variables: EnvVariable[];
 }
 
+export interface AgentSession {
+	session_id: string;
+	agent: string;
+	model?: string;
+	created_at: string;
+	last_message_at: string;
+}
+
+export function buildWsUrl(
+	projectName: string,
+	agent: string,
+	model?: string,
+	sessionId?: string
+): string {
+	const base = (import.meta.env.PUBLIC_API_URL as string).replace(/^http/, 'ws');
+	const encoded = encodeURIComponent(projectName);
+	if (sessionId) {
+		return `${base}/projects/${encoded}/chat/${encodeURIComponent(sessionId)}`;
+	}
+	const params = new URLSearchParams({ agent });
+	if (model) params.set('model', model);
+	return `${base}/projects/${encoded}/chat?${params}`;
+}
+
 export const api = {
 	getProjects: () => request<Project[]>('GET', '/projects'),
 
@@ -222,5 +246,14 @@ export const api = {
 		request<EnvResponse>('GET', `/projects/${encodeURIComponent(name)}/env`),
 
 	putEnv: (name: string, data: PutEnvRequest) =>
-		request<EnvFile>('PUT', `/projects/${encodeURIComponent(name)}/env`, data)
+		request<EnvFile>('PUT', `/projects/${encodeURIComponent(name)}/env`, data),
+
+	getProjectSessions: (name: string) =>
+		request<AgentSession[]>('GET', `/projects/${encodeURIComponent(name)}/sessions`),
+
+	terminateProjectSession: (name: string, sessionId: string) =>
+		request<{ session_id: string; status: string }>(
+			'POST',
+			`/projects/${encodeURIComponent(name)}/sessions/${encodeURIComponent(sessionId)}/terminate`
+		)
 };
