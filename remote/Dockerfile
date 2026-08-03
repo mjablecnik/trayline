@@ -11,7 +11,8 @@ RUN CGO_ENABLED=0 go build -o server ./cmd/server
 FROM debian:bookworm-20240722-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && git config --global safe.directory '*'
 
 COPY --from=build /app/server /server
 
