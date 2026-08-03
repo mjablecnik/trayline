@@ -139,12 +139,12 @@
 	function startNewSession(agent: string, model: string) {
 		agentStore.setAgent(agent);
 		agentStore.setModel(model);
-		agentStore.setConnecting();
+		agentStore.setConnecting(projectName);
 		connect(buildWsUrl(projectName, agent, model || undefined), 'session_started', true);
 	}
 
 	function reconnectTo(id: string) {
-		agentStore.setConnecting();
+		agentStore.setConnecting(projectName);
 		connect(buildWsUrl(projectName, '', undefined, id), 'session_resumed', false);
 	}
 

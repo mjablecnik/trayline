@@ -9,16 +9,17 @@
 
 	let activeSessionId = $state<string | null>(null);
 
-	// Reset agent state when switching projects
-	let prevProject = $state<string>('');
+	// Reset agent state when it belongs to a different project than the current
+	// route. Comparing against the store's own `project` (not local component
+	// state) matters because agentStore is a module-level singleton: navigating
+	// away through an unrelated route and back destroys and recreates this page
+	// component, which would make a local "previous project" guard forget it
+	// ever saw a project and skip the reset, leaving the old project's chat
+	// showing under the new one.
 	$effect(() => {
-		if (projectName && projectName !== prevProject) {
-			if (prevProject) {
-				// We switched away from a previous project — clean up
-				activeSessionId = null;
-				agentStore.reset();
-			}
-			prevProject = projectName;
+		if (projectName && $agentStore.project && $agentStore.project !== projectName) {
+			activeSessionId = null;
+			agentStore.reset();
 		}
 	});
 

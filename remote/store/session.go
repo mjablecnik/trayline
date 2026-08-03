@@ -23,6 +23,13 @@ type Session struct {
 	Conn          *websocket.Conn    `json:"-"`
 	ConnMu        sync.Mutex         `json:"-"`
 	Active        bool               `json:"-"`
+	// SlotHeld tracks whether this session currently holds a chat concurrency
+	// slot. Slots are tied to having a connected client, not to the
+	// container's lifetime: they're released on disconnect and re-acquired
+	// on reconnect, so a client navigating away doesn't permanently pin a
+	// slot for a session nobody is watching. Guarded by the SessionStore's
+	// own lock (mutate only via SessionStore.Update).
+	SlotHeld bool `json:"-"`
 	Ctx           context.Context    `json:"-"`
 	CancelFunc    context.CancelFunc `json:"-"`
 	Stdin         io.WriteCloser     `json:"-"` // container stdin writer

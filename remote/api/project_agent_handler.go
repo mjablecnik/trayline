@@ -231,6 +231,7 @@ func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.R
 		Active:        true,
 		Ctx:           ctx,
 		CancelFunc:    cancel,
+		SlotHeld:      true,
 	}
 	h.store.Add(sess)
 	h.logger.Info(r.Context(), fmt.Sprintf("project session %s created (project: %s, agent: %s)", sessionID, name, agent))
@@ -282,10 +283,26 @@ func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.R
 		<-ctx.Done()
 		attached.Close()
 		h.cm.StopAndRemoveContainer(context.Background(), containerID)
-		h.cm.ReleaseChatSlot()
+		h.releaseSlotIfHeld(sessionID)
 		h.store.Remove(sessionID)
 		h.saveState(context.Background())
 	}()
+}
+
+// releaseSlotIfHeld releases the session's chat slot exactly once, if it
+// currently holds one. Safe to call from multiple code paths (client
+// disconnect, session termination/timeout) without double-releasing.
+func (h *ProjectAgentHandler) releaseSlotIfHeld(sessionID string) {
+	held := false
+	h.store.Update(sessionID, func(s *store.Session) {
+		if s.SlotHeld {
+			s.SlotHeld = false
+			held = true
+		}
+	})
+	if held {
+		h.cm.ReleaseChatSlot()
+	}
 }
 
 // HandleProjectChatReconnect handles WS /projects/{name}/chat/{id}.
@@ -315,10 +332,34 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 		})
 		return
 	}
+	sess.ConnMu.Unlock()
+
+	// Reconnecting re-acquires a chat slot: disconnecting released it, so a
+	// client coming back must compete for capacity like a new session would.
+	if !h.cm.TryAcquireSlot() {
+		writeJSON(w, http.StatusServiceUnavailable, core.ErrorResponse{
+			Error:   "SERVICE_UNAVAILABLE",
+			Message: "server is at capacity, try again later",
+		})
+		return
+	}
+
+	sess.ConnMu.Lock()
+	if sess.Conn != nil {
+		// Another reconnect raced us while we were acquiring the slot.
+		sess.ConnMu.Unlock()
+		h.cm.ReleaseChatSlot()
+		writeJSON(w, http.StatusConflict, core.ErrorResponse{
+			Error:   "CONFLICT",
+			Message: "session already has an active connection",
+		})
+		return
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		sess.ConnMu.Unlock()
+		h.cm.ReleaseChatSlot()
 		h.logger.Error(r.Context(), "websocket upgrade failed: "+err.Error())
 		return
 	}
@@ -328,6 +369,7 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 	if r.Header.Get("Authorization") == "" {
 		if !h.wsAuth(conn) {
 			sess.ConnMu.Unlock()
+			h.cm.ReleaseChatSlot()
 			return
 		}
 	}
@@ -342,6 +384,7 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 
 	h.store.Update(id, func(s *store.Session) {
 		s.LastMessageAt = time.Now()
+		s.SlotHeld = true
 	})
 
 	h.writeWS(conn, WSServerMessage{Type: "session_resumed", SessionID: id, Agent: sess.Agent, Model: sess.Model})
@@ -626,6 +669,12 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 
 		messageType, data, err := conn.ReadMessage()
 		if err != nil {
+			// Client disconnected without sending "terminate" (tab closed, network
+			// drop, navigated to a different project). The container keeps running
+			// for reconnect, but give back the chat slot immediately instead of
+			// holding it until the idle timeout — otherwise switching projects
+			// without explicitly ending the chat can quietly exhaust the pool.
+			h.releaseSlotIfHeld(sessionID)
 			return
 		}
 

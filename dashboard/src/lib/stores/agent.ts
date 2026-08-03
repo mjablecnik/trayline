@@ -12,6 +12,13 @@ export interface ChatMessage {
 
 export interface AgentSessionState {
 	sessionId: string | null;
+	// Project this state belongs to. Compared against the current route's
+	// project to detect stale state left over from a different project —
+	// this store is a module-level singleton, so it outlives any single
+	// page component instance (e.g. navigating away through an unrelated
+	// route and back destroys/recreates the agent page component, but not
+	// this store).
+	project: string | null;
 	agent: string; // "kiro" | "claude" | ""
 	model: string;
 	connectionState: ConnectionState;
@@ -25,6 +32,7 @@ const sessionHistories = new Map<string, ChatMessage[]>();
 function createAgentStore() {
 	const { subscribe, set, update } = writable<AgentSessionState>({
 		sessionId: null,
+		project: null,
 		agent: '',
 		model: '',
 		connectionState: 'disconnected',
@@ -39,8 +47,8 @@ function createAgentStore() {
 		setModel(model: string) {
 			update((s) => ({ ...s, model }));
 		},
-		setConnecting() {
-			update((s) => ({ ...s, connectionState: 'connecting' }));
+		setConnecting(project: string) {
+			update((s) => ({ ...s, project, connectionState: 'connecting' }));
 		},
 		setConnected(sessionId: string) {
 			update((s) => ({
@@ -113,7 +121,14 @@ function createAgentStore() {
 			});
 		},
 		reset() {
-			set({ sessionId: null, agent: '', model: '', connectionState: 'disconnected', messages: [] });
+			set({
+				sessionId: null,
+				project: null,
+				agent: '',
+				model: '',
+				connectionState: 'disconnected',
+				messages: []
+			});
 		}
 	};
 }

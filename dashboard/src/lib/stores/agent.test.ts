@@ -45,6 +45,26 @@ describe('agentStore output accumulation', () => {
 	});
 });
 
+// Regression: switching projects must not leave another project's chat visible.
+describe('agentStore project tracking', () => {
+	it('reset() clears the project so a stale store is detectable', () => {
+		agentStore.setConnecting('project-a');
+		expect(get(agentStore).project).toBe('project-a');
+
+		agentStore.reset();
+		expect(get(agentStore).project).toBeNull();
+	});
+
+	it('retains the project it was connecting/connected under across state transitions', () => {
+		agentStore.reset();
+		agentStore.setConnecting('project-a');
+		const sessionId = crypto.randomUUID();
+		agentStore.setConnected(sessionId);
+
+		expect(get(agentStore).project).toBe('project-a');
+	});
+});
+
 // Feature: project-ai-agent, Property 10: Client message history survives session switches and connection errors
 describe('agentStore session history preservation', () => {
 	it('preserves a session history after switching away and back', () => {
