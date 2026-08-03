@@ -318,7 +318,9 @@ type ContainerResult struct {
 
 // RunOneShot acquires a slot, runs a one-shot container to completion, and returns the output.
 // Enforces FIFO ordering, the configured task timeout, and the concurrency limit.
-func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time) (*ContainerResult, error) {
+// If onStart is non-nil, it is called with the container ID as soon as the container has
+// started, so the caller can persist it (e.g. to recover/clean it up after a server restart).
+func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time, onStart func(containerID string)) (*ContainerResult, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, m.config.TaskTimeout)
 	defer cancel()
 
@@ -332,14 +334,21 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 	if err != nil {
 		return nil, err
 	}
+	if onStart != nil {
+		onStart(containerID)
+	}
 
 	result, waitErr := m.waitAndCapture(timeoutCtx, containerID)
 
 	// Always clean up the container, even on error.
 	stopCtx := context.Background()
 	stopTimeout := 10
-	_ = m.client.ContainerStop(stopCtx, containerID, container.StopOptions{Timeout: &stopTimeout})
-	_ = m.client.ContainerRemove(stopCtx, containerID, dockertypes.ContainerRemoveOptions{Force: true})
+	if err := m.client.ContainerStop(stopCtx, containerID, container.StopOptions{Timeout: &stopTimeout}); err != nil && m.logger != nil {
+		m.logger.Warn(stopCtx, fmt.Sprintf("failed to stop one-shot container %s: %v", containerID, err))
+	}
+	if err := m.client.ContainerRemove(stopCtx, containerID, dockertypes.ContainerRemoveOptions{Force: true}); err != nil && m.logger != nil {
+		m.logger.Warn(stopCtx, fmt.Sprintf("failed to remove one-shot container %s: %v", containerID, err))
+	}
 
 	if waitErr != nil {
 		return nil, waitErr

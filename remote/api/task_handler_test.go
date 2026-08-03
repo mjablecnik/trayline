@@ -18,12 +18,27 @@ import (
 
 // fakeRunner is a ContainerRunner that returns a fixed result immediately.
 type fakeRunner struct {
-	result *docker.ContainerResult
-	err    error
+	result      *docker.ContainerResult
+	err         error
+	containerID string // if set, reported to onStart before returning
+	panic       any    // if set, RunOneShot panics with this value instead of returning
+
+	stoppedContainerIDs []string
 }
 
-func (f *fakeRunner) RunOneShot(_ context.Context, _, _, _, _ string, _ time.Time) (*docker.ContainerResult, error) {
+func (f *fakeRunner) RunOneShot(_ context.Context, _, _, _, _ string, _ time.Time, onStart func(string)) (*docker.ContainerResult, error) {
+	if f.containerID != "" && onStart != nil {
+		onStart(f.containerID)
+	}
+	if f.panic != nil {
+		panic(f.panic)
+	}
 	return f.result, f.err
+}
+
+func (f *fakeRunner) StopAndRemoveContainer(_ context.Context, containerID string) error {
+	f.stoppedContainerIDs = append(f.stoppedContainerIDs, containerID)
+	return nil
 }
 
 func newTestHandler(t *testing.T) (*TaskHandler, string) {
@@ -142,5 +157,61 @@ func TestHandlePostRun_JSONBackwardCompat(t *testing.T) {
 
 	if rec.Code != http.StatusOK && rec.Code != http.StatusAccepted {
 		t.Fatalf("expected 200 or 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestExecuteTask_PersistsContainerIDOnStart verifies that the container ID reported by
+// RunOneShot's onStart callback is written to the task, so a server restart mid-run can
+// find and clean up the container (see store.recoverTasks).
+func TestExecuteTask_PersistsContainerIDOnStart(t *testing.T) {
+	dir := t.TempDir()
+	ts := store.NewTaskStore()
+	logger := core.NewLogger("test-token")
+	runner := &fakeRunner{result: &docker.ContainerResult{Stdout: "ok", ExitCode: 0}, containerID: "container-123"}
+	h := NewTaskHandler(ts, runner, logger, nil, dir, MaxUploadFileSize, MaxUploadFileCount, 32000)
+
+	task := &store.Task{ID: "task-1", Status: store.TaskQueued, Agent: "claude", Prompt: "hi", CreatedAt: time.Now(), Done: make(chan struct{})}
+	ts.Add(task)
+
+	h.executeTask(context.Background(), task)
+
+	got := ts.Get("task-1")
+	if got.Status != store.TaskCompleted {
+		t.Fatalf("expected completed, got %s (%s)", got.Status, got.Error)
+	}
+	if got.ContainerID != "container-123" {
+		t.Fatalf("expected container id to be persisted on the task, got %q", got.ContainerID)
+	}
+}
+
+// TestExecuteTask_RecoversFromPanicAndCleansUpContainer verifies that a panic inside
+// RunOneShot doesn't crash the server: the task is marked failed, task.Done is still
+// closed (so HTTP long-pollers don't hang), and the already-started container is stopped.
+func TestExecuteTask_RecoversFromPanicAndCleansUpContainer(t *testing.T) {
+	dir := t.TempDir()
+	ts := store.NewTaskStore()
+	logger := core.NewLogger("test-token")
+	runner := &fakeRunner{containerID: "container-456", panic: "boom"}
+	h := NewTaskHandler(ts, runner, logger, nil, dir, MaxUploadFileSize, MaxUploadFileCount, 32000)
+
+	task := &store.Task{ID: "task-2", Status: store.TaskQueued, Agent: "claude", Prompt: "hi", CreatedAt: time.Now(), Done: make(chan struct{})}
+	ts.Add(task)
+
+	h.executeTask(context.Background(), task)
+
+	got := ts.Get("task-2")
+	if got.Status != store.TaskFailed {
+		t.Fatalf("expected failed after panic, got %s", got.Status)
+	}
+	if !strings.Contains(got.Error, "boom") {
+		t.Fatalf("expected error to mention panic value, got %q", got.Error)
+	}
+	select {
+	case <-task.Done:
+	default:
+		t.Fatal("expected task.Done to be closed after panic recovery")
+	}
+	if len(runner.stoppedContainerIDs) != 1 || runner.stoppedContainerIDs[0] != "container-456" {
+		t.Fatalf("expected container-456 to be stopped/removed after panic, got %v", runner.stoppedContainerIDs)
 	}
 }

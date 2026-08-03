@@ -28,7 +28,8 @@ type StateSaver interface {
 
 // ContainerRunner is the minimal interface TaskHandler needs to execute agent containers.
 type ContainerRunner interface {
-	RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time) (*docker.ContainerResult, error)
+	RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time, onStart func(containerID string)) (*docker.ContainerResult, error)
+	StopAndRemoveContainer(ctx context.Context, containerID string) error
 }
 
 // TaskHandler handles one-shot task REST endpoints.
@@ -177,6 +178,33 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *store.Task) {
 			}
 		}()
 	}
+	// Recover from a panic anywhere in this goroutine (including inside container
+	// execution) so a single bad task can't crash the whole server and strand its
+	// container: this runs before the deferred close(task.Done) above, so waiters
+	// see the failed status instead of a stale "running" one.
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		h.logger.Error(context.Background(), fmt.Sprintf("task %s panicked: %v", task.ID, r))
+		now := time.Now()
+		var containerID string
+		h.store.Update(task.ID, func(t *store.Task) {
+			containerID = t.ContainerID
+			if !store.IsTerminal(t.Status) {
+				t.Status = store.TaskFailed
+				t.Error = fmt.Sprintf("internal error: %v", r)
+				t.CompletedAt = &now
+			}
+		})
+		if containerID != "" {
+			if err := h.cm.StopAndRemoveContainer(context.Background(), containerID); err != nil {
+				h.logger.Warn(context.Background(), fmt.Sprintf("task %s: failed to clean up container %s after panic: %v", task.ID, containerID, err))
+			}
+		}
+		h.saveState(context.Background())
+	}()
 
 	var proceed bool
 	h.store.Update(task.ID, func(t *store.Task) {
@@ -205,7 +233,12 @@ func (h *TaskHandler) executeTask(ctx context.Context, task *store.Task) {
 		}
 	}
 
-	result, err := h.cm.RunOneShot(ctx, task.Agent, effectivePrompt, task.Model, task.System, task.CreatedAt)
+	result, err := h.cm.RunOneShot(ctx, task.Agent, effectivePrompt, task.Model, task.System, task.CreatedAt, func(containerID string) {
+		h.store.Update(task.ID, func(t *store.Task) {
+			t.ContainerID = containerID
+		})
+		h.saveState(context.Background())
+	})
 
 	now := time.Now()
 	var finalStatus store.TaskStatus

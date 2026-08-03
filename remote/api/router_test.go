@@ -55,9 +55,11 @@ func (noopContainerClient) CopyToContainer(context.Context, string, string, io.R
 // noopRunner is a ContainerRunner double; unused by the routes under test.
 type noopRunner struct{}
 
-func (noopRunner) RunOneShot(context.Context, string, string, string, string, time.Time) (*docker.ContainerResult, error) {
+func (noopRunner) RunOneShot(context.Context, string, string, string, string, time.Time, func(string)) (*docker.ContainerResult, error) {
 	return &docker.ContainerResult{}, nil
 }
+
+func (noopRunner) StopAndRemoveContainer(context.Context, string) error { return nil }
 
 const testAuthToken = "test-router-token"
 

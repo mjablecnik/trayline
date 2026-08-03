@@ -413,7 +413,7 @@ func TestRunOneShot_HappyPathExitZero(t *testing.T) {
 	mock.AutoComplete = true
 	mgr := newOneShotManager(t, mock, 1)
 
-	result, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	result, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestRunOneShot_ContainerCreateFails_SlotReleased(t *testing.T) {
 	mock.CreateErr = fmt.Errorf("disk full")
 	mgr := newOneShotManager(t, mock, 1)
 
-	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), nil)
 	if err == nil {
 		t.Fatal("expected error when ContainerCreate fails")
 	}
@@ -441,7 +441,7 @@ func TestRunOneShot_SlotReleasedAfterSuccess(t *testing.T) {
 	mock.AutoComplete = true
 	mgr := newOneShotManager(t, mock, 2)
 
-	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestRunOneShot_TaskTimeout(t *testing.T) {
 	}
 	mgr := NewContainerManager(mock, cfg, core.NewLogger(""))
 
-	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), nil)
 	if err == nil {
 		t.Fatal("expected error when task times out")
 	}
@@ -473,7 +473,7 @@ func TestRunOneShot_StopAndRemoveCalledOnSuccess(t *testing.T) {
 	mock.AutoComplete = true
 	mgr := newOneShotManager(t, mock, 1)
 
-	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now())
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -482,6 +482,26 @@ func TestRunOneShot_StopAndRemoveCalledOnSuccess(t *testing.T) {
 	}
 	if atomic.LoadInt32(&mock.RemoveCount) == 0 {
 		t.Error("expected ContainerRemove to be called")
+	}
+}
+
+func TestRunOneShot_OnStartCalledWithContainerIDBeforeCleanup(t *testing.T) {
+	mock := NewMockContainerClient()
+	mock.AutoComplete = true
+	mgr := newOneShotManager(t, mock, 1)
+
+	var startedID string
+	_, err := mgr.RunOneShot(context.Background(), "claude", "hello", "", "", time.Now(), func(containerID string) {
+		startedID = containerID
+		if atomic.LoadInt32(&mock.StopCount) != 0 || atomic.LoadInt32(&mock.RemoveCount) != 0 {
+			t.Error("expected onStart to fire before the container is stopped/removed")
+		}
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if startedID == "" {
+		t.Error("expected onStart to be called with a non-empty container ID")
 	}
 }
 
