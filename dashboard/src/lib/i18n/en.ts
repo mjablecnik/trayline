@@ -89,6 +89,8 @@ export default {
 	'agent.inputPlaceholder': 'Message the agent...',
 	'agent.send': 'Send',
 	'agent.thinking': 'Agent is thinking...',
+	'agent.attachFile': 'Attach file',
+	'agent.fileUploaded': '📁 {filename} uploaded',
 
 	'error.connection.title': 'Cannot reach the server',
 	'error.connection.message':

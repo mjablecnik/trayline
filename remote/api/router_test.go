@@ -48,6 +48,9 @@ func (noopContainerClient) ContainerWait(context.Context, string, container.Wait
 	return make(chan container.WaitResponse), make(chan error)
 }
 func (noopContainerClient) ContainerKill(context.Context, string, string) error { return nil }
+func (noopContainerClient) CopyToContainer(context.Context, string, string, io.Reader, dockertypes.CopyToContainerOptions) error {
+	return nil
+}
 
 // noopRunner is a ContainerRunner double; unused by the routes under test.
 type noopRunner struct{}

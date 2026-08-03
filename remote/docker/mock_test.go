@@ -30,6 +30,8 @@ type MockContainerClient struct {
 	InspectResult dockertypes.ContainerJSON
 	InspectErr    error
 	AttachErr     error
+	CopyErr       error
+	CopiedFiles   map[string][]byte // "containerID:dstPath" -> raw tar bytes written
 }
 
 func NewMockContainerClient() *MockContainerClient {
@@ -130,6 +132,23 @@ func (m *MockContainerClient) ContainerInspect(_ context.Context, _ string) (doc
 }
 
 func (m *MockContainerClient) ContainerKill(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *MockContainerClient) CopyToContainer(_ context.Context, containerID string, dstPath string, content io.Reader, _ dockertypes.CopyToContainerOptions) error {
+	if m.CopyErr != nil {
+		return m.CopyErr
+	}
+	data, err := io.ReadAll(content)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	if m.CopiedFiles == nil {
+		m.CopiedFiles = make(map[string][]byte)
+	}
+	m.CopiedFiles[containerID+":"+dstPath] = data
+	m.mu.Unlock()
 	return nil
 }
 

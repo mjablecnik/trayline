@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
@@ -39,6 +40,7 @@ type ContainerClient interface {
 	ContainerInspect(ctx context.Context, containerID string) (dockertypes.ContainerJSON, error)
 	ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error)
 	ContainerKill(ctx context.Context, containerID string, signal string) error
+	CopyToContainer(ctx context.Context, containerID string, dstPath string, content io.Reader, options dockertypes.CopyToContainerOptions) error
 }
 
 // dockerClientAdapter wraps the real Docker client to implement ContainerClient,
@@ -81,6 +83,10 @@ func (a *dockerClientAdapter) ContainerWait(ctx context.Context, containerID str
 
 func (a *dockerClientAdapter) ContainerKill(ctx context.Context, containerID string, signal string) error {
 	return a.cli.ContainerKill(ctx, containerID, signal)
+}
+
+func (a *dockerClientAdapter) CopyToContainer(ctx context.Context, containerID string, dstPath string, content io.Reader, options dockertypes.CopyToContainerOptions) error {
+	return a.cli.CopyToContainer(ctx, containerID, dstPath, content, options)
 }
 
 // NewDockerClient creates a Docker client adapter connected to the daemon via the environment.
@@ -496,6 +502,28 @@ func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent,
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
 	return resp.ID, nil
+}
+
+// CopyFileToContainer writes a single file into a running container's filesystem at dstDir.
+func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID, dstDir, filename string, data []byte) error {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	hdr := &tar.Header{
+		Name: filename,
+		Mode: 0644,
+		Size: int64(len(data)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if _, err := tw.Write(data); err != nil {
+		return err
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+
+	return m.client.CopyToContainer(ctx, containerID, dstDir, &buf, dockertypes.CopyToContainerOptions{})
 }
 
 // createAndStartContainer creates and starts a container with the given command.

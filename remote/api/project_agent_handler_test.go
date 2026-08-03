@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"pgregory.net/rapid"
+
+	"remote/store"
 )
 
 // Feature: project-ai-agent, Property 3: Forbidden project name characters are rejected
@@ -100,5 +102,31 @@ func TestIsKnownMessageType_AcceptsRecognizedTypes(t *testing.T) {
 		if !isKnownMessageType(mt) {
 			t.Errorf("expected %q to be a recognized message type", mt)
 		}
+	}
+}
+
+// Feature: project-ai-agent, Requirement 12.3: upload metadata prepended to next prompt
+func TestBuildProjectUploadMetadata_EmptyForNoFiles(t *testing.T) {
+	if got := buildProjectUploadMetadata(nil); got != "" {
+		t.Errorf("expected empty string for no uploaded files, got %q", got)
+	}
+}
+
+func TestBuildProjectUploadMetadata_FormatsEachFile(t *testing.T) {
+	files := []store.UploadedFile{
+		{OriginalName: "notes.txt", SafeName: "notes.txt"},
+		{OriginalName: "data.csv", SafeName: "data.csv"},
+	}
+
+	got := buildProjectUploadMetadata(files)
+
+	if !strings.HasPrefix(got, "[Uploaded Files]\n") {
+		t.Fatalf("expected metadata to start with header, got %q", got)
+	}
+	if !strings.Contains(got, "- notes.txt → /tmp/uploads/notes.txt\n") {
+		t.Errorf("expected metadata to reference notes.txt, got %q", got)
+	}
+	if !strings.Contains(got, "- data.csv → /tmp/uploads/data.csv\n") {
+		t.Errorf("expected metadata to reference data.csv, got %q", got)
 	}
 }

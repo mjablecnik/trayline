@@ -91,6 +91,8 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.inputPlaceholder': 'Napište zprávu agentovi...',
 	'agent.send': 'Odeslat',
 	'agent.thinking': 'Agent přemýšlí...',
+	'agent.attachFile': 'Přiložit soubor',
+	'agent.fileUploaded': '📁 {filename} nahráno',
 
 	'error.connection.title': 'Server je nedostupný',
 	'error.connection.message':

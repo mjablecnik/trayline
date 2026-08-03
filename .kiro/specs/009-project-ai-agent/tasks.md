@@ -225,17 +225,17 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Highlight based on `agent` path segment
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 16. Implement file upload support
-  - [ ] 16.1 Add `CopyToContainer` to `ContainerClient` interface in `remote/docker/container.go`
+- [x] 16. Implement file upload support
+  - [x] 16.1 Add `CopyToContainer` to `ContainerClient` interface in `remote/docker/container.go`
     - Add the method to the interface and implement it in `dockerClientAdapter`
     - _Requirements: 12.1_
 
-  - [ ] 16.2 Implement `CopyFileToContainer` helper in `remote/docker/container.go`
+  - [x] 16.2 Implement `CopyFileToContainer` helper in `remote/docker/container.go`
     - Create a tar archive in memory with a single file
     - Call `CopyToContainer` with destination `/tmp/uploads`
     - _Requirements: 12.1_
 
-  - [ ] 16.3 Handle binary WebSocket frames in `HandleProjectChat`
+  - [x] 16.3 Handle binary WebSocket frames in `HandleProjectChat`
     - Decode binary frame using existing `DecodeBinaryFrame`
     - Validate file size (max 50 MB) and sanitize filename
     - Call `CopyFileToContainer` to write into the running container
@@ -245,7 +245,7 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Prepend upload metadata to next user prompt
     - _Requirements: 12.1–12.5, 12.7_
 
-  - [ ] 16.4 Add file upload UI to `ChatInterface.svelte`
+  - [x] 16.4 Add file upload UI to `ChatInterface.svelte`
     - Add 📎 button next to message input
     - Implement drag-and-drop on chat area
     - Read file as ArrayBuffer, encode as binary frame, send via WebSocket
@@ -253,7 +253,7 @@ Implements per-project AI agent chat for the trayline dashboard. The backend ext
     - Disable upload button while agent is processing or session is not active
     - _Requirements: 12.8, 12.9_
 
-- [ ] 17. Final checkpoint — Full integration
+- [x] 17. Final checkpoint — Full integration
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

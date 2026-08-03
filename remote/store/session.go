@@ -26,6 +26,13 @@ type Session struct {
 	Ctx           context.Context    `json:"-"`
 	CancelFunc    context.CancelFunc `json:"-"`
 	Stdin         io.WriteCloser     `json:"-"` // container stdin writer
+	UploadedFiles []UploadedFile     `json:"-"` // files uploaded since the last prompt was sent
+}
+
+// UploadedFile tracks a file uploaded into a project agent session's container.
+type UploadedFile struct {
+	OriginalName string // filename as sent by the client
+	SafeName     string // sanitized filename actually written into the container
 }
 
 // SessionStore is a thread-safe store for active chat sessions.

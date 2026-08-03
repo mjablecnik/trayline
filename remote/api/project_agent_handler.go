@@ -26,6 +26,9 @@ import (
 // validProjectName matches only safe project directory names.
 var validProjectName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// projectUploadDir is the in-container directory where uploaded files are written.
+const projectUploadDir = "/tmp/uploads"
+
 // ProjectAgentHandler handles project-scoped AI agent endpoints.
 type ProjectAgentHandler struct {
 	store    *store.SessionStore
@@ -86,6 +89,21 @@ func (h *ProjectAgentHandler) validateAgent(agent string) *core.ErrorResponse {
 // isKnownMessageType reports whether t is a recognized WSClientMessage type.
 func isKnownMessageType(t string) bool {
 	return t == "message" || t == "interrupt" || t == "terminate"
+}
+
+// buildProjectUploadMetadata constructs the "[Uploaded Files]" block prepended
+// to the next user prompt after files have been uploaded into the container.
+func buildProjectUploadMetadata(files []store.UploadedFile) string {
+	if len(files) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("[Uploaded Files]\n")
+	for _, f := range files {
+		sb.WriteString(fmt.Sprintf("- %s → %s/%s\n", f.OriginalName, projectUploadDir, f.SafeName))
+	}
+	sb.WriteString("\n")
+	return sb.String()
 }
 
 // saveState persists server state to disk, logging any error.
@@ -557,9 +575,16 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 		default:
 		}
 
-		_, data, err := conn.ReadMessage()
+		messageType, data, err := conn.ReadMessage()
 		if err != nil {
 			return
+		}
+
+		h.touchLastMessageAt(sessionID)
+
+		if messageType == websocket.BinaryMessage {
+			h.handleFileUpload(ctx, sessionID, conn, data)
+			continue
 		}
 
 		var msg WSClientMessage
@@ -567,8 +592,6 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 			h.writeWS(conn, WSServerMessage{Type: "error", Message: "invalid message format"})
 			continue
 		}
-
-		h.touchLastMessageAt(sessionID)
 
 		sess := h.store.Get(sessionID)
 		if sess == nil {
@@ -584,6 +607,12 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 		case "message":
 			if sess.Stdin != nil && msg.Prompt != "" {
 				prompt := msg.Prompt
+				if len(sess.UploadedFiles) > 0 {
+					prompt = buildProjectUploadMetadata(sess.UploadedFiles) + prompt
+					h.store.Update(sessionID, func(s *store.Session) {
+						s.UploadedFiles = nil
+					})
+				}
 				if sess.Agent == "claude" {
 					userMsg := map[string]interface{}{
 						"type":               "user",
@@ -613,4 +642,36 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 			return
 		}
 	}
+}
+
+// handleFileUpload decodes a WebSocket binary frame, validates it, and writes the
+// file into the session's running container at projectUploadDir.
+func (h *ProjectAgentHandler) handleFileUpload(ctx context.Context, sessionID string, conn *websocket.Conn, frame []byte) {
+	filename, data, err := DecodeBinaryFrame(frame)
+	if err != nil {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: err.Error()})
+		return
+	}
+	if len(data) > MaxUploadFileSize {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: fmt.Sprintf("file %q exceeds maximum size of %d bytes", filename, MaxUploadFileSize)})
+		return
+	}
+
+	sess := h.store.Get(sessionID)
+	if sess == nil || sess.ContainerID == "" {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "no active agent container"})
+		return
+	}
+
+	safeName := sanitizeFilename(filename)
+	if err := h.cm.CopyFileToContainer(ctx, sess.ContainerID, projectUploadDir, safeName, data); err != nil {
+		h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to upload file: " + err.Error()})
+		return
+	}
+
+	h.store.Update(sessionID, func(s *store.Session) {
+		s.UploadedFiles = append(s.UploadedFiles, store.UploadedFile{OriginalName: filename, SafeName: safeName})
+	})
+
+	h.writeWS(conn, WSServerMessage{Type: "file_uploaded", Data: filename})
 }

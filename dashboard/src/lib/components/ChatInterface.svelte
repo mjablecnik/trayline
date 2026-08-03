@@ -6,6 +6,7 @@
 	import { t } from '$lib/i18n';
 	import { agentStore } from '$lib/stores/agent';
 	import { canSubmitMessage } from '$lib/utils/chat';
+	import { encodeUploadFrame } from '$lib/utils/upload';
 
 	let {
 		projectName,
@@ -36,6 +37,7 @@
 
 	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+	let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
 
 	// Set right before an intentional ws.close() so the onclose handler
 	// can distinguish it from an unexpected drop.
@@ -160,6 +162,9 @@
 				processing = false;
 				agentStore.markLastUserMessageError(msg.message ?? $t('agent.sendError'));
 				break;
+			case 'file_uploaded':
+				agentStore.addSystemMessage($t('agent.fileUploaded').replace('{filename}', msg.data ?? ''));
+				break;
 			case 'terminated':
 				clientInitiatedClose = true;
 				ws?.close();
@@ -228,6 +233,33 @@
 		processing = true;
 		userScrolledUp = false;
 		tick().then(scrollToBottom);
+	}
+
+	async function sendFile(file: File) {
+		if (!ws || ws.readyState !== WebSocket.OPEN) return;
+		const data = new Uint8Array(await file.arrayBuffer());
+		ws.send(encodeUploadFrame(file.name, data));
+	}
+
+	function handleFileInputChange(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (file) sendFile(file);
+		input.value = '';
+	}
+
+	function handleAttachClick() {
+		fileInputEl?.click();
+	}
+
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+	}
+
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		const file = event.dataTransfer?.files?.[0];
+		if (file) sendFile(file);
 	}
 
 	function sendInterrupt() {
@@ -308,6 +340,9 @@
 		<div
 			bind:this={messagesEl}
 			onscroll={handleScroll}
+			ondragover={handleDragOver}
+			ondrop={handleDrop}
+			role="log"
 			class="flex-1 overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-800"
 		>
 			<div class="flex flex-col gap-3">
@@ -351,6 +386,17 @@
 		</div>
 
 		<div class="flex items-end gap-2">
+			<input bind:this={fileInputEl} type="file" class="hidden" onchange={handleFileInputChange} />
+			<button
+				type="button"
+				onclick={handleAttachClick}
+				disabled={processing}
+				title={$t('agent.attachFile')}
+				aria-label={$t('agent.attachFile')}
+				class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50"
+			>
+				📎
+			</button>
 			<textarea
 				bind:this={textareaEl}
 				value={input}

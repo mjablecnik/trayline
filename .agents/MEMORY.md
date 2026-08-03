@@ -1,5 +1,11 @@
 # Memory
 
+## docker.ContainerClient interface has three separate test-double implementations that must stay in sync
+- Project: trayline (remote, 009-project-ai-agent spec, task 16 file upload)
+- Problem: Adding `CopyToContainer` to the `docker.ContainerClient` interface (for `CopyFileToContainer`/file-upload support) broke compilation of `remote/api` and `remote/store` tests, not just `remote/docker`. Three independent fakes implement this interface: `docker/mock_test.go`'s `MockContainerClient`, `api/router_test.go`'s `noopContainerClient`, and `store/state_test.go`'s `stateTestMock`. `go build ./...` doesn't catch this — only `go test ./...` does, since the fakes live in `_test.go` files.
+- Solution: Whenever a method is added to `ContainerClient`, grep for `ContainerKill(` (the interface's last/simplest method) across the repo to find all fakes, and add the new method's zero-value implementation to each before running `go test ./...`.
+- Source: create-code, 2026-08-03 12:25
+
 ## git show <ref>:<path> succeeds for directory paths and returns a tree listing, not an error
 - Project: trayline (remote, 001-dashboard-api-projects spec)
 - Problem: `git show <ref>:<path>` does not fail when `<path>` resolves to a directory (tree) rather than a file (blob) — it exits 0 and prints a plain-text tree listing to stdout instead. A naive `git.Blob(repoPath, ref, path)` built on `git show` alone would silently return that listing as if it were file content for any directory path, instead of erroring, which would misbehave badly in the future blob HTTP endpoint (task 11): a client requesting `/blob/<ref>/src` (a directory) would get 200 with fake "file content" instead of a 404.

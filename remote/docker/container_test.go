@@ -1,9 +1,11 @@
 package docker
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -421,5 +423,36 @@ func TestRunOneShot_StopAndRemoveCalledOnSuccess(t *testing.T) {
 	}
 	if atomic.LoadInt32(&mock.RemoveCount) == 0 {
 		t.Error("expected ContainerRemove to be called")
+	}
+}
+
+func TestCopyFileToContainer_WritesTarWithFileContent(t *testing.T) {
+	mock := NewMockContainerClient()
+	mgr := newOneShotManager(t, mock, 1)
+
+	data := []byte("hello uploaded file")
+	if err := mgr.CopyFileToContainer(context.Background(), "container-1", "/tmp/uploads", "notes.txt", data); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	written, ok := mock.CopiedFiles["container-1:/tmp/uploads"]
+	if !ok {
+		t.Fatal("expected CopyToContainer to be called with the given containerID and dstPath")
+	}
+
+	tr := tar.NewReader(bytes.NewReader(written))
+	hdr, err := tr.Next()
+	if err != nil {
+		t.Fatalf("failed to read tar entry: %v", err)
+	}
+	if hdr.Name != "notes.txt" {
+		t.Errorf("expected tar entry name %q, got %q", "notes.txt", hdr.Name)
+	}
+	content, err := io.ReadAll(tr)
+	if err != nil {
+		t.Fatalf("failed to read tar content: %v", err)
+	}
+	if string(content) != string(data) {
+		t.Errorf("expected tar content %q, got %q", data, content)
 	}
 }

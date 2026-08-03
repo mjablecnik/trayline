@@ -4,7 +4,7 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
 export interface ChatMessage {
 	id: string;
-	role: 'user' | 'agent';
+	role: 'user' | 'agent' | 'system';
 	content: string;
 	complete: boolean; // false while agent is still streaming
 	error?: string; // inline error for failed sends
@@ -61,6 +61,13 @@ function createAgentStore() {
 			update((s) => ({
 				...s,
 				messages: [...s.messages, { id, role: 'user', content, complete: true }]
+			}));
+		},
+		addSystemMessage(content: string) {
+			const id = crypto.randomUUID();
+			update((s) => ({
+				...s,
+				messages: [...s.messages, { id, role: 'system', content, complete: true }]
 			}));
 		},
 		appendAgentOutput(text: string) {

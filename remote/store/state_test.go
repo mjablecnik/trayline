@@ -316,6 +316,10 @@ func (m *stateTestMock) ContainerKill(_ context.Context, _ string, _ string) err
 	return nil
 }
 
+func (m *stateTestMock) CopyToContainer(_ context.Context, _ string, _ string, _ io.Reader, _ dockertypes.CopyToContainerOptions) error {
+	return nil
+}
+
 // --- Helpers ---
 
 func genPersistedTask(t *rapid.T, index int) persistedTask {
