@@ -206,6 +206,62 @@ export function buildWsUrl(
 	return `${base}/projects/${encoded}/chat?${params}`;
 }
 
+export type PipelineType = 'tasks' | 'processes' | 'workflows';
+
+export interface Pipeline {
+	name: string;
+	type: PipelineType;
+	display_name: string;
+}
+
+export interface PipelinesResponse {
+	tasks: Pipeline[];
+	processes: Pipeline[];
+	workflows: Pipeline[];
+}
+
+export interface PipelineDetail {
+	name: string;
+	type: string;
+	variables: Record<string, string>;
+}
+
+export interface Spec {
+	name: string;
+	created_at: string;
+}
+
+export type WorkflowStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface Workflow {
+	id: string;
+	pipeline: string;
+	variables: Record<string, string>;
+	status: WorkflowStatus;
+	created_at: string;
+	started_at?: string;
+	completed_at?: string;
+	error?: string;
+	exit_code?: number;
+	log?: string;
+	truncated?: boolean;
+}
+
+export interface ScheduleWorkflowRequest {
+	pipeline: string;
+	variables: Record<string, string>;
+}
+
+export interface EditWorkflowRequest {
+	pipeline?: string;
+	variables: Record<string, string>;
+}
+
+export function buildWorkflowLogWsUrl(projectName: string, workflowId: string): string {
+	const base = (import.meta.env.PUBLIC_API_URL as string).replace(/^http/, 'ws');
+	return `${base}/projects/${encodeURIComponent(projectName)}/workflows/${encodeURIComponent(workflowId)}/logs`;
+}
+
 export const api = {
 	getProjects: () => request<Project[]>('GET', '/projects'),
 
@@ -270,5 +326,41 @@ export const api = {
 		request<{ session_id: string; status: string }>(
 			'POST',
 			`/sessions/${encodeURIComponent(sessionId)}/terminate`
+		),
+
+	getPipelines: (name: string) =>
+		request<PipelinesResponse>('GET', `/projects/${encodeURIComponent(name)}/pipelines`),
+
+	getPipelineDetail: (name: string, type: string, pipeline: string) =>
+		request<PipelineDetail>(
+			'GET',
+			`/projects/${encodeURIComponent(name)}/pipelines/${encodeURIComponent(type)}/${encodeURIComponent(pipeline)}`
+		),
+
+	getSpecs: (name: string) => request<Spec[]>('GET', `/projects/${encodeURIComponent(name)}/specs`),
+
+	getWorkflows: (name: string) =>
+		request<Workflow[]>('GET', `/projects/${encodeURIComponent(name)}/workflows`),
+
+	getWorkflow: (name: string, id: string) =>
+		request<Workflow>(
+			'GET',
+			`/projects/${encodeURIComponent(name)}/workflows/${encodeURIComponent(id)}`
+		),
+
+	createWorkflow: (name: string, data: ScheduleWorkflowRequest) =>
+		request<Workflow>('POST', `/projects/${encodeURIComponent(name)}/workflows`, data),
+
+	updateWorkflow: (name: string, id: string, data: EditWorkflowRequest) =>
+		request<Workflow>(
+			'PUT',
+			`/projects/${encodeURIComponent(name)}/workflows/${encodeURIComponent(id)}`,
+			data
+		),
+
+	cancelWorkflow: (name: string, id: string) =>
+		request<Workflow>(
+			'DELETE',
+			`/projects/${encodeURIComponent(name)}/workflows/${encodeURIComponent(id)}`
 		)
 };

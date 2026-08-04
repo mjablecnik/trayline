@@ -34,6 +34,9 @@
 	<a href={resolve(`/[project]/env?ref=${refParam}`, { project })} class={tabClass('env')}>
 		{$t('tabs.env')}
 	</a>
+	<a href={resolve('/[project]/workflows', { project })} class={tabClass('workflows')}>
+		{$t('tabs.workflows')}
+	</a>
 	<a href={resolve(`/[project]/agent`, { project })} class={tabClass('agent')}>
 		{$t('tabs.agent')}
 	</a>
