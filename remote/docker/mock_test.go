@@ -32,6 +32,12 @@ type MockContainerClient struct {
 	AttachErr     error
 	CopyErr       error
 	CopiedFiles   map[string][]byte // "containerID:dstPath" -> raw tar bytes written
+
+	// ExistingContainerNames, when non-nil, makes ContainerInspect succeed only
+	// for names present in the set and fail (not found) for all others —
+	// letting tests simulate specific name conflicts. When nil, ContainerInspect
+	// falls back to the name-agnostic InspectResult/InspectErr behavior above.
+	ExistingContainerNames map[string]bool
 }
 
 func NewMockContainerClient() *MockContainerClient {
@@ -124,7 +130,13 @@ func (m *MockContainerClient) ContainerRemove(_ context.Context, _ string, _ doc
 	return nil
 }
 
-func (m *MockContainerClient) ContainerInspect(_ context.Context, _ string) (dockertypes.ContainerJSON, error) {
+func (m *MockContainerClient) ContainerInspect(_ context.Context, containerID string) (dockertypes.ContainerJSON, error) {
+	if m.ExistingContainerNames != nil {
+		if m.ExistingContainerNames[containerID] {
+			return m.InspectResult, nil
+		}
+		return dockertypes.ContainerJSON{}, fmt.Errorf("no such container: %s", containerID)
+	}
 	if m.InspectErr != nil {
 		return dockertypes.ContainerJSON{}, m.InspectErr
 	}

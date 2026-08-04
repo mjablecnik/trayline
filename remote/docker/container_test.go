@@ -239,6 +239,114 @@ func TestClaudeCredentialBindsAreReadOnly(t *testing.T) {
 	}
 }
 
+// --- Feature: 011-personal-assistant-agent, Property 1: Assistant container binds are correctly constructed ---
+
+func TestPropertyAssistantContainerBindsScoping(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		assistantDataDir := rapid.StringMatching(`/[a-zA-Z0-9_/.-]{1,40}`).Draw(t, "assistantDataDir")
+		projectsDir := rapid.StringMatching(`/[a-zA-Z0-9_/.-]{1,40}`).Draw(t, "projectsDir")
+		agent := rapid.SampledFrom([]string{"kiro", "claude", "unknown", ""}).Draw(t, "agent")
+
+		cfg := &core.Config{
+			AssistantDataDir:     assistantDataDir,
+			ProjectsDir:          projectsDir,
+			KiroHostDir:          "/host/.kiro",
+			KiroCredsHostDir:     "/host/.local/share/kiro-cli",
+			ClaudeHostDir:        "/host/.claude",
+			ClaudeConfigHostFile: "/host/.claude.json",
+		}
+		m := NewContainerManager(&MockContainerClient{}, cfg, core.NewLogger(""))
+
+		binds := m.BuildAssistantContainerBinds(agent)
+
+		if len(binds) < 2 {
+			t.Fatalf("expected at least 2 binds, got %v", binds)
+		}
+		if binds[0] != assistantDataDir+":/workspace" {
+			t.Fatalf("expected first bind %q, got %q", assistantDataDir+":/workspace", binds[0])
+		}
+		if binds[1] != projectsDir+":/projects" {
+			t.Fatalf("expected second bind %q, got %q", projectsDir+":/projects", binds[1])
+		}
+
+		switch agent {
+		case "kiro":
+			if !containsStr(binds, "/host/.kiro:/home/agent/.kiro") {
+				t.Fatalf("expected .kiro credential bind, got %v", binds)
+			}
+			if !containsStr(binds, "/host/.local/share/kiro-cli:/home/agent/.local/share/kiro-cli") {
+				t.Fatalf("expected kiro-cli credential bind, got %v", binds)
+			}
+			if len(binds) != 4 {
+				t.Fatalf("expected exactly 4 binds for kiro, got %v", binds)
+			}
+		case "claude":
+			if !containsStr(binds, "/host/.claude:/home/agent/.claude-src:ro") {
+				t.Fatalf("expected read-only .claude-src bind, got %v", binds)
+			}
+			if !containsStr(binds, "/host/.claude.json:/home/agent/.claude.json-src:ro") {
+				t.Fatalf("expected read-only .claude.json-src bind, got %v", binds)
+			}
+			if len(binds) != 4 {
+				t.Fatalf("expected exactly 4 binds for claude, got %v", binds)
+			}
+		default:
+			if len(binds) != 2 {
+				t.Fatalf("expected exactly 2 binds for unrecognized agent, got %v", binds)
+			}
+		}
+	})
+}
+
+// --- Feature: 011-personal-assistant-agent, Property 2: Assistant container name follows prefix format ---
+
+func TestPropertyAssistantContainerNamePrefixFormat(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		sessionID := rapid.StringMatching(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`).Draw(t, "sessionID")
+
+		cfg := &core.Config{}
+		// No container named "trayline-assistant-{first8}" exists.
+		mock := &MockContainerClient{InspectErr: fmt.Errorf("no such container")}
+		m := NewContainerManager(mock, cfg, core.NewLogger(""))
+
+		name := m.resolveAssistantContainerName(context.Background(), sessionID)
+
+		expected := "trayline-assistant-" + sessionID[:8]
+		if name != expected {
+			t.Fatalf("expected %q, got %q", expected, name)
+		}
+	})
+}
+
+// --- Feature: 011-personal-assistant-agent, Property 3: Container name conflict resolution appends numeric suffix ---
+
+func TestPropertyAssistantContainerNameConflictResolution(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		sessionID := rapid.StringMatching(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`).Draw(t, "sessionID")
+		// N containers with suffixes -2 through -(N+1) already exist, in addition
+		// to the unsuffixed base name. N ranges 0..4 so at least one free suffix
+		// remains within the 5-attempt (-2 through -6) budget.
+		n := rapid.IntRange(0, 4).Draw(t, "n")
+
+		base := "trayline-assistant-" + sessionID[:8]
+		existing := map[string]bool{base: true}
+		for i := 2; i <= n+1; i++ {
+			existing[fmt.Sprintf("%s-%d", base, i)] = true
+		}
+
+		cfg := &core.Config{}
+		mock := &MockContainerClient{ExistingContainerNames: existing}
+		m := NewContainerManager(mock, cfg, core.NewLogger(""))
+
+		name := m.resolveAssistantContainerName(context.Background(), sessionID)
+
+		expected := fmt.Sprintf("%s-%d", base, n+2)
+		if name != expected {
+			t.Fatalf("expected %q, got %q (existing: %v)", expected, name, existing)
+		}
+	})
+}
+
 // --- Property 10: Concurrency semaphore enforcement ---
 
 func TestPropertyConcurrencySemaphore(t *testing.T) {

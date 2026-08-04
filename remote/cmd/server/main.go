@@ -96,8 +96,15 @@ func main() {
 	specH := api.NewSpecHandler(cfg, logger)
 	workflowH := api.NewWorkflowHandler(workflowStore, cfg, logger, workflowStateMgr, workflowQueues)
 
+	assistantFolderMgr := api.NewAssistantFolderManager(cfg.AssistantDataDir, logger)
+	if err := assistantFolderMgr.Init(); err != nil {
+		logger.Error(ctx, "assistant folder initialization error: "+err.Error())
+		os.Exit(1)
+	}
+	assistantH := api.NewAssistantHandler(sessionStore, cm, logger, cfg, stateMgr, assistantFolderMgr)
+
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

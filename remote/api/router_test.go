@@ -72,7 +72,8 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 
 	logger := core.NewLogger(testAuthToken)
 	taskH := NewTaskHandler(store.NewTaskStore(), noopRunner{}, logger, nil, t.TempDir(), MaxUploadFileSize, MaxUploadFileCount, 32000)
-	cfg := &core.Config{APIToken: testAuthToken, SessionTimeout: time.Minute, ProjectsDir: projectsDir}
+	assistantDataDir := t.TempDir()
+	cfg := &core.Config{APIToken: testAuthToken, SessionTimeout: time.Minute, ProjectsDir: projectsDir, AssistantDataDir: assistantDataDir}
 	cm := docker.NewContainerManager(noopContainerClient{}, cfg, logger)
 	sessionStore := store.NewSessionStore()
 	sessionH := NewSessionHandler(sessionStore, cm, logger, cfg, nil)
@@ -88,7 +89,13 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 	queues := NewWorkflowQueueManager(workflowStore, cm, cfg, logger, nil)
 	workflowH := NewWorkflowHandler(workflowStore, cfg, logger, nil, queues)
 
-	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, testAuthToken, rl, logger, dashboardOrigin)
+	assistantFolderMgr := NewAssistantFolderManager(assistantDataDir, logger)
+	if err := assistantFolderMgr.Init(); err != nil {
+		t.Fatalf("assistant folder init: %v", err)
+	}
+	assistantH := NewAssistantHandler(sessionStore, cm, logger, cfg, nil, assistantFolderMgr)
+
+	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, testAuthToken, rl, logger, dashboardOrigin)
 	return router, projectsDir
 }
 

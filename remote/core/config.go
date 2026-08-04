@@ -53,6 +53,10 @@ type Config struct {
 	// WorkflowTimeout is the maximum duration a single workflow execution may run
 	// before its container is forcefully terminated.
 	WorkflowTimeout time.Duration
+
+	// AssistantDataDir is the host directory mounted as /workspace in personal
+	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
+	AssistantDataDir string
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -213,6 +217,17 @@ func LoadConfig() (*Config, error) {
 	}
 	if !info.IsDir() {
 		return nil, fmt.Errorf("PROJECTS_DIR %q is not a directory", cfg.ProjectsDir)
+	}
+
+	// ASSISTANT_DATA_DIR (optional, defaults to {parent of PROJECTS_DIR}/.assistant)
+	cfg.AssistantDataDir = os.Getenv("ASSISTANT_DATA_DIR")
+	if cfg.AssistantDataDir == "" {
+		cfg.AssistantDataDir = filepath.Join(filepath.Dir(cfg.ProjectsDir), ".assistant")
+	}
+	if assistantInfo, err := os.Stat(cfg.AssistantDataDir); err == nil {
+		if !assistantInfo.IsDir() {
+			return nil, fmt.Errorf("ASSISTANT_DATA_DIR %q exists but is not a directory", cfg.AssistantDataDir)
+		}
 	}
 
 	// DASHBOARD_ORIGIN (optional; empty disables CORS)

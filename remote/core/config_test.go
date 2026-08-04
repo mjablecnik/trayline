@@ -2,6 +2,7 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -313,6 +314,75 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		}
 		if cfg.MaxConcurrentTasks != 2 {
 			t.Errorf("expected MAX_CONCURRENT_TASKS default 2, got %d", cfg.MaxConcurrentTasks)
+		}
+	})
+
+	t.Run("ASSISTANT_DATA_DIR defaults to parent of PROJECTS_DIR plus .assistant", func(t *testing.T) {
+		projectsDir := filepath.Join(t.TempDir(), "projects")
+		if err := os.Mkdir(projectsDir, 0755); err != nil {
+			t.Fatalf("failed to create projects dir: %v", err)
+		}
+
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", projectsDir)
+		os.Unsetenv("ASSISTANT_DATA_DIR")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		want := filepath.Join(filepath.Dir(projectsDir), ".assistant")
+		if cfg.AssistantDataDir != want {
+			t.Errorf("expected AssistantDataDir default %q, got %q", want, cfg.AssistantDataDir)
+		}
+	})
+
+	t.Run("ASSISTANT_DATA_DIR set is honored", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("ASSISTANT_DATA_DIR", "/tmp/custom-assistant")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if cfg.AssistantDataDir != "/tmp/custom-assistant" {
+			t.Errorf("expected AssistantDataDir /tmp/custom-assistant, got %q", cfg.AssistantDataDir)
+		}
+	})
+
+	t.Run("ASSISTANT_DATA_DIR not a directory fails", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "not-a-dir")
+		if err != nil {
+			t.Fatalf("failed to create temp file: %v", err)
+		}
+		f.Close()
+
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("ASSISTANT_DATA_DIR", f.Name())
+
+		_, err = LoadConfig()
+		if err == nil {
+			t.Fatal("expected error when ASSISTANT_DATA_DIR is not a directory")
+		}
+	})
+
+	t.Run("ASSISTANT_DATA_DIR does not exist is not validated at load time", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("ASSISTANT_DATA_DIR", "/nonexistent/does-not-exist")
+
+		if _, err := LoadConfig(); err != nil {
+			t.Fatalf("expected no error even though ASSISTANT_DATA_DIR does not exist on disk (creation deferred to AssistantFolderManager.Init), got: %v", err)
 		}
 	})
 }

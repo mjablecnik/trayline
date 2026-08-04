@@ -517,6 +517,104 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 	return binds
 }
 
+// BuildAssistantContainerBinds constructs volume binds for the personal assistant
+// container. Mounts AssistantDataDir as /workspace (CWD — the agent finds
+// CLAUDE.md here) and ProjectsDir as /projects (all projects, read-write),
+// plus agent credentials at /home/agent/. Unlike other containers, there is
+// no home directory mount — only the dedicated credential paths.
+func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
+	const agentHome = "/home/agent"
+
+	binds := []string{
+		m.config.AssistantDataDir + ":" + workspaceMount,
+		m.config.ProjectsDir + ":" + "/projects",
+	}
+
+	switch agent {
+	case "kiro":
+		if m.config.KiroHostDir != "" {
+			binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro")
+		}
+		if m.config.KiroCredsHostDir != "" {
+			binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
+		}
+	case "claude":
+		// Mounted read-only at a "-src" path; the container's entrypoint copies
+		// these into a private writable location (see wrapWithClaudeCredentialSeed)
+		// instead of every container writing back to the same host file.
+		if m.config.ClaudeHostDir != "" {
+			binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude-src:ro")
+		}
+		if m.config.ClaudeConfigHostFile != "" {
+			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
+		}
+	}
+
+	return binds
+}
+
+// StartAssistantChatContainer creates a persistent interactive container for the
+// personal assistant. Mounts ASSISTANT_DATA_DIR at /workspace (CWD) and PROJECTS_DIR
+// at /projects. Sets container name with "trayline-assistant-" prefix.
+// Does NOT start the container — caller must attach then start.
+func (m *ContainerManager) StartAssistantChatContainer(ctx context.Context, agent, model, system, sessionID string) (string, error) {
+	cmd := buildChatCmd(agent, model, system)
+	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
+	useTTY := agent != "claude"
+
+	containerName := m.resolveAssistantContainerName(ctx, sessionID)
+
+	cfg := &container.Config{
+		Image:       SandboxImage,
+		Cmd:         cmd,
+		Env:         m.buildContainerEnv(),
+		Tty:         useTTY,
+		AttachStdin: true,
+		OpenStdin:   true,
+		StdinOnce:   false,
+		WorkingDir:  workspaceMount, // /workspace = ASSISTANT_DATA_DIR
+	}
+
+	hostCfg := &container.HostConfig{
+		Binds:      m.BuildAssistantContainerBinds(agent),
+		AutoRemove: false,
+	}
+
+	netCfg := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			sandboxNetwork: {},
+		},
+	}
+
+	resp, err := m.client.ContainerCreate(ctx, cfg, hostCfg, netCfg, containerName)
+	if err != nil {
+		return "", fmt.Errorf("failed to create assistant container: %w", err)
+	}
+	return resp.ID, nil
+}
+
+// resolveAssistantContainerName returns "trayline-assistant-{short}" where short
+// is the first 8 chars of sessionID. On naming conflict, appends -2, -3, etc.
+// up to 5 attempts.
+func (m *ContainerManager) resolveAssistantContainerName(ctx context.Context, sessionID string) string {
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	base := "trayline-assistant-" + short
+	name := base
+
+	for i := 2; i <= 6; i++ {
+		_, err := m.client.ContainerInspect(ctx, name)
+		if err != nil {
+			return name // container does not exist, name is free
+		}
+		name = fmt.Sprintf("%s-%d", base, i)
+	}
+	return name // best effort — Docker will error if still conflicting
+}
+
 // buildWorkflowContainerBinds constructs volume binds for a one-shot workflow
 // container: the project directory at /workspace, plus TraylineHomeDir mounted
 // read-only at /home/agent/.trayline (so `trayline run` can read pipelines and

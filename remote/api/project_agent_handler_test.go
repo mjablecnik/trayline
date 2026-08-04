@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -133,6 +134,35 @@ func TestBuildProjectUploadMetadata_FormatsEachFile(t *testing.T) {
 	if !strings.Contains(got, "- data.csv → /tmp/uploads/data.csv\n") {
 		t.Errorf("expected metadata to reference data.csv, got %q", got)
 	}
+}
+
+// Feature: personal-assistant-agent, Property 13: Upload metadata construction
+func TestPropertyBuildProjectUploadMetadataFormat(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 8).Draw(t, "n")
+		files := make([]store.UploadedFile, n)
+		for i := range files {
+			files[i] = store.UploadedFile{
+				OriginalName: rapid.StringMatching(`[a-zA-Z0-9._ -]{1,20}`).Draw(t, "original"),
+				SafeName:     rapid.StringMatching(`[a-zA-Z0-9._-]{1,20}`).Draw(t, "safe"),
+			}
+		}
+
+		got := buildProjectUploadMetadata(files)
+
+		if !strings.HasPrefix(got, "[Uploaded Files]\n") {
+			t.Fatalf("expected metadata to start with header, got %q", got)
+		}
+		if !strings.HasSuffix(got, "\n\n") {
+			t.Fatalf("expected metadata to end with a blank line, got %q", got)
+		}
+		for _, f := range files {
+			want := fmt.Sprintf("- %s → /tmp/uploads/%s\n", f.OriginalName, f.SafeName)
+			if !strings.Contains(got, want) {
+				t.Fatalf("expected metadata to contain %q, got %q", want, got)
+			}
+		}
+	})
 }
 
 // Regression: terminating a session must remove it from the store and

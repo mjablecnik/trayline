@@ -23,6 +23,7 @@ func NewRouter(
 	pipelineH *PipelineHandler,
 	specH *SpecHandler,
 	workflowH *WorkflowHandler,
+	assistantH *AssistantHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
@@ -82,6 +83,23 @@ func NewRouter(
 	mux.HandleFunc("PUT /projects/{name}/workflows/{id}", workflowH.HandleEdit)
 	mux.HandleFunc("DELETE /projects/{name}/workflows/{id}", workflowH.HandleCancel)
 	mux.HandleFunc("GET /projects/{name}/workflows/{id}/logs", workflowH.HandleLogs)
+
+	// Assistant endpoints.
+	mux.HandleFunc("GET /assistant/chat", assistantH.HandleAssistantChat)
+	mux.HandleFunc("GET /assistant/chat/{id}", assistantH.HandleAssistantChatReconnect)
+	mux.HandleFunc("GET /assistant/sessions", assistantH.HandleAssistantSessions)
+	mux.HandleFunc("POST /assistant/sessions/{id}/terminate", assistantH.HandleTerminateAssistantSession)
+	mux.HandleFunc("GET /assistant/prompts", assistantH.HandleListPrompts)
+	mux.HandleFunc("GET /assistant/prompts/{filename}", assistantH.HandleGetPrompt)
+	mux.HandleFunc("PUT /assistant/prompts/{filename}", assistantH.HandlePutPrompt)
+	mux.HandleFunc("DELETE /assistant/prompts/{filename}", assistantH.HandleDeletePrompt)
+	// Note: /assistant/files/commits and /assistant/files/status must be
+	// registered before the /assistant/files/{path...} wildcard so the
+	// specific paths match first.
+	mux.HandleFunc("GET /assistant/files/commits", assistantH.HandleFileCommits)
+	mux.HandleFunc("GET /assistant/files/status", assistantH.HandleFileStatus)
+	mux.HandleFunc("GET /assistant/files", assistantH.HandleFiles)
+	mux.HandleFunc("GET /assistant/files/{path...}", assistantH.HandleFiles)
 
 	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
 	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))
