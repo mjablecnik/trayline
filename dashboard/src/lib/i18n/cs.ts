@@ -7,6 +7,7 @@ const cs: Record<keyof typeof en, string> = {
 	'nav.sessions': 'Relace',
 	'nav.logout': 'Odhlásit',
 	'nav.menu': 'Menu',
+	'nav.assistant': 'Asistent',
 
 	'auth.title': 'Trayline Dashboard',
 	'auth.subtitle': 'Pro připojení zadejte API token.',
@@ -166,7 +167,37 @@ const cs: Record<keyof typeof en, string> = {
 	'error.fallback.retry': 'Načíst znovu',
 
 	'common.loading': 'Načítání...',
-	'common.retry': 'Zkusit znovu'
+	'common.retry': 'Zkusit znovu',
+
+	'assistant.chatTab': 'Chat',
+	'assistant.filesTab': 'Soubory',
+	'assistant.summarize': 'Sumarizovat',
+	'assistant.reset': 'Reset',
+	'assistant.resetDialog': 'Začít novou relaci:',
+	'assistant.resetWithSummary': 'Se shrnutím',
+	'assistant.resetWithoutSummary': 'Bez shrnutí',
+	'assistant.resetCancel': 'Zrušit',
+	'assistant.noSummaryWarning': 'Soubor shrnutí nebyl nalezen. Pokračuji bez shrnutí.',
+	'assistant.prompts': 'Rychlé prompty',
+	'assistant.promptsEmpty': 'Žádné uložené prompty.',
+	'assistant.promptsError': 'Prompty se nepodařilo načíst.',
+	'assistant.filesEmpty': 'Složka asistenta je prázdná.',
+	'assistant.filesError': 'Soubory se nepodařilo načíst.',
+	'assistant.history': 'Historie',
+	'assistant.historyEmpty': 'Zatím žádné commity.',
+	'assistant.statusClean': 'Vše commitnuto.',
+	'assistant.statusDirty': 'Necommitnuté změny',
+	'assistant.refresh': 'Obnovit',
+	'assistant.breadcrumbRoot': 'Asistent',
+	'assistant.connectionError': 'Spojení přerušeno.',
+	'assistant.reconnect': 'Znovu připojit',
+	'assistant.sessionLost': 'Relace již není dostupná.',
+	'assistant.newSession': 'Nová relace',
+	'assistant.serverBusy': 'Server je vytížený. Zkuste to později.',
+	'assistant.sendError': 'Nepodařilo se odeslat zprávu.',
+	'assistant.fileUploaded': 'Soubor nahrán',
+	'assistant.uploadError': 'Nahrávání selhalo',
+	'assistant.contextCompacted': 'Kontext byl zkrácen, aby se vešel do limitu.'
 };
 
 export default cs;

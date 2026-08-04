@@ -190,6 +190,72 @@ export interface AgentSession {
 	last_message_at: string;
 }
 
+export interface StarterPrompt {
+	filename: string;
+	display_name: string;
+	content: string;
+}
+
+export interface AssistantFileEntry {
+	name: string;
+	type: 'file' | 'directory';
+	size: number;
+}
+
+export interface AssistantDirectoryResponse {
+	path: string;
+	entries: AssistantFileEntry[];
+}
+
+export interface AssistantFileContentResponse {
+	path: string;
+	filename: string;
+	size: number;
+	content: string | null;
+	truncated: boolean;
+}
+
+export interface AssistantSession {
+	session_id: string;
+	agent: string;
+	model?: string;
+	is_assistant: boolean;
+	created_at: string;
+	last_message_at: string;
+}
+
+export interface GitCommitEntry {
+	hash: string;
+	short_hash: string;
+	message: string;
+	date: string;
+}
+
+export interface GitStatusFile {
+	path: string;
+	status: string;
+}
+
+export interface GitStatusResponse {
+	clean: boolean;
+	files: GitStatusFile[];
+	summary: {
+		files_changed: number;
+		insertions: number;
+		deletions: number;
+	};
+}
+
+export function buildAssistantWsUrl(agent: string, model?: string, sessionId?: string): string {
+	const base = (import.meta.env.PUBLIC_API_URL as string).replace(/^http/, 'ws');
+	if (sessionId) {
+		return `${base}/assistant/chat/${encodeURIComponent(sessionId)}`;
+	}
+	const params = new URLSearchParams({ agent });
+	if (model) params.set('model', model);
+	return `${base}/assistant/chat?${params}`;
+}
+
 export function buildWsUrl(
 	projectName: string,
 	agent: string,
@@ -362,5 +428,40 @@ export const api = {
 		request<Workflow>(
 			'DELETE',
 			`/projects/${encodeURIComponent(name)}/workflows/${encodeURIComponent(id)}`
-		)
+		),
+
+	getAssistantSessions: () => request<AssistantSession[]>('GET', '/assistant/sessions'),
+
+	terminateAssistantSession: (sessionId: string) =>
+		request<{ session_id: string; status: string }>(
+			'POST',
+			`/assistant/sessions/${encodeURIComponent(sessionId)}/terminate`
+		),
+
+	getAssistantPrompts: () => request<StarterPrompt[]>('GET', '/assistant/prompts'),
+
+	getAssistantPrompt: (filename: string) =>
+		request<StarterPrompt>('GET', `/assistant/prompts/${encodeURIComponent(filename)}`),
+
+	putAssistantPrompt: (filename: string, content: string) =>
+		request<{ status: string }>('PUT', `/assistant/prompts/${encodeURIComponent(filename)}`, {
+			content
+		}),
+
+	deleteAssistantPrompt: (filename: string) =>
+		request<{ status: string }>('DELETE', `/assistant/prompts/${encodeURIComponent(filename)}`),
+
+	getAssistantFiles: (path?: string) =>
+		request<AssistantDirectoryResponse | AssistantFileContentResponse>(
+			'GET',
+			`/assistant/files${path ? '/' + encodePath(path) : ''}`
+		),
+
+	getAssistantFileCommits: (limit = 20, offset = 0) =>
+		request<GitCommitEntry[]>('GET', `/assistant/files/commits?limit=${limit}&offset=${offset}`),
+
+	getAssistantFileStatus: () => request<GitStatusResponse>('GET', '/assistant/files/status'),
+
+	getAssistantSummary: () =>
+		request<AssistantFileContentResponse>('GET', '/assistant/files/summary.md')
 };

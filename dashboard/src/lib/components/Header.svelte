@@ -10,6 +10,7 @@
 
 	let isProjectsActive = $derived(page.url.pathname === resolve('/'));
 	let isSessionsActive = $derived(page.url.pathname.startsWith(resolve('/sessions')));
+	let isAssistantActive = $derived(page.url.pathname.startsWith(resolve('/assistant')));
 
 	function navLinkClass(active: boolean): string {
 		return active
@@ -30,6 +31,9 @@
 				<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
 				<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}
 					>{$t('nav.sessions')}</a
+				>
+				<a href={resolve('/assistant')} class={navLinkClass(isAssistantActive)}
+					>{$t('nav.assistant')}</a
 				>
 			</nav>
 		</div>
@@ -64,6 +68,9 @@
 		>
 			<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
 			<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}>{$t('nav.sessions')}</a>
+			<a href={resolve('/assistant')} class={navLinkClass(isAssistantActive)}
+				>{$t('nav.assistant')}</a
+			>
 			<LanguageSwitcher />
 			{#if $isAuthenticated}
 				<LogoutButton />

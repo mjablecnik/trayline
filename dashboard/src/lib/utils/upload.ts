@@ -10,3 +10,26 @@ export function encodeUploadFrame(filename: string, data: Uint8Array): Uint8Arra
 	frame.set(data, 4 + nameBytes.length);
 	return frame;
 }
+
+/** Extracts the first dropped file from a drag-and-drop event, if any. */
+export function extractDroppedFile(event: DragEvent): File | null {
+	return event.dataTransfer?.files?.[0] ?? null;
+}
+
+/**
+ * Extracts an image pasted from the clipboard (e.g. a screenshot copied with
+ * Win+Shift+S) as a File, so it can be sent the same way as a drag-and-drop
+ * upload. Returns null when the clipboard has no image content.
+ */
+export function extractPastedImageFile(event: ClipboardEvent): File | null {
+	const items = event.clipboardData?.items;
+	if (!items) return null;
+	for (const item of items) {
+		if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+		const file = item.getAsFile();
+		if (!file) continue;
+		const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
+		return new File([file], `clipboard-${crypto.randomUUID()}.${ext}`, { type: item.type });
+	}
+	return null;
+}
