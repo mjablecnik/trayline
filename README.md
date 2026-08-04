@@ -122,6 +122,21 @@ trayline sync push
 trayline sync pull --verbose
 ```
 
+## Dashboard
+
+`dashboard/` is a SvelteKit web UI for browsing projects, git history, files, env vars, agent chat sessions, and workflow runs on a `remote/` server.
+
+```bash
+cd dashboard
+npm install
+cp .env.example .env   # set PUBLIC_API_URL to your remote server
+npm run dev             # local dev server
+npm run build           # static production build (output: build/)
+npm run check           # svelte-check
+npm run lint            # prettier + eslint
+npm run test            # vitest
+```
+
 ## How it works
 
 ```
@@ -148,6 +163,7 @@ trayline/
 │   ├── trayline-agent    # Docker sandbox runner for AI agents
 │   └── sync.sh           # Git + rsync sync wrapper
 ├── orchestrator/         # Go pipeline orchestrator (trayline-run) that runs pipelines
+├── dashboard/            # SvelteKit web UI for the remote/ agent API server
 ├── pipelines/            # YAML pipeline definitions consumed by the orchestrator
 │   ├── lifecycle.yaml    # Before/after hooks for every run
 │   ├── tasks/            # Atomic operations (check-build, release, sync)

@@ -13,6 +13,7 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 | `tools/taskline/cli/` | Go module `cli` — task queue CLI |
 | `tools/tunnel/` | Relay + home-agent tunnel utilities (Docker-based, no Go module) |
 | `setup/` | Unified installer, uninstaller, config templates, shell completions |
+| `dashboard/` | SvelteKit web UI for the `remote/` agent API server (npm project) |
 
 ## Installation
 
@@ -43,6 +44,7 @@ cd orchestrator && go build ./... && go test ./...
 cd remote && go build ./... && go test ./...
 cd tools/taskline/server && go build ./... && go test ./...
 cd tools/taskline/cli && go build ./... && go test ./...
+cd dashboard && npm run build && npm run check && npm run lint && npm run test
 ```
 
 ## Dependency Direction Rules
@@ -52,6 +54,7 @@ cd tools/taskline/cli && go build ./... && go test ./...
 - `remote/` may build/run the `runtime/sandbox/Dockerfile` image at runtime only — never as a compile-time Go import. It must not import `orchestrator/` or `tools/`.
 - `tools/` is fully self-contained — no imports or path references into `runtime/`, `orchestrator/`, `remote/`, `pipelines/`, or `setup/`.
 - `runtime/` and `pipelines/` contain no Go import statements or path references into any other directory.
+- `dashboard/` talks to `remote/`'s HTTP API only at runtime (via `PUBLIC_API_URL`) — no compile-time or path dependency on any other directory.
 
 ## Other Key Paths
 
