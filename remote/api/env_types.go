@@ -5,9 +5,12 @@ type EnvListResponse struct {
 	Files []EnvFileResponse `json:"files"`
 }
 
-// EnvFileResponse describes one .env file and its parsed variables.
+// EnvFileResponse describes one .env file and its parsed variables. Path is
+// relative to the project root and "/"-joined, so files with the same
+// filename in different directories (e.g. "backend/.env" and
+// "frontend/.env") are distinguishable.
 type EnvFileResponse struct {
-	Filename  string           `json:"filename"`
+	Path      string           `json:"path"`
 	Variables []EnvVarResponse `json:"variables"`
 }
 
@@ -19,7 +22,7 @@ type EnvVarResponse struct {
 
 // PutEnvRequest is the request body for PUT /projects/{name}/env.
 type PutEnvRequest struct {
-	Filename  string          `json:"filename"`
+	Path      string          `json:"path"`
 	Variables []EnvVarRequest `json:"variables"`
 }
 

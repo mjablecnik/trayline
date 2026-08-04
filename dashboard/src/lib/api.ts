@@ -168,7 +168,7 @@ export interface EnvVariable {
 }
 
 export interface EnvFile {
-	filename: string;
+	path: string;
 	variables: EnvVariable[];
 }
 
@@ -177,7 +177,7 @@ export interface EnvResponse {
 }
 
 export interface PutEnvRequest {
-	filename: string;
+	path: string;
 	variables: EnvVariable[];
 }
 

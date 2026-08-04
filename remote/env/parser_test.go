@@ -90,6 +90,51 @@ func TestDiscover_FiltersAndSorts(t *testing.T) {
 	}
 }
 
+func TestDiscover_FindsNestedFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, ".env", "")
+	for _, sub := range []string{"backend", "frontend/config"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", sub, err)
+		}
+	}
+	writeTempFile(t, filepath.Join(dir, "backend"), ".env", "")
+	writeTempFile(t, filepath.Join(dir, "backend"), ".env.local", "")
+	writeTempFile(t, filepath.Join(dir, "frontend", "config"), ".env.prod", "")
+
+	got, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	want := []string{".env", "backend/.env", "backend/.env.local", "frontend/config/.env.prod"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Discover = %v, want %v", got, want)
+	}
+}
+
+func TestDiscover_SkipsDependencyDirectories(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, ".env", "")
+	for _, skipped := range []string{".git", "node_modules", "vendor", ".venv", "venv"} {
+		sub := filepath.Join(dir, skipped)
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", skipped, err)
+		}
+		writeTempFile(t, sub, ".env", "")
+	}
+
+	got, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	want := []string{".env"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Discover = %v, want %v (dependency dirs should be skipped)", got, want)
+	}
+}
+
 func TestDiscover_EmptyWhenNoEnvFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeTempFile(t, dir, "README.md", "")

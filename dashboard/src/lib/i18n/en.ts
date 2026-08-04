@@ -75,6 +75,8 @@ export default {
 	'env.saveSuccess': 'Saved.',
 	'env.saveError': 'Could not save this file.',
 	'env.reference': 'Reference (.env.example)',
+	'env.files': 'Environment files',
+	'env.unsavedChanges': 'Unsaved changes',
 
 	'agent.sessions': 'Sessions',
 	'agent.selectAgent': 'Select agent',

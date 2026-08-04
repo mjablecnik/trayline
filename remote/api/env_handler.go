@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"remote/core"
 	"remote/env"
@@ -56,7 +55,7 @@ func (h *EnvHandler) HandleGetEnv(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filenames, err := env.Discover(projectPath)
+	relPaths, err := env.Discover(projectPath)
 	if err != nil {
 		h.logger.Error(r.Context(), "env discover error: "+err.Error())
 		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
@@ -66,9 +65,9 @@ func (h *EnvHandler) HandleGetEnv(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files := make([]EnvFileResponse, 0, len(filenames))
-	for _, filename := range filenames {
-		ef, err := env.Parse(filepath.Join(projectPath, filename))
+	files := make([]EnvFileResponse, 0, len(relPaths))
+	for _, relPath := range relPaths {
+		ef, err := env.Parse(filepath.Join(projectPath, filepath.FromSlash(relPath)))
 		if err != nil {
 			h.logger.Error(r.Context(), "env parse error: "+err.Error())
 			writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
@@ -82,7 +81,7 @@ func (h *EnvHandler) HandleGetEnv(w http.ResponseWriter, r *http.Request) {
 		for _, v := range ef.Variables {
 			vars = append(vars, EnvVarResponse{Key: v.Key, Value: v.Value})
 		}
-		files = append(files, EnvFileResponse{Filename: filename, Variables: vars})
+		files = append(files, EnvFileResponse{Path: relPath, Variables: vars})
 	}
 
 	writeJSON(w, http.StatusOK, EnvListResponse{Files: files})
@@ -106,6 +105,15 @@ func (h *EnvHandler) HandlePutEnv(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relPath, err := validateEnvPath(projectPath, req.Path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+			Error:   "VALIDATION_ERROR",
+			Message: fmt.Sprintf("path %q must be a .env file within the project, with no \"..\" segments", req.Path),
+		})
+		return
+	}
+
 	if msg := validatePutEnvRequest(req); msg != "" {
 		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
@@ -114,18 +122,7 @@ func (h *EnvHandler) HandlePutEnv(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// filename has already been validated to contain no path separators, so
-	// this join cannot escape projectPath — checked explicitly anyway as
-	// defense in depth per REQ-4.
-	filePath := filepath.Join(projectPath, req.Filename)
-	projectClean := filepath.Clean(projectPath)
-	if !strings.HasPrefix(filePath, projectClean+string(filepath.Separator)) {
-		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
-			Error:   "VALIDATION_ERROR",
-			Message: "resolved path escapes project directory",
-		})
-		return
-	}
+	filePath := filepath.Join(projectPath, filepath.FromSlash(relPath))
 
 	var comments []string
 	if existing, err := env.Parse(filePath); err == nil {
@@ -154,22 +151,34 @@ func (h *EnvHandler) HandlePutEnv(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Info(r.Context(), fmt.Sprintf(
-		"env file updated project=%s filename=%s variables=%d", name, req.Filename, len(req.Variables)))
+		"env file updated project=%s path=%s variables=%d", name, relPath, len(req.Variables)))
 
 	respVars := make([]EnvVarResponse, 0, len(req.Variables))
 	for _, v := range req.Variables {
 		respVars = append(respVars, EnvVarResponse{Key: v.Key, Value: v.Value})
 	}
-	writeJSON(w, http.StatusOK, EnvFileResponse{Filename: req.Filename, Variables: respVars})
+	writeJSON(w, http.StatusOK, EnvFileResponse{Path: relPath, Variables: respVars})
 }
 
-// validatePutEnvRequest validates a PutEnvRequest and returns a descriptive
-// error message, or "" if the request is valid.
-func validatePutEnvRequest(req PutEnvRequest) string {
-	if !validFilenameRegex.MatchString(req.Filename) || strings.ContainsAny(req.Filename, "/\\") {
-		return fmt.Sprintf("filename %q must match ^\\.env(\\..+)?$ and contain no path separators", req.Filename)
+// validateEnvPath validates a client-supplied relative .env file path: no
+// ".." segments, must resolve within projectPath (mirrors the tree/blob
+// handlers' own path validation), and its final segment must look like a
+// .env file. Returns the cleaned, "/"-joined relative path.
+func validateEnvPath(projectPath, path string) (string, error) {
+	cleaned, err := validateSubPath(projectPath, path)
+	if err != nil {
+		return "", err
 	}
+	if cleaned == "" || !validFilenameRegex.MatchString(filepath.Base(cleaned)) {
+		return "", errInvalidPath
+	}
+	return cleaned, nil
+}
 
+// validatePutEnvRequest validates a PutEnvRequest's variables and returns a
+// descriptive error message, or "" if they're valid. The path itself is
+// validated separately by validateEnvPath.
+func validatePutEnvRequest(req PutEnvRequest) string {
 	seen := make(map[string]struct{}, len(req.Variables))
 	for _, v := range req.Variables {
 		if v.Key == "" {

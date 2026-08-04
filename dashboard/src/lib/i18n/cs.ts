@@ -77,6 +77,8 @@ const cs: Record<keyof typeof en, string> = {
 	'env.saveSuccess': 'Uloženo.',
 	'env.saveError': 'Tento soubor se nepodařilo uložit.',
 	'env.reference': 'Reference (.env.example)',
+	'env.files': 'Soubory prostředí',
+	'env.unsavedChanges': 'Neuložené změny',
 
 	'agent.sessions': 'Relace',
 	'agent.selectAgent': 'Vyberte agenta',

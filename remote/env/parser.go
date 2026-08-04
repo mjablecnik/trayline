@@ -4,6 +4,7 @@ package env
 
 import (
 	"bufio"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,22 +78,47 @@ func unquote(v string) string {
 	return v
 }
 
-// Discover lists projectPath and returns the sorted names of files matching
-// the .env* pattern. Returns an empty (non-nil) slice if none exist.
+// skipDirs names directories Discover never descends into: they're large,
+// never contain a file a user would want to edit here, and walking them
+// (node_modules especially) would make every project's Environment tab slow
+// for no benefit.
+var skipDirs = map[string]bool{
+	".git":         true,
+	"node_modules": true,
+	"vendor":       true,
+	".venv":        true,
+	"venv":         true,
+}
+
+// Discover recursively walks projectPath and returns the sorted, "/"-joined
+// paths (relative to projectPath) of every file matching the .env* pattern,
+// however deeply nested. Returns an empty (non-nil) slice if none exist.
+// Symlinked directories are not followed, matching filepath.WalkDir's
+// default behavior.
 func Discover(projectPath string) ([]string, error) {
-	entries, err := os.ReadDir(projectPath)
+	names := []string{}
+	err := filepath.WalkDir(projectPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != projectPath && skipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !filenameRe.MatchString(d.Name()) {
+			return nil
+		}
+		rel, err := filepath.Rel(projectPath, path)
+		if err != nil {
+			return nil
+		}
+		names = append(names, filepath.ToSlash(rel))
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	names := []string{}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		if filenameRe.MatchString(e.Name()) {
-			names = append(names, e.Name())
-		}
 	}
 	sort.Strings(names)
 	return names, nil

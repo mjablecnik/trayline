@@ -23,9 +23,13 @@ func newTestEnvProject(t *testing.T, name string, files map[string]string) strin
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	for filename, content := range files {
-		if err := os.WriteFile(filepath.Join(repoDir, filename), []byte(content), 0o644); err != nil {
-			t.Fatalf("write %s: %v", filename, err)
+	for relPath, content := range files {
+		full := filepath.Join(repoDir, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatalf("mkdir for %s: %v", relPath, err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", relPath, err)
 		}
 	}
 	return projectsDir
@@ -55,10 +59,10 @@ func TestHandleGetEnv_Success(t *testing.T) {
 		t.Fatalf("expected 2 files, got %+v", resp.Files)
 	}
 	// Discover returns filenames sorted, so ".env" precedes ".env.example".
-	if resp.Files[0].Filename != ".env" || len(resp.Files[0].Variables) != 2 {
+	if resp.Files[0].Path != ".env" || len(resp.Files[0].Variables) != 2 {
 		t.Errorf("Files[0] = %+v", resp.Files[0])
 	}
-	if resp.Files[1].Filename != ".env.example" || len(resp.Files[1].Variables) != 1 {
+	if resp.Files[1].Path != ".env.example" || len(resp.Files[1].Variables) != 1 {
 		t.Errorf("Files[1] = %+v", resp.Files[1])
 	}
 }
@@ -139,7 +143,7 @@ func TestHandlePutEnv_Success(t *testing.T) {
 	})
 	h := newTestEnvHandler(projectsDir)
 
-	body := `{"filename":".env","variables":[{"key":"FOO","value":"new"},{"key":"BAR","value":"baz qux"}]}`
+	body := `{"path":".env","variables":[{"key":"FOO","value":"new"},{"key":"BAR","value":"baz qux"}]}`
 	rec := httptest.NewRecorder()
 	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", body))
 
@@ -171,7 +175,7 @@ func TestHandlePutEnv_CreatesNewFile(t *testing.T) {
 	projectsDir := newTestEnvProject(t, "myproject", map[string]string{})
 	h := newTestEnvHandler(projectsDir)
 
-	body := `{"filename":".env.prod","variables":[{"key":"FOO","value":"bar"}]}`
+	body := `{"path":".env.prod","variables":[{"key":"FOO","value":"bar"}]}`
 	rec := httptest.NewRecorder()
 	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", body))
 
@@ -188,7 +192,7 @@ func TestHandlePutEnv_ProjectNotFound(t *testing.T) {
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "nope", `{"filename":".env","variables":[]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "nope", `{"path":".env","variables":[]}`))
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
@@ -200,22 +204,105 @@ func TestHandlePutEnv_InvalidFilename(t *testing.T) {
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"filename":"config.txt","variables":[]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":"config.txt","variables":[]}`))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestHandlePutEnv_RejectsFilenameWithPathSeparator(t *testing.T) {
+func TestHandlePutEnv_RejectsNonEnvBasenameEvenNested(t *testing.T) {
 	projectsDir := newTestEnvProject(t, "myproject", map[string]string{})
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"filename":".env.sub/dir","variables":[]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":"backend/secrets.txt","variables":[]}`))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlePutEnv_RejectsPathTraversal(t *testing.T) {
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{})
+	h := newTestEnvHandler(projectsDir)
+
+	rec := httptest.NewRecorder()
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":"../.env","variables":[]}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for path traversal, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Regression: the whole point of this feature is finding/editing .env files
+// that aren't at the project root.
+func TestHandleGetEnv_FindsNestedFiles(t *testing.T) {
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{
+		".env":             "ROOT=1\n",
+		"backend/.env":     "BACKEND=1\n",
+		"backend/.env.dev": "BACKEND_DEV=1\n",
+	})
+	h := newTestEnvHandler(projectsDir)
+
+	req := httptest.NewRequest(http.MethodGet, "/projects/myproject/env", nil)
+	req.SetPathValue("name", "myproject")
+	rec := httptest.NewRecorder()
+	h.HandleGetEnv(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp EnvListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Files) != 3 {
+		t.Fatalf("expected 3 files, got %+v", resp.Files)
+	}
+	paths := make(map[string]bool, len(resp.Files))
+	for _, f := range resp.Files {
+		paths[f.Path] = true
+	}
+	for _, want := range []string{".env", "backend/.env", "backend/.env.dev"} {
+		if !paths[want] {
+			t.Errorf("expected %q among discovered files, got %+v", want, resp.Files)
+		}
+	}
+}
+
+func TestHandlePutEnv_WritesNestedFile(t *testing.T) {
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{
+		"backend/.env": "OLD=1\n",
+	})
+	h := newTestEnvHandler(projectsDir)
+
+	body := `{"path":"backend/.env","variables":[{"key":"NEW","value":"2"}]}`
+	rec := httptest.NewRecorder()
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", body))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp EnvFileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Path != "backend/.env" {
+		t.Errorf("expected response path %q, got %q", "backend/.env", resp.Path)
+	}
+
+	written, err := os.ReadFile(filepath.Join(projectsDir, "myproject", "backend", ".env"))
+	if err != nil {
+		t.Fatalf("read written file: %v", err)
+	}
+	if !bytes.Contains(written, []byte("NEW=2\n")) {
+		t.Errorf("expected NEW=2 in written file, got %q", written)
+	}
+
+	// Confirm the write landed only in backend/, not at the project root too.
+	if _, err := os.Stat(filepath.Join(projectsDir, "myproject", ".env")); !os.IsNotExist(err) {
+		t.Errorf("expected no root .env to have been created, stat err = %v", err)
 	}
 }
 
@@ -224,7 +311,7 @@ func TestHandlePutEnv_EmptyKey(t *testing.T) {
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"filename":".env","variables":[{"key":"","value":"x"}]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":".env","variables":[{"key":"","value":"x"}]}`))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -236,7 +323,7 @@ func TestHandlePutEnv_InvalidKeyFormat(t *testing.T) {
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"filename":".env","variables":[{"key":"1BAD","value":"x"}]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":".env","variables":[{"key":"1BAD","value":"x"}]}`))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -247,7 +334,7 @@ func TestHandlePutEnv_DuplicateKey(t *testing.T) {
 	projectsDir := newTestEnvProject(t, "myproject", map[string]string{})
 	h := newTestEnvHandler(projectsDir)
 
-	body := `{"filename":".env","variables":[{"key":"FOO","value":"a"},{"key":"FOO","value":"b"}]}`
+	body := `{"path":".env","variables":[{"key":"FOO","value":"a"},{"key":"FOO","value":"b"}]}`
 	rec := httptest.NewRecorder()
 	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", body))
 
@@ -261,7 +348,7 @@ func TestHandlePutEnv_EmptyValueAllowed(t *testing.T) {
 	h := newTestEnvHandler(projectsDir)
 
 	rec := httptest.NewRecorder()
-	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"filename":".env","variables":[{"key":"FOO","value":""}]}`))
+	h.HandlePutEnv(rec, putEnvRequest(t, "myproject", `{"path":".env","variables":[{"key":"FOO","value":""}]}`))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())

@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { api, ApiError, type EnvFile } from '$lib/api';
 	import EnvEditor from '$lib/components/EnvEditor.svelte';
-	import EnvFileTabs from '$lib/components/EnvFileTabs.svelte';
+	import EnvFileList from '$lib/components/EnvFileList.svelte';
 	import EnvReference from '$lib/components/EnvReference.svelte';
 	import { t } from '$lib/i18n';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -19,7 +19,32 @@
 	let envState = $state<EnvState>({ status: 'loading' });
 	let activeFile = $state('');
 	let modified = new SvelteSet<string>();
-	let saveMessage = $state<{ file: string; kind: 'success' | 'error'; text: string } | null>(null);
+	let saveMessage = $state<{ path: string; kind: 'success' | 'error'; text: string } | null>(null);
+
+	function dirOf(path: string): string {
+		const idx = path.lastIndexOf('/');
+		return idx === -1 ? '' : path.slice(0, idx);
+	}
+
+	function baseOf(path: string): string {
+		const idx = path.lastIndexOf('/');
+		return idx === -1 ? path : path.slice(idx + 1);
+	}
+
+	// Groups files by directory - root-level files first, then subdirectories
+	// alphabetically - so the list reads like a small file tree instead of a
+	// flat dump of full paths.
+	function groupByDir(files: EnvFile[]): { dir: string; files: EnvFile[] }[] {
+		const byDir: Record<string, EnvFile[]> = {};
+		for (const f of files) {
+			const dir = dirOf(f.path);
+			(byDir[dir] ??= []).push(f);
+		}
+		const dirs = Object.keys(byDir).sort((a, b) =>
+			a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)
+		);
+		return dirs.map((dir) => ({ dir, files: byDir[dir] }));
+	}
 
 	async function load(name: string) {
 		if (!name) return;
@@ -32,7 +57,7 @@
 				envState = { status: 'empty' };
 			} else {
 				envState = { status: 'loaded', files: data.files };
-				activeFile = data.files[0].filename;
+				activeFile = data.files[0].path;
 			}
 		} catch {
 			envState = { status: 'error' };
@@ -43,32 +68,32 @@
 		load(projectName);
 	});
 
-	function selectFile(filename: string) {
-		if (filename === activeFile) return;
+	function selectFile(path: string) {
+		if (path === activeFile) return;
 		if (modified.has(activeFile) && !window.confirm($t('env.confirmNavigate'))) return;
 		saveMessage = null;
-		activeFile = filename;
+		activeFile = path;
 	}
 
-	function handleDirtyChange(filename: string, dirty: boolean) {
-		if (dirty) modified.add(filename);
-		else modified.delete(filename);
+	function handleDirtyChange(path: string, dirty: boolean) {
+		if (dirty) modified.add(path);
+		else modified.delete(path);
 	}
 
-	async function handleSave(filename: string, variables: { key: string; value: string }[]) {
+	async function handleSave(path: string, variables: { key: string; value: string }[]) {
 		if (envState.status !== 'loaded') return;
 		const files = envState.files;
 		try {
-			const saved = await api.putEnv(projectName, { filename, variables });
+			const saved = await api.putEnv(projectName, { path, variables });
 			envState = {
 				status: 'loaded',
-				files: files.map((f) => (f.filename === filename ? saved : f))
+				files: files.map((f) => (f.path === path ? saved : f))
 			};
-			modified.delete(filename);
-			saveMessage = { file: filename, kind: 'success', text: $t('env.saveSuccess') };
+			modified.delete(path);
+			saveMessage = { path, kind: 'success', text: $t('env.saveSuccess') };
 		} catch (err) {
 			const text = err instanceof ApiError ? err.message : $t('env.saveError');
-			saveMessage = { file: filename, kind: 'error', text };
+			saveMessage = { path, kind: 'error', text };
 		}
 	}
 
@@ -79,12 +104,15 @@
 		}
 	});
 
+	let groups = $derived(envState.status === 'loaded' ? groupByDir(envState.files) : []);
 	let activeFileData = $derived(
-		envState.status === 'loaded' ? envState.files.find((f) => f.filename === activeFile) : undefined
+		envState.status === 'loaded' ? envState.files.find((f) => f.path === activeFile) : undefined
 	);
 	let referenceFile = $derived(
-		envState.status === 'loaded' && activeFile !== '.env.example'
-			? envState.files.find((f) => f.filename === '.env.example')
+		envState.status === 'loaded' && baseOf(activeFile) !== '.env.example'
+			? envState.files.find(
+					(f) => dirOf(f.path) === dirOf(activeFile) && baseOf(f.path) === '.env.example'
+				)
 			: undefined
 	);
 </script>
@@ -111,34 +139,33 @@
 		{$t('env.empty')}
 	</p>
 {:else if activeFileData}
-	<div class="flex flex-col gap-4">
-		<EnvFileTabs
-			filenames={envState.files.map((f) => f.filename)}
-			active={activeFile}
-			{modified}
-			onSelect={selectFile}
-		/>
+	<div class="flex flex-1 flex-col gap-4 md:flex-row">
+		<div class="md:w-56 md:shrink-0">
+			<EnvFileList {groups} active={activeFile} {modified} onSelect={selectFile} />
+		</div>
 
-		{#key activeFile}
-			<EnvEditor
-				variables={activeFileData.variables}
-				onSave={(vars) => handleSave(activeFile, vars)}
-				onDirtyChange={(dirty) => handleDirtyChange(activeFile, dirty)}
-			/>
-		{/key}
+		<div class="flex flex-1 flex-col gap-4">
+			{#key activeFile}
+				<EnvEditor
+					variables={activeFileData.variables}
+					onSave={(vars) => handleSave(activeFile, vars)}
+					onDirtyChange={(dirty) => handleDirtyChange(activeFile, dirty)}
+				/>
+			{/key}
 
-		{#if saveMessage && saveMessage.file === activeFile}
-			<p
-				class="text-sm {saveMessage.kind === 'success'
-					? 'text-emerald-600 dark:text-emerald-400'
-					: 'text-red-600 dark:text-red-400'}"
-			>
-				{saveMessage.text}
-			</p>
-		{/if}
+			{#if saveMessage && saveMessage.path === activeFile}
+				<p
+					class="text-sm {saveMessage.kind === 'success'
+						? 'text-emerald-600 dark:text-emerald-400'
+						: 'text-red-600 dark:text-red-400'}"
+				>
+					{saveMessage.text}
+				</p>
+			{/if}
 
-		{#if referenceFile}
-			<EnvReference variables={referenceFile.variables} />
-		{/if}
+			{#if referenceFile}
+				<EnvReference variables={referenceFile.variables} />
+			{/if}
+		</div>
 	</div>
 {/if}
