@@ -20,6 +20,9 @@ func NewRouter(
 	envH *EnvHandler,
 	projectH *ProjectHandler,
 	projectAgentH *ProjectAgentHandler,
+	pipelineH *PipelineHandler,
+	specH *SpecHandler,
+	workflowH *WorkflowHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
@@ -64,6 +67,21 @@ func NewRouter(
 	mux.HandleFunc("GET /projects/{name}/chat/{id}", projectAgentH.HandleProjectChatReconnect)
 	mux.HandleFunc("GET /projects/{name}/sessions", projectAgentH.HandleProjectSessions)
 	mux.HandleFunc("POST /projects/{name}/sessions/{id}/terminate", projectAgentH.HandleTerminateProjectSession)
+
+	// Pipeline discovery endpoints.
+	mux.HandleFunc("GET /projects/{name}/pipelines", pipelineH.HandleListPipelines)
+	mux.HandleFunc("GET /projects/{name}/pipelines/{type}/{pipeline}", pipelineH.HandleGetPipelineDetail)
+
+	// Spec discovery endpoint.
+	mux.HandleFunc("GET /projects/{name}/specs", specH.HandleListSpecs)
+
+	// Workflow endpoints.
+	mux.HandleFunc("POST /projects/{name}/workflows", workflowH.HandleSchedule)
+	mux.HandleFunc("GET /projects/{name}/workflows", workflowH.HandleList)
+	mux.HandleFunc("GET /projects/{name}/workflows/{id}", workflowH.HandleDetail)
+	mux.HandleFunc("PUT /projects/{name}/workflows/{id}", workflowH.HandleEdit)
+	mux.HandleFunc("DELETE /projects/{name}/workflows/{id}", workflowH.HandleCancel)
+	mux.HandleFunc("GET /projects/{name}/workflows/{id}/logs", workflowH.HandleLogs)
 
 	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
 	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))

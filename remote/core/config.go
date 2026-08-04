@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -42,6 +43,16 @@ type Config struct {
 	// DashboardOrigin is the allowed CORS origin for the dashboard frontend.
 	// Empty disables CORS handling.
 	DashboardOrigin string
+
+	// TraylineHomeDir is the host path to ~/.trayline, mounted read-only into
+	// workflow containers at /home/agent/.trayline.
+	TraylineHomeDir string
+	// PipelinesDir is the host path to the pipelines directory read by the
+	// pipeline discovery endpoints and workflow execution.
+	PipelinesDir string
+	// WorkflowTimeout is the maximum duration a single workflow execution may run
+	// before its container is forcefully terminated.
+	WorkflowTimeout time.Duration
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -206,6 +217,34 @@ func LoadConfig() (*Config, error) {
 
 	// DASHBOARD_ORIGIN (optional; empty disables CORS)
 	cfg.DashboardOrigin = os.Getenv("DASHBOARD_ORIGIN")
+
+	// TRAYLINE_HOME_DIR (default: ~/.trayline, expanded using the running user's home directory)
+	cfg.TraylineHomeDir = os.Getenv("TRAYLINE_HOME_DIR")
+	if cfg.TraylineHomeDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve default TRAYLINE_HOME_DIR (~/.trayline): %w", err)
+		}
+		cfg.TraylineHomeDir = filepath.Join(home, ".trayline")
+	}
+
+	// PIPELINES_DIR (default: TRAYLINE_HOME_DIR/pipelines)
+	cfg.PipelinesDir = os.Getenv("PIPELINES_DIR")
+	if cfg.PipelinesDir == "" {
+		cfg.PipelinesDir = filepath.Join(cfg.TraylineHomeDir, "pipelines")
+	}
+
+	// WORKFLOW_TIMEOUT (default: 5h)
+	workflowTimeoutStr := os.Getenv("WORKFLOW_TIMEOUT")
+	if workflowTimeoutStr == "" {
+		cfg.WorkflowTimeout = 5 * time.Hour
+	} else {
+		d, err := time.ParseDuration(workflowTimeoutStr)
+		if err != nil {
+			return nil, fmt.Errorf("WORKFLOW_TIMEOUT must be a valid duration (e.g. 5h), got %q: %w", workflowTimeoutStr, err)
+		}
+		cfg.WorkflowTimeout = d
+	}
 
 	return cfg, nil
 }

@@ -517,6 +517,61 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 	return binds
 }
 
+// buildWorkflowContainerBinds constructs volume binds for a one-shot workflow
+// container: the project directory at /workspace, plus TraylineHomeDir mounted
+// read-only at /home/agent/.trayline (so `trayline run` can read pipelines and
+// shared config), matching design.md's "Container Configuration for Workflows".
+func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []string {
+	const agentHome = "/home/agent"
+	projectHostPath := filepath.Join(m.config.ProjectsDir, projectName)
+	binds := []string{projectHostPath + ":" + workspaceMount}
+	if m.config.TraylineHomeDir != "" {
+		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
+	}
+	return binds
+}
+
+// StartWorkflowContainer creates (but does not start) a one-shot, non-interactive
+// container scoped to a project directory for running a `trayline run` pipeline
+// invocation. The caller must attach (via AttachWorkflowContainer) before starting
+// (via StartContainer), so container output from the very first byte is captured.
+func (m *ContainerManager) StartWorkflowContainer(ctx context.Context, projectName string, cmd []string) (string, error) {
+	cfg := &container.Config{
+		Image:      SandboxImage,
+		Cmd:        cmd,
+		Env:        m.buildContainerEnv(),
+		Tty:        false,
+		WorkingDir: workspaceMount,
+	}
+
+	hostCfg := &container.HostConfig{
+		Binds:      m.buildWorkflowContainerBinds(projectName),
+		AutoRemove: false,
+	}
+
+	netCfg := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			sandboxNetwork: {},
+		},
+	}
+
+	resp, err := m.client.ContainerCreate(ctx, cfg, hostCfg, netCfg, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+	return resp.ID, nil
+}
+
+// AttachWorkflowContainer attaches stdout/stderr (no stdin) to a workflow
+// container, for streaming its combined output as it runs.
+func (m *ContainerManager) AttachWorkflowContainer(ctx context.Context, containerID string) (dockertypes.HijackedResponse, error) {
+	return m.client.ContainerAttach(ctx, containerID, dockertypes.ContainerAttachOptions{
+		Stream: true,
+		Stdout: true,
+		Stderr: true,
+	})
+}
+
 // StartProjectChatContainer creates a persistent interactive container scoped to a single
 // project directory (mounted at /workspace) but does NOT start it. The caller must attach
 // (via AttachChatContainer) before starting (via StartContainer), and must have pre-acquired

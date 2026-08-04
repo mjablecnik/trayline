@@ -208,6 +208,82 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		}
 	})
 
+	t.Run("TRAYLINE_HOME_DIR default derives from user home", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		os.Unsetenv("TRAYLINE_HOME_DIR")
+		os.Unsetenv("PIPELINES_DIR")
+		os.Unsetenv("WORKFLOW_TIMEOUT")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		home, _ := os.UserHomeDir()
+		wantHome := home + "/.trayline"
+		if cfg.TraylineHomeDir != wantHome {
+			t.Errorf("expected TraylineHomeDir %q, got %q", wantHome, cfg.TraylineHomeDir)
+		}
+		if cfg.PipelinesDir != wantHome+"/pipelines" {
+			t.Errorf("expected PipelinesDir %q, got %q", wantHome+"/pipelines", cfg.PipelinesDir)
+		}
+		if cfg.WorkflowTimeout != 5*time.Hour {
+			t.Errorf("expected WorkflowTimeout default 5h, got %v", cfg.WorkflowTimeout)
+		}
+	})
+
+	t.Run("TRAYLINE_HOME_DIR, PIPELINES_DIR, WORKFLOW_TIMEOUT overrides honored", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("TRAYLINE_HOME_DIR", "/custom/trayline")
+		t.Setenv("PIPELINES_DIR", "/custom/pipelines")
+		t.Setenv("WORKFLOW_TIMEOUT", "2h")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if cfg.TraylineHomeDir != "/custom/trayline" {
+			t.Errorf("expected TraylineHomeDir override, got %q", cfg.TraylineHomeDir)
+		}
+		if cfg.PipelinesDir != "/custom/pipelines" {
+			t.Errorf("expected PipelinesDir override, got %q", cfg.PipelinesDir)
+		}
+		if cfg.WorkflowTimeout != 2*time.Hour {
+			t.Errorf("expected WorkflowTimeout override 2h, got %v", cfg.WorkflowTimeout)
+		}
+	})
+
+	t.Run("invalid WORKFLOW_TIMEOUT fails", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("WORKFLOW_TIMEOUT", "not-a-duration")
+
+		_, err := LoadConfig()
+		if err == nil {
+			t.Fatal("expected error for invalid WORKFLOW_TIMEOUT")
+		}
+	})
+
+	t.Run("TRAYLINE_HOME_DIR and PIPELINES_DIR are not validated to exist at load time", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("TRAYLINE_HOME_DIR", "/nonexistent/does-not-exist")
+		os.Unsetenv("PIPELINES_DIR")
+
+		if _, err := LoadConfig(); err != nil {
+			t.Fatalf("expected no error even though TRAYLINE_HOME_DIR does not exist on disk, got: %v", err)
+		}
+	})
+
 	t.Run("defaults applied when optional vars unset", func(t *testing.T) {
 		t.Setenv("APP_PORT", "8080")
 		t.Setenv("API_TOKEN", "test-token")

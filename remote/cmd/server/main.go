@@ -50,6 +50,12 @@ func main() {
 	cm := docker.NewContainerManager(dockerClient, cfg, logger)
 	stateMgr := store.NewStateManager(cfg.StateDir, taskStore, sessionStore, cm, logger)
 
+	workflowStore := store.NewWorkflowStore()
+	workflowStateMgr := store.NewWorkflowStateManager(cfg.StateDir, workflowStore, logger)
+	if err := workflowStateMgr.Load(); err != nil {
+		logger.Error(ctx, "workflow state load error: "+err.Error())
+	}
+
 	taskH := api.NewTaskHandler(taskStore, cm, logger, stateMgr, cfg.WorkspaceDir, cfg.MaxUploadSize, cfg.MaxUploadFiles, cfg.MaxPromptLength)
 
 	health := &api.HealthHandler{}
@@ -71,8 +77,27 @@ func main() {
 	projectH := api.NewProjectHandler(cfg.ProjectsDir, git.NewRunner(), logger)
 	projectAgentH := api.NewProjectAgentHandler(sessionStore, cm, logger, cfg, stateMgr)
 
+	workflowQueues := api.NewWorkflowQueueManager(workflowStore, cm, cfg, logger, workflowStateMgr)
+	if err := workflowStateMgr.Recover(); err != nil {
+		logger.Error(ctx, "workflow state recovery error: "+err.Error())
+	}
+	// Resume queued workflows (one Enqueue per project is enough — the
+	// processor goroutine drains all of that project's queued workflows
+	// via NextQueued).
+	resumedProjects := make(map[string]bool)
+	for _, w := range workflowStore.All() {
+		if w.Status == store.WorkflowQueued && !resumedProjects[w.Project] {
+			resumedProjects[w.Project] = true
+			workflowQueues.Enqueue(w.Project)
+		}
+	}
+
+	pipelineH := api.NewPipelineHandler(cfg, logger)
+	specH := api.NewSpecHandler(cfg, logger)
+	workflowH := api.NewWorkflowHandler(workflowStore, cfg, logger, workflowStateMgr, workflowQueues)
+
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

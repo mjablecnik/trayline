@@ -82,7 +82,13 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 	projectAgentH := NewProjectAgentHandler(sessionStore, cm, logger, cfg, nil)
 	rl := NewRateLimiter(1000)
 
-	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, testAuthToken, rl, logger, dashboardOrigin)
+	pipelineH := NewPipelineHandler(cfg, logger)
+	specH := NewSpecHandler(cfg, logger)
+	workflowStore := store.NewWorkflowStore()
+	queues := NewWorkflowQueueManager(workflowStore, cm, cfg, logger, nil)
+	workflowH := NewWorkflowHandler(workflowStore, cfg, logger, nil, queues)
+
+	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, testAuthToken, rl, logger, dashboardOrigin)
 	return router, projectsDir
 }
 
