@@ -39,7 +39,7 @@
 	}
 </script>
 
-<div class="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
+<div class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-6">
 	{#if state.status === 'loading'}
 		<div class="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 	{:else if state.status === 'error'}
@@ -54,7 +54,7 @@
 			</button>
 		</div>
 	{:else if $project.detail}
-		<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+		<div class="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
 			<ProjectHeader name={$project.detail.name} />
 			<BranchSelector
 				branches={$project.detail.branches}
@@ -63,10 +63,12 @@
 			/>
 		</div>
 
-		<div class="mb-6">
+		<div class="mb-6 shrink-0">
 			<TabBar project={projectName} ref={$project.ref} />
 		</div>
 
-		{@render children()}
+		<div class="flex min-h-0 flex-1 flex-col">
+			{@render children()}
+		</div>
 	{/if}
 </div>

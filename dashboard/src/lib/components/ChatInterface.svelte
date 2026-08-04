@@ -292,6 +292,22 @@
 		fileInputEl?.click();
 	}
 
+	// Lets a screenshot copied to the clipboard (e.g. Win+Shift+S on Windows)
+	// be sent straight from the message box with Ctrl+V, same as drag-and-drop.
+	function handlePaste(event: ClipboardEvent) {
+		const items = event.clipboardData?.items;
+		if (!items) return;
+		for (const item of items) {
+			if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+			const file = item.getAsFile();
+			if (!file) continue;
+			event.preventDefault();
+			const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
+			sendFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: item.type }));
+			break;
+		}
+	}
+
 	function handleDragOver(event: DragEvent) {
 		event.preventDefault();
 	}
@@ -379,7 +395,7 @@
 		{/if}
 	</div>
 {:else}
-	<div class="flex flex-1 flex-col gap-3">
+	<div class="flex min-h-0 flex-1 flex-col gap-3">
 		{#if banner.kind === 'connectionError'}
 			<div
 				class="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
@@ -401,7 +417,7 @@
 			ondragover={handleDragOver}
 			ondrop={handleDrop}
 			role="log"
-			class="flex-1 overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+			class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-800"
 		>
 			<div class="flex flex-col gap-3">
 				{#each $agentStore.messages as message (message.id)}
@@ -460,6 +476,7 @@
 				value={input}
 				oninput={handleInput}
 				onkeydown={handleKeydown}
+				onpaste={handlePaste}
 				rows="1"
 				placeholder={$t('agent.inputPlaceholder')}
 				class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"

@@ -6,9 +6,9 @@
 	let { children } = $props();
 </script>
 
-<div class="flex min-h-screen flex-col">
+<div class="flex h-dvh flex-col overflow-hidden">
 	<Header />
-	<main class="flex flex-1 flex-col">
+	<main class="flex min-h-0 flex-1 flex-col overflow-y-auto">
 		<svelte:boundary>
 			{@render children()}
 

@@ -50,14 +50,14 @@
 	}
 </script>
 
-<div class="flex flex-1 flex-col gap-4 md:flex-row">
-	<details class="rounded-lg border border-slate-200 md:hidden dark:border-slate-800">
+<div class="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+	<details class="shrink-0 rounded-lg border border-slate-200 md:hidden dark:border-slate-800">
 		<summary
 			class="cursor-pointer px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
 		>
 			{$t('agent.sessions')}
 		</summary>
-		<div class="border-t border-slate-200 p-2 dark:border-slate-800">
+		<div class="max-h-64 overflow-y-auto border-t border-slate-200 p-2 dark:border-slate-800">
 			<SessionList
 				{projectName}
 				{activeSessionId}
@@ -69,7 +69,7 @@
 		</div>
 	</details>
 
-	<div class="hidden md:block md:w-64 md:shrink-0">
+	<div class="hidden min-h-0 md:flex md:w-64 md:shrink-0 md:flex-col">
 		<SessionList
 			{projectName}
 			{activeSessionId}
@@ -80,7 +80,7 @@
 		/>
 	</div>
 
-	<div class="flex flex-1 flex-col">
+	<div class="flex min-h-0 flex-1 flex-col">
 		<ChatInterface
 			{projectName}
 			sessionId={activeSessionId}
