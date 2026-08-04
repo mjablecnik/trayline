@@ -4,6 +4,7 @@ const cs: Record<keyof typeof en, string> = {
 	'app.name': 'Trayline',
 
 	'nav.projects': 'Projekty',
+	'nav.sessions': 'Relace',
 	'nav.logout': 'Odhlásit',
 	'nav.menu': 'Menu',
 
@@ -101,6 +102,13 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.thinking': 'Agent přemýšlí...',
 	'agent.attachFile': 'Přiložit soubor',
 	'agent.fileUploaded': '📁 {filename} nahráno',
+
+	'sessions.title': 'Relace',
+	'sessions.refresh': 'Obnovit',
+	'sessions.empty': 'Žádné aktivní relace.',
+	'sessions.error': 'Relace se nepodařilo načíst.',
+	'sessions.noProject': 'Bez projektu',
+	'sessions.switch': 'Přepnout',
 
 	'error.connection.title': 'Server je nedostupný',
 	'error.connection.message':

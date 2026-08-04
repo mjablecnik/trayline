@@ -2,6 +2,7 @@ export default {
 	'app.name': 'Trayline',
 
 	'nav.projects': 'Projects',
+	'nav.sessions': 'Sessions',
 	'nav.logout': 'Log out',
 	'nav.menu': 'Menu',
 
@@ -99,6 +100,13 @@ export default {
 	'agent.thinking': 'Agent is thinking...',
 	'agent.attachFile': 'Attach file',
 	'agent.fileUploaded': '📁 {filename} uploaded',
+
+	'sessions.title': 'Sessions',
+	'sessions.refresh': 'Refresh',
+	'sessions.empty': 'No active sessions.',
+	'sessions.error': 'Could not load sessions.',
+	'sessions.noProject': 'No project',
+	'sessions.switch': 'Switch',
 
 	'error.connection.title': 'Cannot reach the server',
 	'error.connection.message':

@@ -336,6 +336,7 @@ func (h *SessionHandler) HandleGetSessions(w http.ResponseWriter, r *http.Reques
 		SessionID     string    `json:"session_id"`
 		Agent         string    `json:"agent"`
 		Model         string    `json:"model,omitempty"`
+		Project       string    `json:"project,omitempty"`
 		CreatedAt     time.Time `json:"created_at"`
 		LastMessageAt time.Time `json:"last_message_at"`
 	}
@@ -345,6 +346,7 @@ func (h *SessionHandler) HandleGetSessions(w http.ResponseWriter, r *http.Reques
 			SessionID:     s.ID,
 			Agent:         s.Agent,
 			Model:         s.Model,
+			Project:       s.Project,
 			CreatedAt:     s.CreatedAt,
 			LastMessageAt: s.LastMessageAt,
 		}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { t } from '$lib/i18n';
 	import { isAuthenticated } from '$lib/stores/auth';
@@ -6,13 +7,32 @@
 	import LogoutButton from './LogoutButton.svelte';
 
 	let mobileMenuOpen = $state(false);
+
+	let isProjectsActive = $derived(page.url.pathname === resolve('/'));
+	let isSessionsActive = $derived(page.url.pathname.startsWith(resolve('/sessions')));
+
+	function navLinkClass(active: boolean): string {
+		return active
+			? 'text-sm font-medium text-sky-700 dark:text-sky-300'
+			: 'text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100';
+	}
 </script>
 
 <header
 	class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90"
 >
-	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-		<a href={resolve('/')} class="text-lg font-semibold tracking-tight">{$t('app.name')}</a>
+	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+		<div class="flex min-w-0 items-center gap-5">
+			<a href={resolve('/')} class="shrink-0 text-lg font-semibold tracking-tight"
+				>{$t('app.name')}</a
+			>
+			<nav class="hidden items-center gap-4 tablet:flex">
+				<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
+				<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}
+					>{$t('nav.sessions')}</a
+				>
+			</nav>
+		</div>
 
 		<div class="hidden items-center gap-2 tablet:flex">
 			<LanguageSwitcher />
@@ -42,6 +62,8 @@
 		<div
 			class="flex flex-col items-start gap-3 border-t border-slate-200 px-4 py-3 tablet:hidden dark:border-slate-800"
 		>
+			<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
+			<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}>{$t('nav.sessions')}</a>
 			<LanguageSwitcher />
 			{#if $isAuthenticated}
 				<LogoutButton />

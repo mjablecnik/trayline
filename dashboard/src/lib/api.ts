@@ -185,6 +185,7 @@ export interface AgentSession {
 	session_id: string;
 	agent: string;
 	model?: string;
+	project?: string;
 	created_at: string;
 	last_message_at: string;
 }
@@ -261,5 +262,13 @@ export const api = {
 		request<{ session_id: string; status: string }>(
 			'POST',
 			`/projects/${encodeURIComponent(name)}/sessions/${encodeURIComponent(sessionId)}/terminate`
+		),
+
+	getSessions: () => request<AgentSession[]>('GET', '/sessions'),
+
+	terminateSession: (sessionId: string) =>
+		request<{ session_id: string; status: string }>(
+			'POST',
+			`/sessions/${encodeURIComponent(sessionId)}/terminate`
 		)
 };

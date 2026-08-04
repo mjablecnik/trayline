@@ -7,7 +7,10 @@
 
 	let projectName = $derived(page.params.project ?? '');
 
-	let activeSessionId = $state<string | null>(null);
+	// Seeds the active session from a ?session= query param, e.g. when
+	// navigating here from the cross-project Sessions list via "Switch".
+	// ChatInterface's own sessionId effect then reconnects to it.
+	let activeSessionId = $state<string | null>(page.url.searchParams.get('session'));
 	// Bumped whenever a session starts, so SessionList (which otherwise only
 	// re-fetches when the project changes) re-fetches too. Termination
 	// doesn't need this: SessionList's own terminate handler already
