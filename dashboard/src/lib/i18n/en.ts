@@ -41,6 +41,12 @@ export default {
 	'changes.status.added': 'Added',
 	'changes.status.untracked': 'Untracked',
 	'changes.status.deleted': 'Deleted',
+	'changes.discardFile': 'Discard changes to this file',
+	'changes.discardAll': 'Discard all changes',
+	'changes.confirmDiscardFile': 'Discard all changes to "{path}"? This cannot be undone.',
+	'changes.confirmDiscardAll':
+		'Discard all {files} changed files in this project? This cannot be undone.',
+	'changes.discardError': 'Failed to discard changes.',
 
 	'files.emptyDir': 'This directory is empty.',
 	'files.emptyFile': 'Empty file',

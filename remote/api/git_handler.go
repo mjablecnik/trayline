@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -26,6 +27,8 @@ type GitRunner interface {
 	Status(repoPath string) (*git.StatusResult, error)
 	CurrentBranch(repoPath string) (string, error)
 	IsRepo(path string) bool
+	DiscardFile(repoPath, path string) error
+	DiscardAll(repoPath string) error
 }
 
 // GitHandler handles git history and working-tree-status REST endpoints.
@@ -217,4 +220,70 @@ func (h *GitHandler) HandleGetStatus(w http.ResponseWriter, r *http.Request) {
 			Deletions:    result.Summary.Deletions,
 		},
 	})
+}
+
+// HandleDiscardFile handles POST /projects/{name}/changes/discard. It
+// irreversibly discards all uncommitted changes to a single working-tree
+// path, reverting it to HEAD (or removing it, if HEAD has never seen it).
+func (h *GitHandler) HandleDiscardFile(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	repoPath, err := resolveProjectPath(h.projectsDir, h.git.IsRepo, name)
+	if err != nil {
+		writeProjectNotFound(w, name)
+		return
+	}
+
+	var req DiscardFileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+			Error:   "VALIDATION_ERROR",
+			Message: "invalid JSON body",
+		})
+		return
+	}
+
+	subPath, err := validateSubPath(repoPath, req.Path)
+	if err != nil || subPath == "" {
+		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
+			Error:   "VALIDATION_ERROR",
+			Message: "invalid path",
+		})
+		return
+	}
+
+	if err := h.git.DiscardFile(repoPath, subPath); err != nil {
+		h.logger.Error(r.Context(), "git discard file error: "+err.Error())
+		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+			Error:   "INTERNAL_ERROR",
+			Message: "failed to discard changes",
+		})
+		return
+	}
+
+	h.logger.Info(r.Context(), fmt.Sprintf("discarded changes to %q in project %q", subPath, name))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleDiscardAll handles POST /projects/{name}/changes/discard-all. It
+// irreversibly discards every uncommitted change in the project, reverting
+// the working tree to a clean HEAD.
+func (h *GitHandler) HandleDiscardAll(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	repoPath, err := resolveProjectPath(h.projectsDir, h.git.IsRepo, name)
+	if err != nil {
+		writeProjectNotFound(w, name)
+		return
+	}
+
+	if err := h.git.DiscardAll(repoPath); err != nil {
+		h.logger.Error(r.Context(), "git discard all error: "+err.Error())
+		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+			Error:   "INTERNAL_ERROR",
+			Message: "failed to discard changes",
+		})
+		return
+	}
+
+	h.logger.Info(r.Context(), fmt.Sprintf("discarded all changes in project %q", name))
+	w.WriteHeader(http.StatusNoContent)
 }

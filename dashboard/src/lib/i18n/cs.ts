@@ -43,6 +43,12 @@ const cs: Record<keyof typeof en, string> = {
 	'changes.status.added': 'Přidáno',
 	'changes.status.untracked': 'Nesledováno',
 	'changes.status.deleted': 'Smazáno',
+	'changes.discardFile': 'Zahodit změny tohoto souboru',
+	'changes.discardAll': 'Zahodit všechny změny',
+	'changes.confirmDiscardFile': 'Zahodit všechny změny v „{path}"? Tuto akci nelze vrátit zpět.',
+	'changes.confirmDiscardAll':
+		'Zahodit všech {files} změněných souborů v tomto projektu? Tuto akci nelze vrátit zpět.',
+	'changes.discardError': 'Zahození změn se nezdařilo.',
 
 	'files.emptyDir': 'Tento adresář je prázdný.',
 	'files.emptyFile': 'Prázdný soubor',

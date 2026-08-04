@@ -125,7 +125,9 @@ function createAgentStore() {
 		// The server is authoritative here - unlike sessionHistories above, it
 		// keeps a session's history even across a page reload or a tab that was
 		// closed while the agent was still replying.
-		setHistory(messages: { role: 'user' | 'agent' | 'system'; content: string; complete: boolean }[]) {
+		setHistory(
+			messages: { role: 'user' | 'agent' | 'system'; content: string; complete: boolean }[]
+		) {
 			update((s) => ({
 				...s,
 				messages: messages.map((m) => ({ id: crypto.randomUUID(), ...m }))

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { api, type StatusResponse } from '$lib/api';
+	import { api, ApiError, type StatusResponse } from '$lib/api';
 	import DiffFileSection from '$lib/components/DiffFileSection.svelte';
+	import DiscardFileButton from '$lib/components/DiscardFileButton.svelte';
 	import FileStatusBadge from '$lib/components/FileStatusBadge.svelte';
 	import { t } from '$lib/i18n';
 	import { parseDiff } from '$lib/utils/diff';
@@ -12,6 +13,9 @@
 		{ status: 'loading' } | { status: 'error' } | { status: 'loaded'; result: StatusResponse };
 
 	let changesState = $state<State>({ status: 'loading' });
+	let discardingPath = $state<string | null>(null);
+	let discardingAll = $state(false);
+	let discardError = $state<string | null>(null);
 
 	async function load(name: string) {
 		if (!name) return;
@@ -27,6 +31,33 @@
 	$effect(() => {
 		load(projectName);
 	});
+
+	async function handleDiscardFile(path: string) {
+		discardError = null;
+		discardingPath = path;
+		try {
+			await api.discardFile(projectName, path);
+			await load(projectName);
+		} catch (err) {
+			discardError = err instanceof ApiError ? err.message : $t('changes.discardError');
+		} finally {
+			discardingPath = null;
+		}
+	}
+
+	async function handleDiscardAll(fileCount: number) {
+		if (!confirm($t('changes.confirmDiscardAll').replace('{files}', String(fileCount)))) return;
+		discardError = null;
+		discardingAll = true;
+		try {
+			await api.discardAllChanges(projectName);
+			await load(projectName);
+		} catch (err) {
+			discardError = err instanceof ApiError ? err.message : $t('changes.discardError');
+		} finally {
+			discardingAll = false;
+		}
+	}
 </script>
 
 {#if changesState.status === 'loading'}
@@ -53,12 +84,27 @@
 {:else}
 	{@const summary = changesState.result.summary}
 	<div class="flex flex-col gap-4">
-		<p class="text-sm text-slate-500 dark:text-slate-400">
-			{$t('changes.summary')
-				.replace('{files}', String(summary.files_changed))
-				.replace('{insertions}', String(summary.insertions))
-				.replace('{deletions}', String(summary.deletions))}
-		</p>
+		<div class="flex items-center justify-between gap-3">
+			<p class="text-sm text-slate-500 dark:text-slate-400">
+				{$t('changes.summary')
+					.replace('{files}', String(summary.files_changed))
+					.replace('{insertions}', String(summary.insertions))
+					.replace('{deletions}', String(summary.deletions))}
+			</p>
+			<button
+				type="button"
+				onclick={() => handleDiscardAll(summary.files_changed)}
+				disabled={discardingAll || discardingPath !== null}
+				class="shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+			>
+				{$t('changes.discardAll')}
+			</button>
+		</div>
+
+		{#if discardError}
+			<p class="text-sm text-red-600 dark:text-red-400">{discardError}</p>
+		{/if}
+
 		<div class="flex flex-col gap-3">
 			{#each changesState.result.files as file, i (file.path)}
 				{#if file.diff}
@@ -67,6 +113,13 @@
 						<DiffFileSection file={diffFile} initialExpanded={i === 0}>
 							{#snippet leading()}
 								<FileStatusBadge status={file.status} />
+							{/snippet}
+							{#snippet trailing()}
+								<DiscardFileButton
+									path={file.path}
+									disabled={discardingAll || discardingPath !== null}
+									onDiscard={() => handleDiscardFile(file.path)}
+								/>
 							{/snippet}
 						</DiffFileSection>
 					{/if}
@@ -82,6 +135,11 @@
 						<span class="shrink-0 text-xs text-slate-400 dark:text-slate-500"
 							>{$t('changes.noDiff')}</span
 						>
+						<DiscardFileButton
+							path={file.path}
+							disabled={discardingAll || discardingPath !== null}
+							onDiscard={() => handleDiscardFile(file.path)}
+						/>
 					</div>
 				{/if}
 			{/each}

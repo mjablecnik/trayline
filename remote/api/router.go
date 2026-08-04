@@ -52,6 +52,8 @@ func NewRouter(
 	mux.HandleFunc("GET /projects/{name}/commits", gitH.HandleGetCommits)
 	mux.HandleFunc("GET /projects/{name}/commits/{hash}", gitH.HandleGetCommitDetail)
 	mux.HandleFunc("GET /projects/{name}/status", gitH.HandleGetStatus)
+	mux.HandleFunc("POST /projects/{name}/changes/discard", gitH.HandleDiscardFile)
+	mux.HandleFunc("POST /projects/{name}/changes/discard-all", gitH.HandleDiscardAll)
 
 	// Env endpoints.
 	mux.HandleFunc("GET /projects/{name}/env", envH.HandleGetEnv)

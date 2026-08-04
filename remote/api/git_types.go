@@ -51,3 +51,8 @@ type StatusSummary struct {
 	Insertions   int `json:"insertions"`
 	Deletions    int `json:"deletions"`
 }
+
+// DiscardFileRequest is the body of POST /projects/{name}/changes/discard.
+type DiscardFileRequest struct {
+	Path string `json:"path"`
+}

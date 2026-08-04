@@ -6,8 +6,14 @@
 	let {
 		file,
 		initialExpanded = true,
-		leading
-	}: { file: DiffFile; initialExpanded?: boolean; leading?: Snippet } = $props();
+		leading,
+		trailing
+	}: {
+		file: DiffFile;
+		initialExpanded?: boolean;
+		leading?: Snippet;
+		trailing?: Snippet;
+	} = $props();
 
 	let expanded = $state(untrack(() => initialExpanded));
 
@@ -25,15 +31,17 @@
 </script>
 
 <div class="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
-	<button
-		type="button"
-		onclick={() => (expanded = !expanded)}
-		class="flex w-full items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-left dark:bg-slate-900"
+	<div
+		class="flex w-full items-center justify-between gap-3 bg-slate-50 px-3 py-2 dark:bg-slate-900"
 		class:border-b={expanded}
 		class:border-slate-200={expanded}
 		class:dark:border-slate-800={expanded}
 	>
-		<span class="flex min-w-0 items-center gap-2">
+		<button
+			type="button"
+			onclick={() => (expanded = !expanded)}
+			class="flex min-w-0 flex-1 items-center gap-2 text-left"
+		>
 			<svg
 				viewBox="0 0 24 24"
 				fill="none"
@@ -49,12 +57,15 @@
 				{@render leading()}
 			{/if}
 			<span class="truncate font-mono text-sm text-slate-700 dark:text-slate-200">{file.path}</span>
-		</span>
+		</button>
 		<span class="flex shrink-0 items-center gap-2 font-mono text-xs font-medium">
 			<span class="text-green-600 dark:text-green-400">+{file.insertions}</span>
 			<span class="text-red-600 dark:text-red-400">-{file.deletions}</span>
 		</span>
-	</button>
+		{#if trailing}
+			{@render trailing()}
+		{/if}
+	</div>
 
 	{#if expanded}
 		{#if file.tooLarge}

@@ -242,6 +242,12 @@ export const api = {
 	getStatus: (name: string) =>
 		request<StatusResponse>('GET', `/projects/${encodeURIComponent(name)}/status`),
 
+	discardFile: (name: string, path: string) =>
+		request<void>('POST', `/projects/${encodeURIComponent(name)}/changes/discard`, { path }),
+
+	discardAllChanges: (name: string) =>
+		request<void>('POST', `/projects/${encodeURIComponent(name)}/changes/discard-all`),
+
 	getEnv: (name: string) =>
 		request<EnvResponse>('GET', `/projects/${encodeURIComponent(name)}/env`),
 

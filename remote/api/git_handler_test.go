@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -327,6 +328,111 @@ func TestHandleGetStatus_ProjectNotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	h.HandleGetStatus(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func discardFileRequest(t *testing.T, name, path string) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(DiscardFileRequest{Path: path})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/projects/"+name+"/changes/discard", bytes.NewReader(body))
+	req.SetPathValue("name", name)
+	return req
+}
+
+func TestHandleDiscardFile_Success(t *testing.T) {
+	projectsDir := newTestProject(t, "myproject", 1)
+	repoDir := filepath.Join(projectsDir, "myproject")
+	if err := os.WriteFile(filepath.Join(repoDir, "file.txt"), []byte("dirty"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	h := newTestGitHandler(projectsDir)
+
+	rec := httptest.NewRecorder()
+	h.HandleDiscardFile(rec, discardFileRequest(t, "myproject", "file.txt"))
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	status, err := git.NewRunner().Status(repoDir)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if !status.Clean {
+		t.Errorf("expected clean working tree after discard, got %+v", status.Files)
+	}
+}
+
+func TestHandleDiscardFile_InvalidPath(t *testing.T) {
+	projectsDir := newTestProject(t, "myproject", 1)
+	h := newTestGitHandler(projectsDir)
+
+	rec := httptest.NewRecorder()
+	h.HandleDiscardFile(rec, discardFileRequest(t, "myproject", "../outside.txt"))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for path escaping the project, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleDiscardFile_ProjectNotFound(t *testing.T) {
+	projectsDir := t.TempDir()
+	h := newTestGitHandler(projectsDir)
+
+	rec := httptest.NewRecorder()
+	h.HandleDiscardFile(rec, discardFileRequest(t, "nope", "file.txt"))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleDiscardAll_Success(t *testing.T) {
+	projectsDir := newTestProject(t, "myproject", 1)
+	repoDir := filepath.Join(projectsDir, "myproject")
+	if err := os.WriteFile(filepath.Join(repoDir, "file.txt"), []byte("dirty"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "new.txt"), []byte("new"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	h := newTestGitHandler(projectsDir)
+
+	req := httptest.NewRequest(http.MethodPost, "/projects/myproject/changes/discard-all", nil)
+	req.SetPathValue("name", "myproject")
+	rec := httptest.NewRecorder()
+	h.HandleDiscardAll(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	status, err := git.NewRunner().Status(repoDir)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if !status.Clean {
+		t.Errorf("expected clean working tree after discard-all, got %+v", status.Files)
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, "new.txt")); !os.IsNotExist(err) {
+		t.Errorf("expected untracked new.txt removed, stat error: %v", err)
+	}
+}
+
+func TestHandleDiscardAll_ProjectNotFound(t *testing.T) {
+	projectsDir := t.TempDir()
+	h := newTestGitHandler(projectsDir)
+
+	req := httptest.NewRequest(http.MethodPost, "/projects/nope/changes/discard-all", nil)
+	req.SetPathValue("name", "nope")
+	rec := httptest.NewRecorder()
+	h.HandleDiscardAll(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
