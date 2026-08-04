@@ -120,6 +120,17 @@ function createAgentStore() {
 				};
 			});
 		},
+		// Replaces the message list with the transcript the server sent for this
+		// session (its "history" message, sent on every session_started/resumed).
+		// The server is authoritative here - unlike sessionHistories above, it
+		// keeps a session's history even across a page reload or a tab that was
+		// closed while the agent was still replying.
+		setHistory(messages: { role: 'user' | 'agent' | 'system'; content: string; complete: boolean }[]) {
+			update((s) => ({
+				...s,
+				messages: messages.map((m) => ({ id: crypto.randomUUID(), ...m }))
+			}));
+		},
 		reset() {
 			set({
 				sessionId: null,

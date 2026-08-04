@@ -388,7 +388,18 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 	})
 
 	h.writeWS(conn, WSServerMessage{Type: "session_resumed", SessionID: id, Agent: sess.Agent, Model: sess.Model})
+	h.writeWS(conn, WSServerMessage{Type: "history", Messages: toHistoryMessages(sess.Messages)})
 	go h.readClient(ctx, id, conn)
+}
+
+// toHistoryMessages converts a session's internal transcript into the wire
+// format sent to the client in a "history" message.
+func toHistoryMessages(msgs []store.ChatMessage) []HistoryMessage {
+	out := make([]HistoryMessage, len(msgs))
+	for i, m := range msgs {
+		out[i] = HistoryMessage{Role: m.Role, Content: m.Content, Complete: m.Complete}
+	}
+	return out
 }
 
 // HandleProjectSessions handles GET /projects/{name}/sessions.
@@ -524,6 +535,7 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 		case line, ok := <-lineCh:
 			if !ok {
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+				h.store.MarkAgentDone(sessionID)
 				return
 			}
 			h.touchLastMessageAt(sessionID)
@@ -531,6 +543,7 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 			var msg map[string]interface{}
 			if err := json.Unmarshal([]byte(line), &msg); err != nil {
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				h.store.AppendAgentOutput(sessionID, line+"\n")
 				continue
 			}
 
@@ -563,6 +576,7 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 						text, _ := b["text"].(string)
 						if text != "" {
 							h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: text})
+							h.store.AppendAgentOutput(sessionID, text)
 						}
 					}
 				}
@@ -573,6 +587,7 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
 				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+				h.store.MarkAgentDone(sessionID)
 
 			case "stream_event":
 				event, _ := msg["event"].(map[string]interface{})
@@ -588,6 +603,7 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 							text, _ := delta["text"].(string)
 							if text != "" {
 								h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: text})
+								h.store.AppendAgentOutput(sessionID, text)
 							}
 						}
 					}
@@ -618,6 +634,7 @@ func (h *ProjectAgentHandler) streamOutputPlainText(ctx context.Context, session
 			case line, ok := <-lineCh:
 				if !ok {
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+					h.store.MarkAgentDone(sessionID)
 					return
 				}
 				h.touchLastMessageAt(sessionID)
@@ -625,8 +642,10 @@ func (h *ProjectAgentHandler) streamOutputPlainText(ctx context.Context, session
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
 				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				h.store.AppendAgentOutput(sessionID, line+"\n")
 			case <-time.After(idleTurnTimeout):
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+				h.store.MarkAgentDone(sessionID)
 				pendingDone = false
 			case <-ctx.Done():
 				return
@@ -636,6 +655,7 @@ func (h *ProjectAgentHandler) streamOutputPlainText(ctx context.Context, session
 			case line, ok := <-lineCh:
 				if !ok {
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
+					h.store.MarkAgentDone(sessionID)
 					return
 				}
 				h.touchLastMessageAt(sessionID)
@@ -643,6 +663,7 @@ func (h *ProjectAgentHandler) streamOutputPlainText(ctx context.Context, session
 					h.writeWSToSession(sessionID, WSServerMessage{Type: "context_compacted"})
 				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "output", Data: line + "\n"})
+				h.store.AppendAgentOutput(sessionID, line+"\n")
 				pendingDone = true
 			case <-ctx.Done():
 				return
@@ -731,6 +752,8 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 					h.logger.Error(ctx, fmt.Sprintf(
 						"project session %s: failed to write prompt to container stdin: %s", sessionID, writeErr.Error()))
 					h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to send message to agent"})
+				} else {
+					h.store.AppendUserMessage(sessionID, msg.Prompt)
 				}
 			}
 		case "interrupt":

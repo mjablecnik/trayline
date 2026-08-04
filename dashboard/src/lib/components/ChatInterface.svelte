@@ -95,7 +95,13 @@
 		};
 
 		socket.onmessage = (event) => {
-			let msg: { type: string; sessionId?: string; data?: string; message?: string };
+			let msg: {
+				type: string;
+				sessionId?: string;
+				data?: string;
+				message?: string;
+				messages?: { role: 'user' | 'agent' | 'system'; content: string; complete: boolean }[];
+			};
 			try {
 				msg = JSON.parse(event.data as string);
 			} catch {
@@ -172,8 +178,18 @@
 		agentStore.setDisconnected();
 	}
 
-	function handleServerMessage(msg: { type: string; data?: string; message?: string }) {
+	function handleServerMessage(msg: {
+		type: string;
+		data?: string;
+		message?: string;
+		messages?: { role: 'user' | 'agent' | 'system'; content: string; complete: boolean }[];
+	}) {
 		switch (msg.type) {
+			case 'history':
+				agentStore.setHistory(msg.messages ?? []);
+				userScrolledUp = false;
+				tick().then(scrollToBottom);
+				break;
 			case 'output':
 				agentStore.appendAgentOutput(msg.data ?? '');
 				if (!userScrolledUp) tick().then(scrollToBottom);
