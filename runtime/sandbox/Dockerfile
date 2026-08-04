@@ -76,6 +76,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 RUN npx playwright install chromium \
     && chmod -R a+rX /opt/playwright-browsers
 
+# Create a convenient 'chromium' wrapper so agent can run it easily
+RUN CHROMIUM_BIN=$(find /opt/playwright-browsers -name "chrome" -path "*/chrome-linux/*" | head -1) \
+    && printf '#!/bin/bash\nexec %s --no-sandbox "$@"\n' "$CHROMIUM_BIN" > /usr/local/bin/chromium \
+    && chmod +x /usr/local/bin/chromium
+
 # Verify Playwright system deps are satisfied (will error if libs are missing)
 RUN npx playwright install-deps chromium 2>/dev/null || true
 
