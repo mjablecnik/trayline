@@ -8,6 +8,11 @@
 	let projectName = $derived(page.params.project ?? '');
 
 	let activeSessionId = $state<string | null>(null);
+	// Bumped whenever a session starts, so SessionList (which otherwise only
+	// re-fetches when the project changes) re-fetches too. Termination
+	// doesn't need this: SessionList's own terminate handler already
+	// re-fetches right after the server call resolves.
+	let sessionListVersion = $state(0);
 
 	// Reset agent state when it belongs to a different project than the current
 	// route. Comparing against the store's own `project` (not local component
@@ -41,6 +46,7 @@
 
 	function handleSessionChange() {
 		activeSessionId = $agentStore.sessionId;
+		sessionListVersion++;
 	}
 </script>
 
@@ -55,6 +61,7 @@
 			<SessionList
 				{projectName}
 				{activeSessionId}
+				refreshTrigger={sessionListVersion}
 				onSelect={handleSelect}
 				onTerminate={handleTerminate}
 				onNewSession={handleNewSession}
@@ -66,6 +73,7 @@
 		<SessionList
 			{projectName}
 			{activeSessionId}
+			refreshTrigger={sessionListVersion}
 			onSelect={handleSelect}
 			onTerminate={handleTerminate}
 			onNewSession={handleNewSession}

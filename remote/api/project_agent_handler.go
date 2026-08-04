@@ -305,6 +305,18 @@ func (h *ProjectAgentHandler) releaseSlotIfHeld(sessionID string) {
 	}
 }
 
+// terminateSessionImmediately releases the session's chat slot and removes
+// it from the store synchronously with the termination request, so it
+// disappears from GET /projects/{name}/sessions right away instead of only
+// once the container has actually finished stopping - which can take
+// several seconds and is still done, in the background, by the ctx.Done()
+// watcher registered when the session was created (triggered by the
+// CancelFunc call every termination path makes right after this).
+func (h *ProjectAgentHandler) terminateSessionImmediately(sessionID string) {
+	h.releaseSlotIfHeld(sessionID)
+	h.store.Remove(sessionID)
+}
+
 // HandleProjectChatReconnect handles WS /projects/{name}/chat/{id}.
 func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
@@ -458,6 +470,8 @@ func (h *ProjectAgentHandler) HandleTerminateProjectSession(w http.ResponseWrite
 		sess.Conn = nil
 	}
 	sess.ConnMu.Unlock()
+
+	h.terminateSessionImmediately(id)
 
 	if sess.CancelFunc != nil {
 		sess.CancelFunc()
@@ -766,6 +780,7 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 			h.logger.Info(ctx, fmt.Sprintf("project session %s terminated: user-initiated", sessionID))
 			h.writeWS(conn, WSServerMessage{Type: "terminated"})
 			conn.Close()
+			h.terminateSessionImmediately(sessionID)
 			if sess.CancelFunc != nil {
 				sess.CancelFunc()
 			}

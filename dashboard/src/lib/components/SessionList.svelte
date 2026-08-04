@@ -6,12 +6,14 @@
 	let {
 		projectName,
 		activeSessionId,
+		refreshTrigger = 0,
 		onSelect,
 		onTerminate,
 		onNewSession
 	}: {
 		projectName: string;
 		activeSessionId: string | null;
+		refreshTrigger?: number;
 		onSelect: (sessionId: string) => void;
 		onTerminate: (sessionId: string) => void;
 		onNewSession: () => void;
@@ -39,7 +41,10 @@
 
 	$effect(() => {
 		// Re-run whenever projectName changes (navigated to a different project)
+		// or refreshTrigger is bumped (a new session just started elsewhere on
+		// the page - starting one doesn't otherwise touch this component).
 		void projectName;
+		void refreshTrigger;
 		load();
 	});
 

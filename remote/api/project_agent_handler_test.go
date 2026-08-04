@@ -1,11 +1,15 @@
 package api
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"pgregory.net/rapid"
 
+	"remote/core"
+	"remote/docker"
 	"remote/store"
 )
 
@@ -128,5 +132,46 @@ func TestBuildProjectUploadMetadata_FormatsEachFile(t *testing.T) {
 	}
 	if !strings.Contains(got, "- data.csv → /tmp/uploads/data.csv\n") {
 		t.Errorf("expected metadata to reference data.csv, got %q", got)
+	}
+}
+
+// Regression: terminating a session must remove it from the store and
+// release its chat slot synchronously with the request, not only once the
+// container has finished stopping in the background - otherwise the
+// session list still shows it for however long that takes.
+func TestHandleTerminateProjectSession_RemovesSessionAndReleasesSlotImmediately(t *testing.T) {
+	logger := core.NewLogger("test-token")
+	cfg := &core.Config{MaxChatSessions: 1}
+	cm := docker.NewContainerManager(noopContainerClient{}, cfg, logger)
+	sessionStore := store.NewSessionStore()
+	h := NewProjectAgentHandler(sessionStore, cm, logger, cfg, nil)
+
+	if !cm.TryAcquireSlot() {
+		t.Fatal("expected to acquire the only available slot")
+	}
+
+	sess := &store.Session{
+		ID:         "sess-1",
+		Project:    "myproject",
+		SlotHeld:   true,
+		CancelFunc: func() {},
+	}
+	sessionStore.Add(sess)
+
+	req := httptest.NewRequest(http.MethodPost, "/projects/myproject/sessions/sess-1/terminate", nil)
+	req.SetPathValue("name", "myproject")
+	req.SetPathValue("id", "sess-1")
+	rec := httptest.NewRecorder()
+
+	h.HandleTerminateProjectSession(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := sessionStore.Get("sess-1"); got != nil {
+		t.Errorf("expected session removed from store immediately after terminate, still present: %+v", got)
+	}
+	if !cm.TryAcquireSlot() {
+		t.Error("expected the chat slot to be released immediately, but the pool is still exhausted")
 	}
 }
