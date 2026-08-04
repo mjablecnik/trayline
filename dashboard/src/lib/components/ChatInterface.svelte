@@ -35,6 +35,15 @@
 	let input = $state('');
 	let lastSessionId = $state<string | null>(null);
 	let userScrolledUp = $state(false);
+	// Session ID a reconnect attempt is currently in flight for. Needed because
+	// $agentStore is a legacy store subscription: any update() call on it (e.g.
+	// setConnecting, which never touches sessionId) re-triggers every $effect
+	// that reads $agentStore.*, not just ones whose read value actually changed.
+	// Without this guard, the sessionId-watching effect below would treat its
+	// own in-flight connect() as "not yet connected" on every such re-run and
+	// keep tearing down and recreating the socket before it could ever finish
+	// its handshake.
+	let reconnectingTarget = $state<string | null>(null);
 
 	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
@@ -67,6 +76,7 @@
 		const timeoutId = window.setTimeout(() => {
 			if (settled) return;
 			settled = true;
+			reconnectingTarget = null;
 			clientInitiatedClose = true;
 			socket.close();
 			ws = null;
@@ -94,6 +104,7 @@
 
 			if (!settled && msg.type === expectType && msg.sessionId) {
 				settled = true;
+				reconnectingTarget = null;
 				window.clearTimeout(timeoutId);
 				lastSessionId = msg.sessionId;
 				agentStore.setConnected(msg.sessionId);
@@ -109,6 +120,7 @@
 		socket.onerror = (event) => {
 			if (settled) return;
 			settled = true;
+			reconnectingTarget = null;
 			window.clearTimeout(timeoutId);
 			const message = busyMessage(event) ?? $t('agent.connectionError');
 			banner = asStart ? { kind: 'startError', message } : { kind: 'sessionLost' };
@@ -121,6 +133,7 @@
 
 			if (!settled) {
 				settled = true;
+				reconnectingTarget = null;
 				const message = busyMessage(event) ?? $t('agent.connectionError');
 				banner = asStart ? { kind: 'startError', message } : { kind: 'sessionLost' };
 				agentStore.setDisconnected();
@@ -128,6 +141,7 @@
 			}
 
 			// Was fully connected and then dropped unexpectedly.
+			reconnectingTarget = null;
 			processing = false;
 			banner = { kind: 'connectionError' };
 			agentStore.setDisconnected();
@@ -144,6 +158,7 @@
 	}
 
 	function reconnectTo(id: string) {
+		reconnectingTarget = id;
 		agentStore.setConnecting(projectName);
 		connect(buildWsUrl(projectName, '', undefined, id), 'session_resumed', false);
 	}
@@ -296,6 +311,7 @@
 			banner = { kind: 'none' };
 			processing = false;
 			lastSessionId = null;
+			reconnectingTarget = null;
 			userScrolledUp = false;
 		}
 	});
@@ -304,7 +320,7 @@
 	// e.g. the user picked one from SessionList.
 	$effect(() => {
 		const target = sessionId;
-		if (target && target !== $agentStore.sessionId) {
+		if (target && target !== $agentStore.sessionId && target !== reconnectingTarget) {
 			if (ws) {
 				clientInitiatedClose = true;
 				ws.close();

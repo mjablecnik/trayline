@@ -512,7 +512,10 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 			},
 		}
 		data, _ := json.Marshal(initMsg)
-		fmt.Fprintf(sess.Stdin, "%s\n", data)
+		if _, err := fmt.Fprintf(sess.Stdin, "%s\n", data); err != nil {
+			h.logger.Error(ctx, fmt.Sprintf(
+				"project session %s: failed to write init control_request to container stdin: %s", sessionID, err.Error()))
+		}
 	}
 
 	initialized := false
@@ -711,6 +714,7 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 						s.UploadedFiles = nil
 					})
 				}
+				var writeErr error
 				if sess.Agent == "claude" {
 					userMsg := map[string]interface{}{
 						"type":               "user",
@@ -719,9 +723,14 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 						"parent_tool_use_id": nil,
 					}
 					data, _ := json.Marshal(userMsg)
-					fmt.Fprintf(sess.Stdin, "%s\n", data)
+					_, writeErr = fmt.Fprintf(sess.Stdin, "%s\n", data)
 				} else {
-					fmt.Fprintf(sess.Stdin, "%s\n", prompt)
+					_, writeErr = fmt.Fprintf(sess.Stdin, "%s\n", prompt)
+				}
+				if writeErr != nil {
+					h.logger.Error(ctx, fmt.Sprintf(
+						"project session %s: failed to write prompt to container stdin: %s", sessionID, writeErr.Error()))
+					h.writeWS(conn, WSServerMessage{Type: "error", Message: "failed to send message to agent"})
 				}
 			}
 		case "interrupt":
