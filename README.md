@@ -217,6 +217,7 @@ trayline/
 | `processes/9-improvements` | Finds and applies validation, DX, and test improvements. |
 | `processes/10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. |
 | `processes/11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. |
+| `processes/12-create-spec` | Generates a Kiro spec (requirements/design/tasks) from a brief. |
 
 ### Workflows
 

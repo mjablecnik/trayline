@@ -13,8 +13,10 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 |----------|---------|----------|-------------|
 | `API_TOKEN` | — | Yes | Bearer token for API authentication |
 | `WORKSPACE_HOST_DIR` | — | Yes | Host filesystem path to workspace directory (used for Docker volume mounts) |
+| `PROJECTS_DIR` | — | Yes | Directory scanned for dashboard projects (must contain git repos as subdirectories) |
 | `APP_PORT` | `8080` | No | Server port |
-| `MAX_CONCURRENT_TASKS` | `2` | No | Maximum concurrent agent containers (1–32) |
+| `MAX_CONCURRENT_TASKS` | `2` | No | Maximum concurrent one-shot task containers (1–32) |
+| `MAX_CHAT_SESSIONS` | `4` | No | Maximum concurrent interactive chat sessions (1–32) |
 | `WORKSPACE_DIR` | `./workspace` | No | Workspace path inside the server container |
 | `SESSION_TIMEOUT` | `24h` | No | Chat session idle timeout before auto-termination |
 | `TASK_TIMEOUT` | `10m` | No | Maximum execution time for one-shot tasks |
@@ -22,6 +24,16 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `STATE_DIR` | `/tmp/trayline-server` | No | Directory for persisting server state across restarts |
 | `MAX_UPLOAD_SIZE` | `52428800` (50 MB) | No | Maximum size in bytes per uploaded file |
 | `MAX_UPLOAD_FILES` | `10` | No | Maximum number of files per request |
+| `MAX_PROMPT_LENGTH` | `32000` | No | Maximum prompt length in characters for the `/run` endpoint |
+| `DASHBOARD_ORIGIN` | — | No | Allowed CORS origin for the dashboard frontend; empty disables CORS |
+| `TRAYLINE_HOME_DIR` | `~/.trayline` | No | Host path mounted read-only into workflow containers at `/home/agent/.trayline` |
+| `PIPELINES_DIR` | `TRAYLINE_HOME_DIR/pipelines` | No | Directory used for pipeline discovery and workflow execution |
+| `WORKFLOW_TIMEOUT` | `5h` | No | Maximum duration a single workflow execution may run |
+| `DOCKER_HOST` | — | No | Docker proxy endpoint; set automatically by `start-docker.sh` |
+| `KIRO_HOST_DIR` | — | No | Host path to `~/.kiro` (workspace config, steering files) |
+| `KIRO_CREDS_HOST_DIR` | — | No | Host path to `~/.local/share/kiro-cli` (auth token) |
+| `CLAUDE_HOST_DIR` | — | No | Host path to `~/.claude` (session data) |
+| `CLAUDE_CONFIG_HOST_FILE` | — | No | Host path to `~/.claude.json` (global config / token) |
 
 Copy `.env.example` to `.env` and fill in the required values before running.
 
