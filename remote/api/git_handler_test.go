@@ -369,6 +369,34 @@ func TestHandleDiscardFile_Success(t *testing.T) {
 	}
 }
 
+func TestHandleDiscardFile_IndexLocked(t *testing.T) {
+	projectsDir := newTestProject(t, "myproject", 1)
+	repoDir := filepath.Join(projectsDir, "myproject")
+	if err := os.WriteFile(filepath.Join(repoDir, "file.txt"), []byte("dirty"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	lockPath := filepath.Join(repoDir, ".git", "index.lock")
+	if err := os.WriteFile(lockPath, nil, 0o644); err != nil {
+		t.Fatalf("create stale lock: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(lockPath) })
+	h := newTestGitHandler(projectsDir)
+
+	rec := httptest.NewRecorder()
+	h.HandleDiscardFile(rec, discardFileRequest(t, "myproject", "file.txt"))
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp core.ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error != "GIT_INDEX_LOCKED" {
+		t.Errorf("expected error code GIT_INDEX_LOCKED, got %q", resp.Error)
+	}
+}
+
 func TestHandleDiscardFile_InvalidPath(t *testing.T) {
 	projectsDir := newTestProject(t, "myproject", 1)
 	h := newTestGitHandler(projectsDir)

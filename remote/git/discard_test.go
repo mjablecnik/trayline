@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -244,5 +245,62 @@ func TestDiscardAll(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, restored)); err != nil {
 			t.Errorf("expected %q restored after DiscardAll: %v", restored, err)
 		}
+	}
+}
+
+// Regression: a stale (or genuinely held) .git/index.lock must surface as
+// ErrIndexLocked, not a generic error - and, critically, must NOT be
+// silently swallowed by DiscardFile's untracked-fallback path. Before this
+// was fixed, a checkout failure for any reason (not just "path unknown to
+// git") fell through to `git clean`, which no-ops on a tracked file and
+// would report success without having discarded anything.
+func TestDiscardFileModified_StaleIndexLock(t *testing.T) {
+	r := NewRunner()
+	dir := repoWithCommit(t)
+
+	path := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(path, []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	lockPath := filepath.Join(dir, ".git", "index.lock")
+	if err := os.WriteFile(lockPath, nil, 0o644); err != nil {
+		t.Fatalf("create stale lock: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(lockPath) })
+
+	err := r.DiscardFile(dir, "README.md")
+	if err == nil {
+		t.Fatal("expected an error while the index is locked, got nil")
+	}
+	if !errors.Is(err, ErrIndexLocked) {
+		t.Errorf("expected errors.Is(err, ErrIndexLocked), got: %v", err)
+	}
+
+	got, readErr := os.ReadFile(path)
+	if readErr != nil {
+		t.Fatalf("read file: %v", readErr)
+	}
+	if string(got) != "dirty\n" {
+		t.Errorf("expected file left untouched (discard failed), got %q", got)
+	}
+}
+
+func TestDiscardAll_StaleIndexLock(t *testing.T) {
+	r := NewRunner()
+	dir := repoWithCommit(t)
+
+	lockPath := filepath.Join(dir, ".git", "index.lock")
+	if err := os.WriteFile(lockPath, nil, 0o644); err != nil {
+		t.Fatalf("create stale lock: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(lockPath) })
+
+	err := r.DiscardAll(dir)
+	if err == nil {
+		t.Fatal("expected an error while the index is locked, got nil")
+	}
+	if !errors.Is(err, ErrIndexLocked) {
+		t.Errorf("expected errors.Is(err, ErrIndexLocked), got: %v", err)
 	}
 }

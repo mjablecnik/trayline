@@ -253,15 +253,31 @@ func (h *GitHandler) HandleDiscardFile(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.git.DiscardFile(repoPath, subPath); err != nil {
 		h.logger.Error(r.Context(), "git discard file error: "+err.Error())
-		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
-			Error:   "INTERNAL_ERROR",
-			Message: "failed to discard changes",
-		})
+		writeDiscardError(w, err)
 		return
 	}
 
 	h.logger.Info(r.Context(), fmt.Sprintf("discarded changes to %q in project %q", subPath, name))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// writeDiscardError writes the appropriate error response for a failed
+// discard operation, giving git.ErrIndexLocked a specific, actionable
+// message instead of the generic internal-error fallback.
+func writeDiscardError(w http.ResponseWriter, err error) {
+	if errors.Is(err, git.ErrIndexLocked) {
+		writeJSON(w, http.StatusConflict, core.ErrorResponse{
+			Error: "GIT_INDEX_LOCKED",
+			Message: "Another git process appears to be using this repository right now, or a previous " +
+				"one crashed and left a lock file behind (.git/index.lock). Resolve this outside the " +
+				"dashboard before retrying.",
+		})
+		return
+	}
+	writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+		Error:   "INTERNAL_ERROR",
+		Message: "failed to discard changes",
+	})
 }
 
 // HandleDiscardAll handles POST /projects/{name}/changes/discard-all. It
@@ -277,10 +293,7 @@ func (h *GitHandler) HandleDiscardAll(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.git.DiscardAll(repoPath); err != nil {
 		h.logger.Error(r.Context(), "git discard all error: "+err.Error())
-		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
-			Error:   "INTERNAL_ERROR",
-			Message: "failed to discard changes",
-		})
+		writeDiscardError(w, err)
 		return
 	}
 
