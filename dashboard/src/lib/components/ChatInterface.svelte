@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import AgentSelector from '$lib/components/AgentSelector.svelte';
 	import ChatMessageBubble from '$lib/components/ChatMessage.svelte';
 	import { buildWsUrl } from '$lib/api';
@@ -331,7 +331,7 @@
 	}
 
 	// Disconnect and reset when the project changes (user navigated to a different project).
-	let prevProjectName = $state<string>(projectName);
+	let prevProjectName = $state<string>(untrack(() => projectName));
 	$effect(() => {
 		if (projectName !== prevProjectName) {
 			prevProjectName = projectName;
