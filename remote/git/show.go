@@ -50,7 +50,7 @@ func (r *Runner) Show(repoPath, hash string) (*CommitDetail, error) {
 	// --root ensures the initial commit's diff is shown against the empty
 	// tree instead of being silently empty (diff-tree's default behavior
 	// for commits with no parent).
-	diff, err := showRunner.Run(repoPath, "diff-tree", "-p", "--root", hash)
+	diff, err := showRunner.Run(repoPath, "diff-tree", "-p", "--no-commit-id", "--root", hash)
 	if err != nil {
 		return nil, notFoundError(err)
 	}
