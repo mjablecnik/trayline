@@ -150,6 +150,7 @@ export default {
 	'agent.fileUploaded': '📁 {filename} uploaded',
 	'agent.uploadDisconnected': '⚠️ Cannot upload — not connected.',
 	'agent.uploadError': '⚠️ File upload failed.',
+	'agent.removeAttachment': 'Remove attachment',
 
 	'sessions.title': 'Sessions',
 	'sessions.refresh': 'Refresh',

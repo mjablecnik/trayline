@@ -152,6 +152,7 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.fileUploaded': '📁 {filename} nahráno',
 	'agent.uploadDisconnected': '⚠️ Nelze nahrát — nejste připojeni.',
 	'agent.uploadError': '⚠️ Nahrání souboru selhalo.',
+	'agent.removeAttachment': 'Odebrat přílohu',
 
 	'sessions.title': 'Relace',
 	'sessions.refresh': 'Obnovit',

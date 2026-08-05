@@ -109,8 +109,8 @@ ENV PUB_CACHE="/home/agent/.pub-cache"
 ENV HOME="/home/agent"
 
 # Workspace – mount point for project files
-RUN mkdir -p /workspace
-RUN chown -R agent:agent /workspace 
+RUN mkdir -p /workspace /tmp/uploads
+RUN chown -R agent:agent /workspace /tmp/uploads
 WORKDIR /workspace
 
 USER agent

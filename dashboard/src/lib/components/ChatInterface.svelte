@@ -53,8 +53,8 @@
 	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
 	let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
+	let pendingFiles = $state<File[]>([]);
 	let uploading = $state(false);
-	let pendingFileName = $state<string | null>(null);
 
 	// Auto-reconnect state
 	let reconnectAttempt = 0;
@@ -286,8 +286,6 @@
 				agentStore.markLastUserMessageError(msg.message ?? $t('agent.sendError'));
 				break;
 			case 'file_uploaded':
-				uploading = false;
-				pendingFileName = null;
 				agentStore.addSystemMessage($t('agent.fileUploaded').replace('{filename}', msg.data ?? ''));
 				break;
 			case 'terminated':
@@ -331,57 +329,80 @@
 	}
 
 	function handleSubmit() {
-		if (processing) return;
+		if (processing || uploading) return;
 		const text = input;
-		if (!canSubmitMessage(text)) return;
+		const hasFiles = pendingFiles.length > 0;
+		if (!canSubmitMessage(text) && !hasFiles) return;
+
+		if (!ws || ws.readyState !== WebSocket.OPEN) {
+			if (text) {
+				agentStore.addUserMessage(text);
+				agentStore.markLastUserMessageError($t('agent.sendError'));
+			} else {
+				agentStore.addSystemMessage($t('agent.uploadDisconnected'));
+			}
+			return;
+		}
 
 		input = '';
 		tick().then(autoGrow);
 
-		if (!ws || ws.readyState !== WebSocket.OPEN) {
-			agentStore.addUserMessage(text);
-			agentStore.markLastUserMessageError($t('agent.sendError'));
-			input = text;
-			return;
-		}
+		// Upload pending files first, then send the text message
+		const filesToSend = [...pendingFiles];
+		pendingFiles = [];
 
+		if (filesToSend.length > 0) {
+			uploading = true;
+			sendFilesAndMessage(filesToSend, text);
+		} else if (text) {
+			sendTextMessage(text);
+		}
+	}
+
+	async function sendFilesAndMessage(files: File[], text: string) {
 		try {
-			ws.send(JSON.stringify({ type: 'message', prompt: text }));
+			for (const file of files) {
+				const data = new Uint8Array(await file.arrayBuffer());
+				ws!.send(encodeUploadFrame(file.name, data));
+			}
+			// After all files are uploaded, send the text message if any
+			if (text) {
+				sendTextMessage(text);
+			}
+		} catch {
+			agentStore.addSystemMessage($t('agent.uploadError'));
+		} finally {
+			uploading = false;
+		}
+	}
+
+	function sendTextMessage(text: string) {
+		try {
+			ws!.send(JSON.stringify({ type: 'message', prompt: text }));
 		} catch {
 			agentStore.addUserMessage(text);
 			agentStore.markLastUserMessageError($t('agent.sendError'));
 			input = text;
 			return;
 		}
-
 		agentStore.addUserMessage(text);
 		processing = true;
 		userScrolledUp = false;
 		tick().then(scrollToBottom);
 	}
 
-	async function sendFile(file: File) {
-		if (!ws || ws.readyState !== WebSocket.OPEN) {
-			agentStore.addSystemMessage($t('agent.uploadDisconnected'));
-			return;
-		}
-		uploading = true;
-		pendingFileName = file.name;
-		try {
-			const data = new Uint8Array(await file.arrayBuffer());
-			ws.send(encodeUploadFrame(file.name, data));
-		} catch {
-			agentStore.addSystemMessage($t('agent.uploadError'));
-		} finally {
-			uploading = false;
-			pendingFileName = null;
-		}
+	function stageFile(file: File) {
+		pendingFiles = [...pendingFiles, file];
+	}
+
+	function removePendingFile(index: number) {
+		pendingFiles = pendingFiles.filter((_, i) => i !== index);
 	}
 
 	function handleFileInputChange(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
-		if (file) sendFile(file);
+		if (file) stageFile(file);
 		input.value = '';
 	}
 
@@ -390,19 +411,20 @@
 	}
 
 	// Lets a screenshot copied to the clipboard (e.g. Win+Shift+S on Windows,
-	// or a screenshot shared via paste on iOS) be sent straight from the message
-	// box with Ctrl+V / Cmd+V / long-press Paste, same as drag-and-drop.
+	// or a screenshot shared via paste on iOS) be staged as an attachment with
+	// Ctrl+V / Cmd+V / long-press Paste, same as drag-and-drop.
 	function handlePaste(event: ClipboardEvent) {
 		const items = event.clipboardData?.items;
-		if (!items) return;
-		for (const item of items) {
-			if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
-			const file = item.getAsFile();
-			if (!file) continue;
-			event.preventDefault();
-			const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
-			sendFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: item.type }));
-			return;
+		if (items) {
+			for (const item of items) {
+				if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+				const file = item.getAsFile();
+				if (!file) continue;
+				event.preventDefault();
+				const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
+				stageFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: item.type }));
+				return;
+			}
 		}
 		// iOS Safari may expose images as blob URLs in the DataTransfer.files list
 		// instead of clipboardData.items when pasting from Photos or screenshot.
@@ -412,7 +434,7 @@
 			if (file.type.startsWith('image/')) {
 				event.preventDefault();
 				const ext = file.type.split('/')[1]?.split('+')[0] || 'png';
-				sendFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: file.type }));
+				stageFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: file.type }));
 			}
 		}
 	}
@@ -424,7 +446,7 @@
 	function handleDrop(event: DragEvent) {
 		event.preventDefault();
 		const file = event.dataTransfer?.files?.[0];
-		if (file) sendFile(file);
+		if (file) stageFile(file);
 	}
 
 	function sendInterrupt() {
@@ -623,12 +645,31 @@
 				{/if}
 			</button>
 			<div class="flex min-w-0 flex-1 flex-col gap-1">
-				{#if pendingFileName}
-					<div
-						class="flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
-					>
-						<span class="inline-block animate-spin">⏳</span>
-						<span class="truncate">{pendingFileName}</span>
+				{#if pendingFiles.length > 0}
+					<div class="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800/50">
+						{#each pendingFiles as file, i (file.name + i)}
+							<div class="group relative flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800">
+								{#if file.type.startsWith('image/')}
+									<img
+										src={URL.createObjectURL(file)}
+										alt={file.name}
+										class="h-8 w-8 rounded object-cover"
+									/>
+								{:else}
+									<span>📄</span>
+								{/if}
+								<span class="max-w-32 truncate text-slate-600 dark:text-slate-300">{file.name}</span>
+								<button
+									type="button"
+									onclick={() => removePendingFile(i)}
+									class="ml-1 rounded-full text-slate-400 transition-colors hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+									title={$t('agent.removeAttachment')}
+									aria-label={$t('agent.removeAttachment')}
+								>
+									✕
+								</button>
+							</div>
+						{/each}
 					</div>
 				{/if}
 				<textarea
@@ -645,7 +686,7 @@
 			<button
 				type="button"
 				onclick={handleSubmit}
-				disabled={!canSubmitMessage(input) || processing}
+				disabled={(!canSubmitMessage(input) && pendingFiles.length === 0) || processing || uploading}
 				class="rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{$t('agent.send')}
