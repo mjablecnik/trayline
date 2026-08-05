@@ -712,6 +712,9 @@ func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent,
 
 // CopyFileToContainer writes a single file into a running container's filesystem at dstDir.
 // Returns a clear error if the container is not in a running state.
+// The destination directory is created automatically if it doesn't exist by
+// writing to the parent path and including the final directory segment in the
+// tar archive entry name.
 func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID, dstDir, filename string, data []byte) error {
 	// Verify container is running before attempting copy — a stopped container
 	// has no writable layer and docker returns a cryptic "RWLayer is nil" error.
@@ -723,10 +726,18 @@ func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID,
 		return fmt.Errorf("container is not running (state: %s)", containerStateLabel(info.State))
 	}
 
+	// Split dstDir into parent + base so we can CopyToContainer to the parent
+	// directory (which must exist) and let the tar entry create the final
+	// subdirectory. E.g. dstDir="/tmp/uploads" → parent="/tmp", entryName="uploads/filename".
+	// This makes the operation work even if dstDir doesn't exist in the container.
+	parent := filepath.Dir(dstDir)
+	base := filepath.Base(dstDir)
+	entryName := base + "/" + filename
+
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	hdr := &tar.Header{
-		Name: filename,
+		Name: entryName,
 		Mode: 0644,
 		Size: int64(len(data)),
 	}
@@ -740,7 +751,7 @@ func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID,
 		return err
 	}
 
-	return m.client.CopyToContainer(ctx, containerID, dstDir, &buf, dockertypes.CopyToContainerOptions{})
+	return m.client.CopyToContainer(ctx, containerID, parent, &buf, dockertypes.CopyToContainerOptions{})
 }
 
 // containerStateLabel returns a human-readable label for a container's state.

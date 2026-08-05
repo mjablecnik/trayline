@@ -627,9 +627,11 @@ func TestCopyFileToContainer_WritesTarWithFileContent(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	written, ok := mock.CopiedFiles["container-1:/tmp/uploads"]
+	// CopyToContainer is called with the parent directory (/tmp) so that the
+	// tar entry (uploads/notes.txt) creates the subdirectory automatically.
+	written, ok := mock.CopiedFiles["container-1:/tmp"]
 	if !ok {
-		t.Fatal("expected CopyToContainer to be called with the given containerID and dstPath")
+		t.Fatal("expected CopyToContainer to be called with the parent path /tmp")
 	}
 
 	tr := tar.NewReader(bytes.NewReader(written))
@@ -637,8 +639,8 @@ func TestCopyFileToContainer_WritesTarWithFileContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read tar entry: %v", err)
 	}
-	if hdr.Name != "notes.txt" {
-		t.Errorf("expected tar entry name %q, got %q", "notes.txt", hdr.Name)
+	if hdr.Name != "uploads/notes.txt" {
+		t.Errorf("expected tar entry name %q, got %q", "uploads/notes.txt", hdr.Name)
 	}
 	content, err := io.ReadAll(tr)
 	if err != nil {
