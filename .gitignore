@@ -14,3 +14,7 @@ tools/tunnel/**/.env-prod
 
 # Test data
 testdata/
+.agents/tmp/data/
+
+# Local Playwright browser install (dashboard E2E, sandbox-provisioned)
+.playwright-browsers/
