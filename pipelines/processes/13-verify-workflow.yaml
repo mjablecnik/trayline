@@ -1,0 +1,348 @@
+variables:
+  number: "3"
+  brief: "BRIEF.md"
+  path: "this"
+
+steps:
+  - name: "create-verification-plan"
+    agent: "claude"
+    model: "opus"
+    prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      - .agents/tmp/ is for temporary files of the current pipeline run
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+      FIRST: Check if .agents/tmp/VERIFICATION_TASKS.md already exists (in cwd).
+      If it exists AND contains at least one unchecked task (a line with "- [ ]"),
+      then a previous run was interrupted before completing. Skip all analysis
+      and just say "Skipping analysis — resuming from existing VERIFICATION_TASKS.md".
+      Do NOT overwrite or modify the existing file.
+
+      ONLY if the file does not exist or contains no unchecked tasks, proceed:
+
+      MEMORY: If .agents/MEMORY.md exists (in cwd), read it first for known issues
+      with this project — Docker setup problems, Playwright quirks, framework issues, etc.
+
+      STEP 1 — READ THE BRIEF:
+      Read the file {{brief}} in the project root directory.
+      This file describes what the application does and what workflows users perform.
+
+      STEP 2 — ANALYZE THE PROJECT:
+      - Identify the framework and tech stack in {{path}}
+      - Map all pages/routes and their purposes
+      - Identify authentication requirements (login flow, credentials)
+      - Read .env file in {{path}} for any login credentials, API URLs, test accounts
+      - Read .env.example for context on what variables are available
+      - Understand the data flow: what does the user do, what API calls are made, what responses come back
+      - Identify the Docker setup (Dockerfile, start-docker.sh, docker-compose if any)
+      - Check what port the application runs on
+
+      STEP 3 — DEFINE USER WORKFLOWS:
+      Based on the brief and the actual implemented code, define complete user workflows
+      that need to be verified. A workflow is a sequence of user actions from start to finish.
+
+      Examples of workflows:
+      - "User logs in with email/password and sees the dashboard"
+      - "User creates a new project and sees it in the project list"
+      - "User navigates to settings and changes their display name"
+      - "User uploads a file and sees the processing result"
+
+      For each workflow, define:
+      - Prerequisites (logged in? specific data exists?)
+      - Step-by-step user actions (click this, type that, navigate here)
+      - Expected outcomes at each step (what should be visible, what should change)
+      - API calls that will be made and what mock responses are needed
+
+      STEP 4 — CREATE VERIFICATION_TASKS.md:
+      Create .agents/tmp/VERIFICATION_TASKS.md (in cwd) with this structure:
+
+      # Workflow Verification Plan
+
+      ## Project Info
+      - Path: {{path}}
+      - Framework: [detected framework]
+      - Port: [port from Dockerfile/fly.toml/config]
+      - Base URL: http://localhost:[port]
+      - Auth required: [yes/no]
+      - Login credentials: [from .env if available, or describe how to get them]
+
+      ## Setup Notes
+      - Docker image name: [from fly.toml app name]
+      - Start command: [how to start — Docker preferred, dev server fallback]
+      - Any seed data or prerequisites needed
+
+      ## Workflows
+
+      ### Workflow 1: [Name]
+      - [ ] 1. [Action]: Navigate to [URL]. Expected: [what should be visible]
+      - [ ] 2. [Action]: Click/type [element]. Expected: [result]
+      - [ ] 3. [Action]: Verify [assertion]. Expected: [specific text/element/state]
+
+      ### Workflow 2: [Name]
+      - [ ] 1. ...
+
+      ## Environment
+      - Everything runs locally — all backends, APIs, databases are available on localhost.
+      - Do NOT mock any API calls. Tests hit real local services.
+      - Note any services that must be running (backend, database, etc.) and their local URLs.
+
+      Rules:
+      - Be specific about selectors: use text content, roles, test-ids, or aria labels.
+      - Each task must be independently verifiable with Playwright.
+      - Order workflows from simplest to most complex.
+      - If the app requires authentication, the first workflow MUST be the login flow.
+      - Include both happy-path and critical error scenarios.
+      - Do NOT include more than 20 verification tasks total — focus on the most important workflows.
+      - Every task must describe what the user DOES and what they should SEE as a result.
+      - Tests interact with real running services — no mocks, no fakes. This is real E2E verification.
+
+  - name: "start-application"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+      Read .agents/tmp/VERIFICATION_TASKS.md to understand the project setup.
+
+      MEMORY: If .agents/MEMORY.md exists (in cwd), read it for known issues — especially
+      around Docker setup, port conflicts, service startup, or dependency installation.
+
+      Your job is to get ALL required services running locally and ensure Playwright is available.
+
+      STEP 1 — INSTALL PLAYWRIGHT:
+      Check if Playwright is installed in the {{path}} project:
+      - Look for @playwright/test in package.json (or a top-level playwright dependency)
+      - If not installed, install it: `npm install -D @playwright/test` (or equivalent for the package manager used)
+      - Run `npx playwright install chromium` to ensure the browser binary is available
+      - If a playwright.config.ts does not exist, create a minimal one:
+        - baseURL pointing to the app's local URL (from VERIFICATION_TASKS.md)
+        - Only chromium project (no need for firefox/webkit for verification)
+        - Reasonable timeout (30s)
+        - No webServer config (we manage the server separately)
+
+      STEP 2 — IDENTIFY ALL REQUIRED SERVICES:
+      Read VERIFICATION_TASKS.md and analyze the project to determine ALL services
+      that must be running for the workflow to work end-to-end. This may include:
+      - The frontend application (the {{path}} project)
+      - Backend API servers (look for API_URL, BACKEND_URL, etc. in .env or config)
+      - Databases (PostgreSQL, Redis, etc.)
+      - Other microservices in the monorepo
+
+      For each service, determine:
+      - Where it lives in the monorepo (relative path)
+      - How to start it (scripts/start-docker.sh, docker run, npm run dev, etc.)
+      - What port it runs on
+      - Whether it has dependencies on other services (start order matters)
+
+      STEP 3 — START ALL SERVICES:
+      Start services in dependency order (databases first, then backends, then frontend).
+
+      For each service, prefer Docker (scripts/start-docker.sh) if available.
+      Fall back to dev server (npm run dev, go run, etc.) only if Docker is not available.
+
+      For each service:
+      - Start it
+      - Wait for it to be accessible (poll its health endpoint or port)
+      - If it doesn't respond within 60 seconds, check logs and troubleshoot
+
+      STEP 4 — VERIFY ALL SERVICES ARE RUNNING:
+      - Confirm each service responds on its expected port
+      - If the frontend depends on a backend, confirm the backend is reachable from the frontend's perspective
+      - Test a basic request to verify connectivity between services
+
+      STEP 5 — RECORD SETUP IN TMP:
+      Create .agents/tmp/VERIFICATION_SETUP.md with:
+
+      # Verification Setup
+
+      ## Services Running
+      | Service | Path | Method | Port | Start Command | Stop Command |
+      |---|---|---|---|---|---|
+      | frontend | dashboard | docker | 3000 | ./dashboard/scripts/start-docker.sh | ./dashboard/scripts/stop-docker.sh |
+      | backend | backend | docker | 8080 | ./backend/scripts/start-docker.sh | ./backend/scripts/stop-docker.sh |
+      | ... | ... | ... | ... | ... | ... |
+
+      ## Rebuild Commands
+      - frontend: `./dashboard/scripts/stop-docker.sh && ./dashboard/scripts/start-docker.sh`
+      - backend: `./backend/scripts/stop-docker.sh && ./backend/scripts/start-docker.sh`
+
+      ## Base URL
+      - Frontend: http://localhost:3000
+      - Backend: http://localhost:8080
+
+      ## Playwright Config
+      - Path: {{path}}/playwright.config.ts
+
+      ## Notes
+      - [Any issues encountered and how they were resolved]
+      - [Service start order if it matters]
+
+      If the application cannot be started after multiple attempts, write the failure reason
+      to .agents/tmp/VERIFICATION_SETUP.md and stop. Do NOT proceed with verification.
+
+      If you encounter and solve a non-obvious setup problem (port conflict, Docker networking,
+      missing dependency, service won't start), add it to .agents/MEMORY.md (in cwd).
+      Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-workflow, [current date and time]
+      If MEMORY.md doesn't exist yet, create it with a "# Memory" heading.
+
+      After setup is complete, create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      if any files were added/changed (playwright config, package.json, etc.).
+
+  - loop:
+      max_iterations: 50
+      condition:
+        file: ".agents/tmp/VERIFICATION_TASKS.md"
+        contains: "- [ ]"
+      steps:
+        - name: "verify-workflow-step"
+          agent: "claude"
+          model: "sonnet"
+          verbose: true
+          prompt: |
+            IMPORTANT — FILE PATH RULES:
+            Your current working directory (cwd) is the PROJECT ROOT.
+            All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+            - .agents/tmp/ is for temporary files of the current pipeline run
+            - .agents/MEMORY.md is persistent (in cwd root of .agents/)
+            Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+            Read .agents/tmp/VERIFICATION_TASKS.md and .agents/tmp/VERIFICATION_SETUP.md.
+
+            MEMORY: If .agents/MEMORY.md exists (in cwd), read it for known issues — especially
+            around Playwright, browser automation, Docker networking, or framework quirks.
+
+            Your job is to verify the next unchecked workflow step(s) using Playwright.
+            Work on up to {{number}} unchecked tasks in this run.
+
+            For each task:
+
+            1. WRITE A PLAYWRIGHT TEST SCRIPT:
+               - Create a test file in {{path}}/tests/verification/ (create directory if needed)
+               - Name it descriptively: `workflow-[name]-[step].spec.ts`
+               - The test must perform the user action described in the task
+               - The test must assert the expected outcome
+               - Use robust selectors: prefer getByRole(), getByText(), getByTestId()
+               - Handle async operations: use waitForSelector, waitForResponse, etc.
+               - If login is required and not yet done in this test, include login steps first
+               - Add a descriptive comment at the top of the file explaining what workflow it verifies
+
+            2. RUN THE TEST:
+               - Execute: `npx playwright test [test-file] --reporter=line`
+               - If it PASSES → check off the task in VERIFICATION_TASKS.md, move to next task
+               - If it FAILS → proceed to step 3
+
+            3. DIAGNOSE THE FAILURE:
+               - Read the error output carefully
+               - Determine if the failure is:
+                 a) A TEST issue (wrong selector, timing, missing wait) → fix the test script
+                 b) A CODE issue (button doesn't work, page doesn't render, API error) → fix the source code
+                 c) A SETUP issue (wrong URL, app not running, missing mock) → fix the setup
+
+            4. FIX AND RETRY:
+               - If it's a TEST issue: fix the test script and re-run
+               - If it's a CODE issue:
+                 - Fix the source code in {{path}} (or in other service directories if the bug is in the backend)
+                 - Rebuild and restart the AFFECTED service(s) using the "Rebuild Commands" from VERIFICATION_SETUP.md
+                 - Wait for the service(s) to be accessible again
+                 - Re-run the test
+               - If it's a SETUP issue: fix the setup and re-run
+               - Maximum 5 retry attempts per task. If still failing after 5 attempts,
+                 add a note to VERIFICATION_TASKS.md next to the task: "[BLOCKED: reason]"
+                 and check it off to move on.
+
+            5. COMMIT FIXES:
+               - After fixing source code that makes a test pass, create a git commit
+                 with name Martin Jablečník <martin.jablecnik@email.cz>
+               - Commit message: "fix: [what was broken and how it was fixed]"
+               - Keep test files and source fixes in separate commits when possible
+
+            Rules:
+            - NEVER modify tests to make them pass by weakening assertions. If the expected
+              behavior from VERIFICATION_TASKS.md doesn't match reality, fix the SOURCE CODE.
+            - Tests should be realistic — they simulate a real user clicking through the app.
+            - All services run locally — do NOT mock API calls. Hit real local backends/APIs.
+            - If an API call fails, the issue is in the source code (frontend or backend) — fix it.
+            - If the app requires authentication, store login as a reusable helper/fixture.
+            - All tests must run headless (no GUI dependencies).
+            - Keep test files clean and well-commented — they may be reused as regression tests.
+            - The goal is to make the REAL workflow work, not to make tests pass artificially.
+
+            If you encounter and solve a non-obvious problem, add it to .agents/MEMORY.md (in cwd).
+            Format: ## Short title\n- Project: [project directory name]\n- Problem: [what went wrong]\n- Solution: [how you fixed it]\n- Source: verify-workflow, [current date and time]
+
+            When done, print a summary of which tasks you verified and their results.
+
+  - name: "stop-application-and-summarize"
+    agent: "claude"
+    model: "sonnet"
+    prompt: |
+      IMPORTANT — FILE PATH RULES:
+      Your current working directory (cwd) is the PROJECT ROOT.
+      All .agents/ paths are ALWAYS relative to cwd (the project root), never relative to {{path}}.
+      Even if {{path}} points to a subdirectory, NEVER create .agents/ inside that subdirectory.
+
+      Read .agents/tmp/VERIFICATION_TASKS.md and .agents/tmp/VERIFICATION_SETUP.md.
+
+      STEP 1 — STOP ALL SERVICES:
+      Read .agents/tmp/VERIFICATION_SETUP.md for the list of all running services.
+      Stop each service using its recorded "Stop Command" — in reverse order (frontend first, databases last).
+      Verify all ports are free after stopping.
+
+      STEP 2 — ORGANIZE TEST FILES:
+      The Playwright test files in {{path}}/tests/verification/ are verification scripts
+      that can be reused as regression tests in the future.
+
+      - Ensure each test file has a clear top comment explaining:
+        - What workflow it verifies
+        - What user actions it performs
+        - What the expected outcomes are
+      - If there's a {{path}}/tests/ directory with other tests, make sure verification tests
+        don't conflict with existing test configuration
+      - Add a README.md inside {{path}}/tests/verification/ explaining:
+        - These are workflow verification tests generated by the verify-workflow pipeline
+        - How to run them: `npx playwright test tests/verification/`
+        - They require the application to be running locally
+        - Date of last verification run
+
+      STEP 3 — CREATE VERIFICATION REPORT:
+      Create (or overwrite) .agents/VERIFICATION_REPORT.md (in cwd, persistent) with:
+
+      # Workflow Verification Report
+      Created: [date]
+      Updated: [current date and time]
+      Project: {{path}}
+
+      ## Summary
+      - Total verification tasks: [count]
+      - Passed: [count]
+      - Failed/Blocked: [count]
+      - Source code fixes applied: [count of fix commits]
+
+      ## Workflow Results
+      | Workflow | Step | Status | Notes |
+      |---|---|---|---|
+      | Login | Navigate to /login | ✅ | — |
+      | Login | Submit credentials | ✅ | — |
+      | ... | ... | ... | ... |
+
+      ## Source Code Fixes Applied
+      - [List each fix commit with what was broken and how it was fixed]
+
+      ## Blocked Items
+      - [List any tasks that couldn't be verified and why]
+
+      ## Test Files
+      - [List all verification test files and what they cover]
+
+      STEP 4 — CLEANUP:
+      - Delete .agents/tmp/VERIFICATION_SETUP.md (no longer needed)
+      - Keep .agents/tmp/VERIFICATION_TASKS.md for the AI_LOG step
+      - Keep .agents/VERIFICATION_REPORT.md (persistent)
+
+      Create a git commit with name Martin Jablečník <martin.jablecnik@email.cz>
+      including the test README and any final changes.
