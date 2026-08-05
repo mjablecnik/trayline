@@ -116,6 +116,9 @@ WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
 WORKSPACE_HOST_DIR="${WORKSPACE_HOST_DIR:?WORKSPACE_HOST_DIR must be set in .env}"
 PROJECTS_DIR="${PROJECTS_DIR:?PROJECTS_DIR must be set in .env}"
 
+# Resolve assistant data directory (same default logic as the Go server).
+ASSISTANT_DATA_DIR="${ASSISTANT_DATA_DIR:-$(dirname "$PROJECTS_DIR")/.assistant}"
+
 # ---------------------------------------------------------------------------
 # Ensure workspace directory exists on the host.
 # ---------------------------------------------------------------------------
@@ -126,6 +129,14 @@ else
   echo "Workspace directory already exists: $WORKSPACE_HOST_DIR"
 fi
 
+# Ensure assistant data directory exists on the host.
+if [ ! -d "$ASSISTANT_DATA_DIR" ]; then
+  echo "Creating assistant data directory: $ASSISTANT_DATA_DIR"
+  mkdir -p "$ASSISTANT_DATA_DIR"
+else
+  echo "Assistant data directory already exists: $ASSISTANT_DATA_DIR"
+fi
+
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
@@ -133,6 +144,7 @@ docker run -d \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
+  -v "${ASSISTANT_DATA_DIR}:${ASSISTANT_DATA_DIR}" \
   -p "${APP_PORT}:${APP_PORT}" \
   trayline-server
 
