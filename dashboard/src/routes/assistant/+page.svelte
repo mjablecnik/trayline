@@ -13,7 +13,7 @@
 	import { encodeUploadFrame, extractDroppedFile, extractPastedImageFile } from '$lib/utils/upload';
 
 	const CONNECT_TIMEOUT_MS = 10000;
-	const MAX_TEXTAREA_HEIGHT = 160;
+	const MAX_TEXTAREA_HEIGHT = 240;
 	const SUMMARIZE_PROMPT =
 		'Summarize this entire conversation concisely, covering: key topics discussed, decisions made, important information shared, and any pending action items. Save the summary to /workspace/summary.md (overwrite any existing content). Output the summary content in your response so I can review it.';
 
@@ -50,6 +50,7 @@
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
 	let pendingFiles = $state<File[]>([]);
 	let uploading = $state(false);
+	let terminatingId = $state<string | null>(null);
 
 	// Set right before an intentional ws.close() so the onclose handler can
 	// distinguish it from an unexpected drop.
@@ -253,6 +254,20 @@
 
 	function handleDismissSessionLost() {
 		banner = { kind: 'none' };
+	}
+
+	async function handleSessionTerminate(sessionId: string) {
+		terminatingId = sessionId;
+		try {
+			await api.terminateAssistantSession(sessionId);
+			if (sessionId === $assistantStore.sessionId) {
+				disconnectView();
+			}
+			assistantStore.clearSessionHistory(sessionId);
+			refreshTrigger++;
+		} finally {
+			terminatingId = null;
+		}
 	}
 
 	function handleSessionSelect(session: AssistantSession) {
@@ -569,33 +584,46 @@
 							<ul class="flex flex-col gap-1">
 								{#each sessionsState.sessions as session (session.session_id)}
 									<li>
-										<button
-											type="button"
-											onclick={() => handleSessionSelect(session)}
-											disabled={reconnectingTarget === session.session_id}
-											class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-50 {session.session_id ===
+										<div
+											class="flex items-center gap-2 rounded-md px-2 py-1.5 {session.session_id ===
 											$assistantStore.sessionId
 												? 'bg-sky-50 dark:bg-sky-950'
 												: 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}"
 										>
-											<span aria-hidden="true">⭐</span>
-											<span class="flex min-w-0 flex-1 flex-col items-start">
-												<span
-													class="truncate text-sm font-medium {session.session_id ===
-													$assistantStore.sessionId
-														? 'text-sky-700 dark:text-sky-300'
-														: 'text-slate-900 dark:text-slate-100'}"
-												>
-													{$t('nav.assistant')}
-													<span class="font-normal text-slate-500 dark:text-slate-400">
-														/ {session.agent}{#if session.model}/ {session.model}{/if}
+											<button
+												type="button"
+												onclick={() => handleSessionSelect(session)}
+												disabled={reconnectingTarget === session.session_id}
+												class="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												<span aria-hidden="true">⭐</span>
+												<span class="flex min-w-0 flex-1 flex-col items-start">
+													<span
+														class="truncate text-sm font-medium {session.session_id ===
+														$assistantStore.sessionId
+															? 'text-sky-700 dark:text-sky-300'
+															: 'text-slate-900 dark:text-slate-100'}"
+													>
+														{$t('nav.assistant')}
+														<span class="font-normal text-slate-500 dark:text-slate-400">
+															/ {session.agent}{#if session.model}/ {session.model}{/if}
+														</span>
+													</span>
+													<span class="text-xs text-slate-500 dark:text-slate-400">
+														{formatRelativeDate(session.last_message_at, $locale)}
 													</span>
 												</span>
-												<span class="text-xs text-slate-500 dark:text-slate-400">
-													{formatRelativeDate(session.last_message_at, $locale)}
-												</span>
-											</span>
-										</button>
+											</button>
+											<button
+												type="button"
+												onclick={() => handleSessionTerminate(session.session_id)}
+												disabled={terminatingId === session.session_id}
+												aria-label={$t('agent.terminate')}
+												class="shrink-0 rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-400"
+											>
+												✕
+											</button>
+										</div>
 									</li>
 								{/each}
 							</ul>
@@ -681,9 +709,13 @@
 							<FileUploadButton disabled={processing} {uploading} onFile={stageFile} />
 							<div class="flex min-w-0 flex-1 flex-col gap-1">
 								{#if pendingFiles.length > 0}
-									<div class="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800/50">
+									<div
+										class="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800/50"
+									>
 										{#each pendingFiles as file, i (file.name + i)}
-											<div class="group relative flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800">
+											<div
+												class="group relative flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+											>
 												{#if file.type.startsWith('image/')}
 													<img
 														src={URL.createObjectURL(file)}
@@ -693,7 +725,9 @@
 												{:else}
 													<span>📄</span>
 												{/if}
-												<span class="max-w-32 truncate text-slate-600 dark:text-slate-300">{file.name}</span>
+												<span class="max-w-32 truncate text-slate-600 dark:text-slate-300"
+													>{file.name}</span
+												>
 												<button
 													type="button"
 													onclick={() => removePendingFile(i)}
@@ -713,15 +747,17 @@
 									oninput={handleInput}
 									onkeydown={handleKeydown}
 									onpaste={handlePaste}
-									rows="1"
+									rows="3"
 									placeholder={$t('agent.inputPlaceholder')}
-									class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+									class="max-h-60 min-h-[4.5rem] flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
 								></textarea>
 							</div>
 							<button
 								type="button"
 								onclick={handleSubmit}
-								disabled={(!canSubmitMessage(input) && pendingFiles.length === 0) || processing || uploading}
+								disabled={(!canSubmitMessage(input) && pendingFiles.length === 0) ||
+									processing ||
+									uploading}
 								class="rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								{$t('agent.send')}

@@ -23,8 +23,8 @@ const sessionHistories = new Map<string, ChatMessage[]>();
 function createAssistantStore() {
 	const { subscribe, set, update } = writable<AssistantState>({
 		sessionId: null,
-		agent: '',
-		model: '',
+		agent: 'claude',
+		model: 'sonnet',
 		connectionState: 'disconnected',
 		messages: [],
 		activeTab: 'chat',
@@ -159,8 +159,8 @@ function createAssistantStore() {
 		reset() {
 			set({
 				sessionId: null,
-				agent: '',
-				model: '',
+				agent: 'claude',
+				model: 'sonnet',
 				connectionState: 'disconnected',
 				messages: [],
 				activeTab: 'chat',

@@ -20,7 +20,7 @@
 	} = $props();
 
 	const CONNECT_TIMEOUT_MS = 10000;
-	const MAX_TEXTAREA_HEIGHT = 160;
+	const MAX_TEXTAREA_HEIGHT = 240;
 	const SCROLL_THRESHOLD = 50;
 
 	// Auto-reconnect configuration
@@ -646,9 +646,13 @@
 			</button>
 			<div class="flex min-w-0 flex-1 flex-col gap-1">
 				{#if pendingFiles.length > 0}
-					<div class="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800/50">
+					<div
+						class="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800/50"
+					>
 						{#each pendingFiles as file, i (file.name + i)}
-							<div class="group relative flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800">
+							<div
+								class="group relative flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+							>
 								{#if file.type.startsWith('image/')}
 									<img
 										src={URL.createObjectURL(file)}
@@ -658,7 +662,8 @@
 								{:else}
 									<span>📄</span>
 								{/if}
-								<span class="max-w-32 truncate text-slate-600 dark:text-slate-300">{file.name}</span>
+								<span class="max-w-32 truncate text-slate-600 dark:text-slate-300">{file.name}</span
+								>
 								<button
 									type="button"
 									onclick={() => removePendingFile(i)}
@@ -678,15 +683,17 @@
 					oninput={handleInput}
 					onkeydown={handleKeydown}
 					onpaste={handlePaste}
-					rows="1"
+					rows="3"
 					placeholder={$t('agent.inputPlaceholder')}
-					class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+					class="max-h-60 min-h-[4.5rem] flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
 				></textarea>
 			</div>
 			<button
 				type="button"
 				onclick={handleSubmit}
-				disabled={(!canSubmitMessage(input) && pendingFiles.length === 0) || processing || uploading}
+				disabled={(!canSubmitMessage(input) && pendingFiles.length === 0) ||
+					processing ||
+					uploading}
 				class="rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{$t('agent.send')}

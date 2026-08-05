@@ -33,8 +33,8 @@ function createAgentStore() {
 	const { subscribe, set, update } = writable<AgentSessionState>({
 		sessionId: null,
 		project: null,
-		agent: '',
-		model: '',
+		agent: 'claude',
+		model: 'sonnet',
 		connectionState: 'disconnected',
 		messages: []
 	});
@@ -144,8 +144,8 @@ function createAgentStore() {
 			set({
 				sessionId: null,
 				project: null,
-				agent: '',
-				model: '',
+				agent: 'claude',
+				model: 'sonnet',
 				connectionState: 'disconnected',
 				messages: []
 			});
