@@ -116,6 +116,9 @@ WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
 WORKSPACE_HOST_DIR="${WORKSPACE_HOST_DIR:?WORKSPACE_HOST_DIR must be set in .env}"
 PROJECTS_DIR="${PROJECTS_DIR:?PROJECTS_DIR must be set in .env}"
 
+# Resolve trayline home directory (pipeline definitions, env configs, etc.).
+TRAYLINE_HOME_DIR="${TRAYLINE_HOME_DIR:-${HOME}/.trayline}"
+
 # Resolve assistant data directory (same default logic as the Go server).
 ASSISTANT_DATA_DIR="${ASSISTANT_DATA_DIR:-$(dirname "$PROJECTS_DIR")/.assistant}"
 
@@ -137,14 +140,24 @@ else
   echo "Assistant data directory already exists: $ASSISTANT_DATA_DIR"
 fi
 
+# Ensure trayline home directory exists on the host.
+if [ ! -d "$TRAYLINE_HOME_DIR" ]; then
+  echo "Creating trayline home directory: $TRAYLINE_HOME_DIR"
+  mkdir -p "$TRAYLINE_HOME_DIR"
+else
+  echo "Trayline home directory already exists: $TRAYLINE_HOME_DIR"
+fi
+
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
   --env-file "$ENV_FILE" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
+  -e TRAYLINE_HOME_DIR="${TRAYLINE_HOME_DIR}" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
   -v "${ASSISTANT_DATA_DIR}:${ASSISTANT_DATA_DIR}" \
+  -v "${TRAYLINE_HOME_DIR}:${TRAYLINE_HOME_DIR}:ro" \
   -p "${APP_PORT}:${APP_PORT}" \
   trayline-server
 
