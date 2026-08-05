@@ -8,7 +8,7 @@ steps:
       max_iterations: 50
       condition:
         file: ".kiro/specs/{{specs-name}}/tasks.md"
-        matches: "- \\[ \\] \\d"
+        matches: "- \\[ \\]"
       steps:
         - name: "create-code"
           agent: "claude"
