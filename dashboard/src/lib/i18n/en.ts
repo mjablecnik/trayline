@@ -147,6 +147,8 @@ export default {
 	'agent.thinking': 'Agent is thinking...',
 	'agent.attachFile': 'Attach file',
 	'agent.fileUploaded': '📁 {filename} uploaded',
+	'agent.uploadDisconnected': '⚠️ Cannot upload — not connected.',
+	'agent.uploadError': '⚠️ File upload failed.',
 
 	'sessions.title': 'Sessions',
 	'sessions.refresh': 'Refresh',

@@ -19,17 +19,29 @@ export function extractDroppedFile(event: DragEvent): File | null {
 /**
  * Extracts an image pasted from the clipboard (e.g. a screenshot copied with
  * Win+Shift+S) as a File, so it can be sent the same way as a drag-and-drop
- * upload. Returns null when the clipboard has no image content.
+ * upload. Also handles iOS Safari which may expose pasted images via
+ * clipboardData.files rather than clipboardData.items.
+ * Returns null when the clipboard has no image content.
  */
 export function extractPastedImageFile(event: ClipboardEvent): File | null {
 	const items = event.clipboardData?.items;
-	if (!items) return null;
-	for (const item of items) {
-		if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
-		const file = item.getAsFile();
-		if (!file) continue;
-		const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
-		return new File([file], `clipboard-${crypto.randomUUID()}.${ext}`, { type: item.type });
+	if (items) {
+		for (const item of items) {
+			if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+			const file = item.getAsFile();
+			if (!file) continue;
+			const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
+			return new File([file], `clipboard-${crypto.randomUUID()}.${ext}`, { type: item.type });
+		}
+	}
+	// iOS Safari fallback — images may appear in clipboardData.files instead of items
+	const files = event.clipboardData?.files;
+	if (files && files.length > 0) {
+		const file = files[0];
+		if (file.type.startsWith('image/')) {
+			const ext = file.type.split('/')[1]?.split('+')[0] || 'png';
+			return new File([file], `clipboard-${crypto.randomUUID()}.${ext}`, { type: file.type });
+		}
 	}
 	return null;
 }

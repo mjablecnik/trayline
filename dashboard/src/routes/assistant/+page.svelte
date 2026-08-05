@@ -48,6 +48,8 @@
 	let filesClean = $state<boolean | null>(null);
 	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+	let uploading = $state(false);
+	let pendingFileName = $state<string | null>(null);
 
 	// Set right before an intentional ws.close() so the onclose handler can
 	// distinguish it from an unexpected drop.
@@ -291,6 +293,8 @@
 				assistantStore.reportError(msg.message ?? $t('assistant.sendError'));
 				break;
 			case 'file_uploaded':
+				uploading = false;
+				pendingFileName = null;
 				assistantStore.addSystemMessage(`${$t('assistant.fileUploaded')}: ${msg.data ?? ''}`);
 				break;
 			case 'context_compacted':
@@ -356,9 +360,21 @@
 	}
 
 	async function sendFile(file: File) {
-		if (!ws || ws.readyState !== WebSocket.OPEN) return;
-		const data = new Uint8Array(await file.arrayBuffer());
-		ws.send(encodeUploadFrame(file.name, data));
+		if (!ws || ws.readyState !== WebSocket.OPEN) {
+			assistantStore.addSystemMessage($t('agent.uploadDisconnected'));
+			return;
+		}
+		uploading = true;
+		pendingFileName = file.name;
+		try {
+			const data = new Uint8Array(await file.arrayBuffer());
+			ws.send(encodeUploadFrame(file.name, data));
+		} catch {
+			assistantStore.addSystemMessage($t('assistant.uploadError'));
+		} finally {
+			uploading = false;
+			pendingFileName = null;
+		}
 	}
 
 	function handleDragOver(event: DragEvent) {
@@ -642,17 +658,27 @@
 						</div>
 
 						<div class="flex items-end gap-2">
-							<FileUploadButton disabled={processing} onFile={sendFile} />
-							<textarea
-								bind:this={textareaEl}
-								value={input}
-								oninput={handleInput}
-								onkeydown={handleKeydown}
-								onpaste={handlePaste}
-								rows="1"
-								placeholder={$t('agent.inputPlaceholder')}
-								class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
-							></textarea>
+							<FileUploadButton disabled={processing} {uploading} onFile={sendFile} />
+							<div class="flex min-w-0 flex-1 flex-col gap-1">
+								{#if pendingFileName}
+									<div
+										class="flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+									>
+										<span class="inline-block animate-spin">⏳</span>
+										<span class="truncate">{pendingFileName}</span>
+									</div>
+								{/if}
+								<textarea
+									bind:this={textareaEl}
+									value={input}
+									oninput={handleInput}
+									onkeydown={handleKeydown}
+									onpaste={handlePaste}
+									rows="1"
+									placeholder={$t('agent.inputPlaceholder')}
+									class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+								></textarea>
+							</div>
 							<button
 								type="button"
 								onclick={handleSubmit}

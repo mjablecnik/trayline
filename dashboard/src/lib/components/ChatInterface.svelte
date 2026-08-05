@@ -48,6 +48,8 @@
 	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
 	let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
+	let uploading = $state(false);
+	let pendingFileName = $state<string | null>(null);
 
 	// Set right before an intentional ws.close() so the onclose handler
 	// can distinguish it from an unexpected drop.
@@ -203,6 +205,8 @@
 				agentStore.markLastUserMessageError(msg.message ?? $t('agent.sendError'));
 				break;
 			case 'file_uploaded':
+				uploading = false;
+				pendingFileName = null;
 				agentStore.addSystemMessage($t('agent.fileUploaded').replace('{filename}', msg.data ?? ''));
 				break;
 			case 'terminated':
@@ -276,9 +280,21 @@
 	}
 
 	async function sendFile(file: File) {
-		if (!ws || ws.readyState !== WebSocket.OPEN) return;
-		const data = new Uint8Array(await file.arrayBuffer());
-		ws.send(encodeUploadFrame(file.name, data));
+		if (!ws || ws.readyState !== WebSocket.OPEN) {
+			agentStore.addSystemMessage($t('agent.uploadDisconnected'));
+			return;
+		}
+		uploading = true;
+		pendingFileName = file.name;
+		try {
+			const data = new Uint8Array(await file.arrayBuffer());
+			ws.send(encodeUploadFrame(file.name, data));
+		} catch {
+			agentStore.addSystemMessage($t('agent.uploadError'));
+		} finally {
+			uploading = false;
+			pendingFileName = null;
+		}
 	}
 
 	function handleFileInputChange(event: Event) {
@@ -292,8 +308,9 @@
 		fileInputEl?.click();
 	}
 
-	// Lets a screenshot copied to the clipboard (e.g. Win+Shift+S on Windows)
-	// be sent straight from the message box with Ctrl+V, same as drag-and-drop.
+	// Lets a screenshot copied to the clipboard (e.g. Win+Shift+S on Windows,
+	// or a screenshot shared via paste on iOS) be sent straight from the message
+	// box with Ctrl+V / Cmd+V / long-press Paste, same as drag-and-drop.
 	function handlePaste(event: ClipboardEvent) {
 		const items = event.clipboardData?.items;
 		if (!items) return;
@@ -304,7 +321,18 @@
 			event.preventDefault();
 			const ext = item.type.split('/')[1]?.split('+')[0] || 'png';
 			sendFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: item.type }));
-			break;
+			return;
+		}
+		// iOS Safari may expose images as blob URLs in the DataTransfer.files list
+		// instead of clipboardData.items when pasting from Photos or screenshot.
+		const files = event.clipboardData?.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			if (file.type.startsWith('image/')) {
+				event.preventDefault();
+				const ext = file.type.split('/')[1]?.split('+')[0] || 'png';
+				sendFile(new File([file], `clipboard-${Date.now()}.${ext}`, { type: file.type }));
+			}
 		}
 	}
 
@@ -460,27 +488,47 @@
 		</div>
 
 		<div class="flex items-end gap-2">
-			<input bind:this={fileInputEl} type="file" class="hidden" onchange={handleFileInputChange} />
+			<input
+				bind:this={fileInputEl}
+				type="file"
+				accept="image/*,application/pdf,.txt,.md,.json,.csv,.xml,.yaml,.yml"
+				class="hidden"
+				onchange={handleFileInputChange}
+			/>
 			<button
 				type="button"
 				onclick={handleAttachClick}
-				disabled={processing}
+				disabled={processing || uploading}
 				title={$t('agent.attachFile')}
 				aria-label={$t('agent.attachFile')}
 				class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50"
 			>
-				📎
+				{#if uploading}
+					<span class="inline-block animate-spin">⏳</span>
+				{:else}
+					📎
+				{/if}
 			</button>
-			<textarea
-				bind:this={textareaEl}
-				value={input}
-				oninput={handleInput}
-				onkeydown={handleKeydown}
-				onpaste={handlePaste}
-				rows="1"
-				placeholder={$t('agent.inputPlaceholder')}
-				class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
-			></textarea>
+			<div class="flex min-w-0 flex-1 flex-col gap-1">
+				{#if pendingFileName}
+					<div
+						class="flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+					>
+						<span class="inline-block animate-spin">⏳</span>
+						<span class="truncate">{pendingFileName}</span>
+					</div>
+				{/if}
+				<textarea
+					bind:this={textareaEl}
+					value={input}
+					oninput={handleInput}
+					onkeydown={handleKeydown}
+					onpaste={handlePaste}
+					rows="1"
+					placeholder={$t('agent.inputPlaceholder')}
+					class="max-h-40 flex-1 resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+				></textarea>
+			</div>
 			<button
 				type="button"
 				onclick={handleSubmit}

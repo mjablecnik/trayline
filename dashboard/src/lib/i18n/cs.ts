@@ -149,6 +149,8 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.thinking': 'Agent přemýšlí...',
 	'agent.attachFile': 'Přiložit soubor',
 	'agent.fileUploaded': '📁 {filename} nahráno',
+	'agent.uploadDisconnected': '⚠️ Nelze nahrát — nejste připojeni.',
+	'agent.uploadError': '⚠️ Nahrání souboru selhalo.',
 
 	'sessions.title': 'Relace',
 	'sessions.refresh': 'Obnovit',
