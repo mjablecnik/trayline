@@ -711,7 +711,18 @@ func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent,
 }
 
 // CopyFileToContainer writes a single file into a running container's filesystem at dstDir.
+// Returns a clear error if the container is not in a running state.
 func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID, dstDir, filename string, data []byte) error {
+	// Verify container is running before attempting copy — a stopped container
+	// has no writable layer and docker returns a cryptic "RWLayer is nil" error.
+	info, err := m.client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return fmt.Errorf("container not accessible: %w", err)
+	}
+	if info.State == nil || !info.State.Running {
+		return fmt.Errorf("container is not running (state: %s)", containerStateLabel(info.State))
+	}
+
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	hdr := &tar.Header{
@@ -730,6 +741,14 @@ func (m *ContainerManager) CopyFileToContainer(ctx context.Context, containerID,
 	}
 
 	return m.client.CopyToContainer(ctx, containerID, dstDir, &buf, dockertypes.CopyToContainerOptions{})
+}
+
+// containerStateLabel returns a human-readable label for a container's state.
+func containerStateLabel(state *dockertypes.ContainerState) string {
+	if state == nil {
+		return "unknown"
+	}
+	return state.Status
 }
 
 // createAndStartContainer creates and starts a container with the given command.

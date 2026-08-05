@@ -615,6 +615,11 @@ func TestRunOneShot_OnStartCalledWithContainerIDBeforeCleanup(t *testing.T) {
 
 func TestCopyFileToContainer_WritesTarWithFileContent(t *testing.T) {
 	mock := NewMockContainerClient()
+	mock.InspectResult = dockertypes.ContainerJSON{
+		ContainerJSONBase: &dockertypes.ContainerJSONBase{
+			State: &dockertypes.ContainerState{Running: true},
+		},
+	}
 	mgr := newOneShotManager(t, mock, 1)
 
 	data := []byte("hello uploaded file")
