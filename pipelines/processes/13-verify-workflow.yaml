@@ -112,6 +112,14 @@ steps:
       MEMORY: If .agents/MEMORY.md exists (in cwd), read it for known issues — especially
       around Docker setup, port conflicts, service startup, or dependency installation.
 
+      FIRST: Check if .agents/tmp/VERIFICATION_SETUP.md already exists.
+      If it exists, a previous run already completed this step. Verify the services listed
+      there are still running (check their ports). If they are — skip to the end and say
+      "Services already running from previous setup." If they are NOT running, restart them
+      using the commands in VERIFICATION_SETUP.md and update any changed info.
+
+      ONLY if VERIFICATION_SETUP.md does not exist, proceed with full setup:
+
       Your job is to get ALL required services running locally and ensure Playwright is available.
 
       STEP 1 — INSTALL PLAYWRIGHT:
