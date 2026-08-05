@@ -480,13 +480,15 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 // streamOutputClaude handles NDJSON protocol output from claude CLI (stream-json mode).
 func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID string, reader interface{ Read([]byte) (int, error) }) {
 	lineCh := make(chan string, 32)
+	scanErrCh := make(chan error, 1)
 	go func() {
 		defer close(lineCh)
 		scanner := bufio.NewScanner(reader)
-		scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large JSON lines
+		scanner.Buffer(make([]byte, 1024*1024), scanTokenSizeForNDJSON(h.config.MaxUploadSize))
 		for scanner.Scan() {
 			lineCh <- scanner.Text()
 		}
+		scanErrCh <- scanner.Err()
 	}()
 
 	// Send initialization control request
@@ -510,6 +512,13 @@ func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID strin
 		select {
 		case line, ok := <-lineCh:
 			if !ok {
+				if err := <-scanErrCh; err != nil {
+					h.logger.Error(ctx, fmt.Sprintf(
+						"session %s: output stream scan error: %s", sessionID, err.Error()))
+					h.writeWSToSession(sessionID, WSServerMessage{
+						Type: "error", Message: "lost part of the agent's response: " + err.Error(),
+					})
+				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 				return
 			}

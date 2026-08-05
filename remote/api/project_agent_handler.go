@@ -516,13 +516,15 @@ func (h *ProjectAgentHandler) touchLastMessageAt(sessionID string) {
 // streamOutputClaude handles NDJSON protocol output from claude CLI (stream-json mode).
 func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID string, reader interface{ Read([]byte) (int, error) }) {
 	lineCh := make(chan string, 32)
+	scanErrCh := make(chan error, 1)
 	go func() {
 		defer close(lineCh)
 		scanner := bufio.NewScanner(reader)
-		scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+		scanner.Buffer(make([]byte, 1024*1024), scanTokenSizeForNDJSON(h.config.MaxUploadSize))
 		for scanner.Scan() {
 			lineCh <- scanner.Text()
 		}
+		scanErrCh <- scanner.Err()
 	}()
 
 	sess := h.store.Get(sessionID)
@@ -548,6 +550,13 @@ func (h *ProjectAgentHandler) streamOutputClaude(ctx context.Context, sessionID 
 		select {
 		case line, ok := <-lineCh:
 			if !ok {
+				if err := <-scanErrCh; err != nil {
+					h.logger.Error(ctx, fmt.Sprintf(
+						"project session %s: output stream scan error: %s", sessionID, err.Error()))
+					h.writeWSToSession(sessionID, WSServerMessage{
+						Type: "error", Message: "lost part of the agent's response: " + err.Error(),
+					})
+				}
 				h.writeWSToSession(sessionID, WSServerMessage{Type: "done"})
 				h.store.MarkAgentDone(sessionID)
 				return

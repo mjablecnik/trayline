@@ -24,6 +24,19 @@ type UploadValidationError struct {
 
 func (e *UploadValidationError) Error() string { return e.Msg }
 
+// scanTokenSizeForNDJSON returns the max bufio.Scanner token size needed to
+// read a claude CLI stream-json line whole. When an agent reads an uploaded
+// file back (e.g. Read on an uploaded image), the CLI echoes it as a
+// tool_result containing the file base64-encoded (~4/3 its raw size) inside
+// that single NDJSON line, plus some JSON wrapper overhead.
+func scanTokenSizeForNDJSON(maxUploadSize int64) int {
+	size := int(maxUploadSize*4/3) + 1024*1024
+	if size < 1024*1024 {
+		return 1024 * 1024
+	}
+	return size
+}
+
 // UploadedFile describes a single file that was stored in the workspace.
 type UploadedFile struct {
 	OriginalName  string // original filename from the upload

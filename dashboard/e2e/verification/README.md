@@ -21,6 +21,22 @@ npx playwright test e2e/verification/
 
 Agent replies stream from a real LLM in a spawned container, so individual tests can take up to ~120s.
 
+## Ad-hoc image testing
+
+`adhoc-user-image.spec.ts` is a general-purpose helper, separate from the `workflow-*.spec.ts` tests
+above. Instead of asserting on a specific fixture's known content, it attaches whatever image path you
+give it to a fresh `/assistant` session, asks the agent to describe it, and prints the full reply to the
+console — useful for quickly checking a real, arbitrary image (not just the small test fixtures) without
+writing a one-off test. Point it at an image with `ADHOC_IMAGE_PATH` (defaults to
+`/workspace/.agents/tmp/data/samsung-photo1.jpg`):
+
+```bash
+ADHOC_IMAGE_PATH=/path/to/your-image.jpg npx playwright test e2e/verification/adhoc-user-image.spec.ts --reporter=list
+```
+
 ## Last verification run
 
-2026-08-05 — all 6 workflows passed against a live `trayline-server` instance.
+2026-08-05 — all 6 workflows passed against a live `trayline-server` instance. Also used, via
+`adhoc-user-image.spec.ts`, to reproduce and confirm the fix for a bug where the agent's reply to a
+real (non-fixture) image never reached the browser — a `bufio.Scanner` line-size limit in the server's
+NDJSON output readers was too small for a base64-encoded image echoed back in a single line.
