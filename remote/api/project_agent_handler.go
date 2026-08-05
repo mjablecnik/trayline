@@ -686,6 +686,13 @@ func (h *ProjectAgentHandler) streamOutputPlainText(ctx context.Context, session
 	}
 }
 
+// pingInterval is the interval between WebSocket pings sent to the client.
+// Helps detect dead connections early (e.g. laptop sleep, network change).
+const pingInterval = 30 * time.Second
+
+// pongWait is the time allowed for a pong response before considering the connection dead.
+const pongWait = 10 * time.Second
+
 // readClient reads WebSocket messages from the client and processes them.
 func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, conn *websocket.Conn) {
 	defer func() {
@@ -697,6 +704,46 @@ func (h *ProjectAgentHandler) readClient(ctx context.Context, sessionID string, 
 			s.ConnMu.Unlock()
 		})
 	}()
+
+	// Set up ping/pong keepalive. The read deadline is extended every time
+	// a pong arrives, so a stale connection is detected within pingInterval + pongWait.
+	conn.SetReadDeadline(time.Now().Add(pingInterval + pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pingInterval + pongWait))
+		return nil
+	})
+
+	// Start a goroutine that sends pings at regular intervals.
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(pingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				sess := h.store.Get(sessionID)
+				if sess == nil {
+					return
+				}
+				sess.ConnMu.Lock()
+				if sess.Conn == conn {
+					err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+					sess.ConnMu.Unlock()
+					if err != nil {
+						return
+					}
+				} else {
+					sess.ConnMu.Unlock()
+					return
+				}
+			case <-pingDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	defer close(pingDone)
 
 	for {
 		select {

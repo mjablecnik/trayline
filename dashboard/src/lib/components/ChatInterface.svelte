@@ -23,6 +23,11 @@
 	const MAX_TEXTAREA_HEIGHT = 160;
 	const SCROLL_THRESHOLD = 50;
 
+	// Auto-reconnect configuration
+	const RECONNECT_BASE_DELAY_MS = 1000;
+	const RECONNECT_MAX_DELAY_MS = 30000;
+	const RECONNECT_MAX_ATTEMPTS = 10;
+
 	type Banner =
 		| { kind: 'none' }
 		| { kind: 'startError'; message: string }
@@ -51,9 +56,52 @@
 	let uploading = $state(false);
 	let pendingFileName = $state<string | null>(null);
 
+	// Auto-reconnect state
+	let reconnectAttempt = 0;
+	let reconnectTimerId: number | undefined;
+	let autoReconnecting = $state(false);
+
 	// Set right before an intentional ws.close() so the onclose handler
 	// can distinguish it from an unexpected drop.
 	let clientInitiatedClose = false;
+
+	function clearReconnectTimer() {
+		if (reconnectTimerId !== undefined) {
+			window.clearTimeout(reconnectTimerId);
+			reconnectTimerId = undefined;
+		}
+	}
+
+	function resetReconnectState() {
+		reconnectAttempt = 0;
+		autoReconnecting = false;
+		clearReconnectTimer();
+	}
+
+	function scheduleAutoReconnect(targetSessionId: string) {
+		if (reconnectAttempt >= RECONNECT_MAX_ATTEMPTS) {
+			// Give up after max attempts — show sessionLost banner so user can start fresh
+			autoReconnecting = false;
+			banner = { kind: 'sessionLost' };
+			agentStore.setDisconnected();
+			return;
+		}
+
+		autoReconnecting = true;
+		banner = { kind: 'none' }; // Clear any previous error banner during auto-reconnect
+		const delay = Math.min(
+			RECONNECT_BASE_DELAY_MS * Math.pow(2, reconnectAttempt),
+			RECONNECT_MAX_DELAY_MS
+		);
+		reconnectAttempt++;
+
+		reconnectTimerId = window.setTimeout(() => {
+			reconnectTimerId = undefined;
+			// Only attempt if we're still in a state that wants reconnection
+			if (!autoReconnecting || clientInitiatedClose) return;
+			reconnectTo(targetSessionId);
+		}, delay);
+	}
 
 	function busyMessage(event: Event): string | null {
 		if (
@@ -113,6 +161,7 @@
 			if (!settled && msg.type === expectType && msg.sessionId) {
 				settled = true;
 				reconnectingTarget = null;
+				resetReconnectState();
 				window.clearTimeout(timeoutId);
 				lastSessionId = msg.sessionId;
 				agentStore.setConnected(msg.sessionId);
@@ -130,7 +179,16 @@
 			settled = true;
 			reconnectingTarget = null;
 			window.clearTimeout(timeoutId);
-			const message = busyMessage(event) ?? $t('agent.connectionError');
+			const busyMsg = busyMessage(event);
+			if (busyMsg) {
+				// Server is at capacity — don't auto-reconnect, show error immediately
+				resetReconnectState();
+				banner = asStart ? { kind: 'startError', message: busyMsg } : { kind: 'sessionLost' };
+				return;
+			}
+			const message = $t('agent.connectionError');
+			// If auto-reconnecting, let onclose handle the retry scheduling
+			if (autoReconnecting && !asStart) return;
 			banner = asStart ? { kind: 'startError', message } : { kind: 'sessionLost' };
 		};
 
@@ -143,6 +201,12 @@
 				settled = true;
 				reconnectingTarget = null;
 				const message = busyMessage(event) ?? $t('agent.connectionError');
+				// If this was an auto-reconnect attempt that failed before settling,
+				// schedule another retry without touching the store (keep chat visible).
+				if (autoReconnecting && !asStart && lastSessionId) {
+					scheduleAutoReconnect(lastSessionId);
+					return;
+				}
 				banner = asStart ? { kind: 'startError', message } : { kind: 'sessionLost' };
 				agentStore.setDisconnected();
 				return;
@@ -151,8 +215,15 @@
 			// Was fully connected and then dropped unexpectedly.
 			reconnectingTarget = null;
 			processing = false;
-			banner = { kind: 'connectionError' };
-			agentStore.setDisconnected();
+
+			// Auto-reconnect: if we have a session ID, try to reconnect automatically.
+			// Don't call setDisconnected() — keep the chat messages visible during reconnection.
+			if (lastSessionId) {
+				scheduleAutoReconnect(lastSessionId);
+			} else {
+				banner = { kind: 'connectionError' };
+				agentStore.setDisconnected();
+			}
 		};
 
 		ws = socket;
@@ -167,15 +238,25 @@
 
 	function reconnectTo(id: string) {
 		reconnectingTarget = id;
-		agentStore.setConnecting(projectName);
+		// During auto-reconnect, don't change the store state to 'connecting'
+		// so the chat messages remain visible.
+		if (!autoReconnecting) {
+			agentStore.setConnecting(projectName);
+		}
 		connect(buildWsUrl(projectName, '', undefined, id), 'session_resumed', false);
 	}
 
 	function handleReconnectClick() {
-		if (lastSessionId) reconnectTo(lastSessionId);
+		resetReconnectState();
+		banner = { kind: 'none' };
+		if (lastSessionId) {
+			agentStore.setConnecting(projectName);
+			reconnectTo(lastSessionId);
+		}
 	}
 
 	function handleStartNewSessionClick() {
+		resetReconnectState();
 		banner = { kind: 'none' };
 		agentStore.setDisconnected();
 	}
@@ -363,6 +444,7 @@
 	$effect(() => {
 		if (projectName !== prevProjectName) {
 			prevProjectName = projectName;
+			resetReconnectState();
 			if (ws) {
 				clientInitiatedClose = true;
 				ws.close();
@@ -392,11 +474,34 @@
 
 	$effect(() => {
 		return () => {
+			resetReconnectState();
 			if (ws) {
 				clientInitiatedClose = true;
 				ws.close();
 			}
 		};
+	});
+
+	// When the page becomes visible again (e.g. after laptop sleep/wake or tab switch),
+	// check if the WebSocket is still alive. If not, trigger auto-reconnect immediately.
+	$effect(() => {
+		function handleVisibilityChange() {
+			if (document.visibilityState !== 'visible') return;
+			if (!lastSessionId) return;
+			if (autoReconnecting) return; // already reconnecting
+
+			// Check if the socket is dead
+			if (!ws || ws.readyState !== WebSocket.OPEN) {
+				// Connection died while tab was hidden — start auto-reconnect
+				if ($agentStore.connectionState === 'connected') {
+					processing = false;
+					scheduleAutoReconnect(lastSessionId);
+				}
+			}
+		}
+
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
 	});
 </script>
 
@@ -424,18 +529,26 @@
 	</div>
 {:else}
 	<div class="flex min-h-0 flex-1 flex-col gap-3">
-		{#if banner.kind === 'connectionError'}
+		{#if banner.kind === 'connectionError' || autoReconnecting}
 			<div
 				class="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
 			>
-				<span>{$t('agent.connectionError')}</span>
-				<button
-					type="button"
-					onclick={handleReconnectClick}
-					class="shrink-0 rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
-				>
-					{$t('agent.reconnect')}
-				</button>
+				<span>
+					{#if autoReconnecting}
+						{$t('agent.reconnecting')}
+					{:else}
+						{$t('agent.connectionError')}
+					{/if}
+				</span>
+				{#if !autoReconnecting}
+					<button
+						type="button"
+						onclick={handleReconnectClick}
+						class="shrink-0 rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+					>
+						{$t('agent.reconnect')}
+					</button>
+				{/if}
 			</div>
 		{/if}
 

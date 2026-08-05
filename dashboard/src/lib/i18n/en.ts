@@ -133,6 +133,7 @@ export default {
 	'agent.interrupt': 'Interrupt',
 	'agent.terminate': 'Terminate',
 	'agent.reconnect': 'Reconnect',
+	'agent.reconnecting': 'Connection lost. Reconnecting...',
 	'agent.newSession': 'Start New Session',
 	'agent.connecting': 'Connecting...',
 	'agent.serverBusy': 'Server is at capacity. Try again later.',

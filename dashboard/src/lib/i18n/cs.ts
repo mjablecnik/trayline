@@ -135,6 +135,7 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.interrupt': 'Přerušit',
 	'agent.terminate': 'Ukončit',
 	'agent.reconnect': 'Znovu připojit',
+	'agent.reconnecting': 'Spojení přerušeno. Připojování...',
 	'agent.newSession': 'Nová relace',
 	'agent.connecting': 'Připojování...',
 	'agent.serverBusy': 'Server je vytížený. Zkuste to později.',

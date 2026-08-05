@@ -653,6 +653,44 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 		})
 	}()
 
+	// Set up ping/pong keepalive to detect dead connections early.
+	conn.SetReadDeadline(time.Now().Add(pingInterval + pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pingInterval + pongWait))
+		return nil
+	})
+
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(pingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				sess := h.store.Get(sessionID)
+				if sess == nil {
+					return
+				}
+				sess.ConnMu.Lock()
+				if sess.Conn == conn {
+					err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+					sess.ConnMu.Unlock()
+					if err != nil {
+						return
+					}
+				} else {
+					sess.ConnMu.Unlock()
+					return
+				}
+			case <-pingDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	defer close(pingDone)
+
 	for {
 		select {
 		case <-ctx.Done():
