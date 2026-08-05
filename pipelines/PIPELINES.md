@@ -45,7 +45,7 @@ Standalone processes with clear output. Each process focuses on one development 
 | `10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. | `path`, `number` |
 | `11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. | `path`, `number` |
 | `12-create-spec` | Generates a Kiro spec (requirements.md, design.md, tasks.md) from a brief or codebase analysis. | `specs-name`, `brief`, `path` |
-| `13-verify-workflow` | Runs the app locally, verifies user workflows via Playwright, fixes broken code until all pass. | `brief`, `path`, `number` |
+| `13-verify-workflow` | Runs the app locally, verifies user workflows via Playwright, fixes broken code until all pass. | `brief`, `specs-name`, `path`, `number` |
 
 ## Workflows
 

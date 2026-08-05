@@ -1,6 +1,7 @@
 variables:
   number: "3"
   brief: "BRIEF.md"
+  specs-name: ""
   path: "this"
 
 steps:
@@ -25,9 +26,20 @@ steps:
       MEMORY: If .agents/MEMORY.md exists (in cwd), read it first for known issues
       with this project — Docker setup problems, Playwright quirks, framework issues, etc.
 
-      STEP 1 — READ THE BRIEF:
-      Read the file {{brief}} in the project root directory.
-      This file describes what the application does and what workflows users perform.
+      STEP 1 — DETERMINE INPUT SOURCE:
+
+      specs-name is set to "{{specs-name}}".
+      brief is set to "{{brief}}".
+
+      If specs-name is NOT empty:
+      - Read ALL files inside .kiro/specs/{{specs-name}}/ (requirements.md, design.md, tasks.md)
+      - Extract user-facing use cases, features, and workflows from the spec
+      - Focus on anything that involves UI interaction: pages, forms, buttons, navigation, uploads, etc.
+      - Ignore purely backend/infrastructure tasks that have no UI component
+
+      If specs-name IS empty:
+      - Read the file {{brief}} in the project root directory
+      - This file contains a short description of what workflows to verify
 
       STEP 2 — ANALYZE THE PROJECT:
       - Identify the framework and tech stack in {{path}}
@@ -40,8 +52,16 @@ steps:
       - Check what port the application runs on
 
       STEP 3 — DEFINE USER WORKFLOWS:
-      Based on the brief and the actual implemented code, define complete user workflows
-      that need to be verified. A workflow is a sequence of user actions from start to finish.
+      Based on the input source (spec or brief) and the actual implemented code, define
+      complete user workflows that need to be verified. A workflow is a sequence of user
+      actions from start to finish.
+
+      If working from a spec: derive workflows from the requirements and design. Each requirement
+      that has a UI component becomes one or more verification steps. Focus on the acceptance
+      criteria — what must work for the spec to be considered "done".
+
+      If working from a brief: interpret the brief description and expand it into concrete
+      testable steps based on what you see in the code.
 
       Examples of workflows:
       - "User logs in with email/password and sees the dashboard"
