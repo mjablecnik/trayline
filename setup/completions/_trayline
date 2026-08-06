@@ -250,6 +250,7 @@ _trayline() {
     'sync:Sync project with remote server'
     'run:Run a single pipeline (orchestrator)'
     'flow:Run multiple pipelines sequentially'
+    'stop:Signal running pipeline to stop gracefully after current step'
     'install:Re-run installation'
     'version:Print version info'
     'help:Show help'
@@ -267,6 +268,7 @@ _trayline() {
       sync)  _trayline_sync ;;
       run)   _trayline_run ;;
       flow)  _trayline_flow ;;
+      stop)  _message 'no arguments' ;;
       *)     _message 'no more arguments' ;;
     esac
   fi

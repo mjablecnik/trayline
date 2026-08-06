@@ -16,6 +16,7 @@ go build -o trayline-run ./cmd
 ```
 trayline-run <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--restart] [--var key=value ...]
 trayline-run flow <pipeline> [--then <pipeline> ...] [--dry-run] [--verbose] [--no-lifecycle]
+trayline-run stop
 trayline-run --version
 trayline-run --help
 ```
@@ -30,6 +31,11 @@ Flags:
 - `--restart` — Ignore checkpoint and start pipeline from the beginning
 - `--version` — Print version and exit
 - `--help, -h` — Show help message
+
+Subcommands:
+
+- `flow` — Run multiple pipelines sequentially separated by `--then`
+- `stop` — Signal a running pipeline to stop gracefully after its current step
 
 ## Configuration
 

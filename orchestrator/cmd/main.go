@@ -38,6 +38,7 @@ func usageText() string {
 Usage:
   %s <pipeline> [--dry-run] [--verbose] [--log-llm] [--no-lifecycle] [--restart] [--var key=value ...]
   %s flow <pipeline> [--then <pipeline> ...] [--dry-run] [--verbose] [--no-lifecycle]
+  %s stop
   %s --version
   %s --help
 
@@ -51,15 +52,24 @@ Flags:
   --version           Print version and exit
   --help, -h          Show this help message
 
+Subcommands:
+  flow                Run multiple pipelines sequentially
+  stop                Signal running pipeline to stop gracefully after current step
+
 Flow (multiple pipelines):
   %s flow processes/8-code-review --var path=. --then processes/9-improvements --var path=.
+
+Graceful Stop:
+  %s stop             Signal a running pipeline to finish its current step, then stop.
+                      The pipeline will still run lifecycle after-steps (commit, push).
 
 Examples:
   %s processes/4-create-code --var specs-name=my-feature
   %s workflows/feature-implementation --var specs-name=my-feature --verbose
   %s tasks/check-build --no-lifecycle
+  %s stop
   %s --version
-`, name, name, name, name, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name, name, name, name, name, name)
 }
 
 // varFlags is a repeatable --var flag that accumulates key=value strings.
@@ -77,7 +87,23 @@ func main() {
 		os.Exit(engine.RunFlow(os.Args[2:]))
 		return
 	}
+	// Check for "stop" subcommand
+	if len(os.Args) > 1 && os.Args[1] == "stop" {
+		os.Exit(runStop())
+		return
+	}
 	os.Exit(run(os.Args[1:]))
+}
+
+// runStop handles the "stop" subcommand — creates the stop signal file.
+func runStop() int {
+	if err := engine.RequestGracefulStop(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s✗ Failed to request graceful stop: %v%s\n", colorRed, err, colorReset)
+		return 1
+	}
+	fmt.Printf("%s✓ Graceful stop requested. The running pipeline will stop after its current step completes.%s\n", colorYellow, colorReset)
+	fmt.Printf("%s  Lifecycle after-steps (commit, push) will still execute.%s\n", colorDim, colorReset)
+	return 0
 }
 
 func run(args []string) int {
@@ -395,6 +421,11 @@ func runWithLifecycle(executor *engine.Executor, lifecyclePath string, pipelineN
 				i++ // skip the fallback agent step
 			}
 		}
+	}
+
+	// Graceful stop (exit code 3) is a successful outcome — pipeline stopped cleanly
+	if exitCode == 3 {
+		return 0
 	}
 
 	return exitCode

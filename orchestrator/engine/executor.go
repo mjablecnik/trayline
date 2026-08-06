@@ -213,6 +213,11 @@ func (e *Executor) Run() int {
 					printTotal("Pipeline paused (rate limit).")
 					return 2
 				}
+				if exitCode == 3 && err == nil {
+					// Graceful stop from inside loop
+					printTotal("Pipeline stopped (graceful).")
+					return 3
+				}
 				if err != nil {
 					fmt.Printf("\n%s✗ error:%s %v\n", colorRed, colorReset, err)
 				}
@@ -282,6 +287,14 @@ func (e *Executor) Run() int {
 		completedSteps = append(completedSteps, step.Name)
 		if e.PipelineName != "" {
 			SaveCheckpoint(e.PipelineName, e.ResolvedVars, completedSteps, "", false)
+		}
+
+		// Check for graceful stop signal
+		if ShouldGracefulStop() {
+			ClearGracefulStop()
+			fmt.Printf("\n%s%s%s⏹ Graceful stop requested. Finishing after step %q.%s\n", indent(), colorBold, colorYellow, step.Name, colorReset)
+			printTotal("Pipeline stopped (graceful).")
+			return 3
 		}
 
 		// Run log-task after successful step if log:true is set
@@ -607,6 +620,10 @@ func (e *Executor) executeLoop(loop *core.Loop) (int, error) {
 						// Rate limit from nested loop — propagate up
 						return 2, nil
 					}
+					if exitCode == 3 && err == nil {
+						// Graceful stop from nested loop — propagate up
+						return 3, nil
+					}
 					return exitCode, err
 				}
 				continue
@@ -639,6 +656,13 @@ func (e *Executor) executeLoop(loop *core.Loop) (int, error) {
 				return exitCode, fmt.Errorf("step %q failed with exit code %d", step.Name, exitCode)
 			}
 			lastOutput = output
+
+			// Check for graceful stop signal inside loop
+			if ShouldGracefulStop() {
+				ClearGracefulStop()
+				fmt.Printf("\n%s%s%s⏹ Graceful stop requested. Finishing after step %q (inside loop).%s\n", indent(), colorBold, colorYellow, step.Name, colorReset)
+				return 3, nil
+			}
 
 			// Evaluate step condition if present (goto is not allowed inside loops).
 			// true = continue to next element; false = skip remaining elements and exit loop.

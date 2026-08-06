@@ -12,6 +12,7 @@ import (
 
 const checkpointDir = ".agents/checkpoints"
 const flowCheckpointFile = ".agents/checkpoints/.flow-checkpoint"
+const stopFile = ".agents/checkpoints/.stop"
 
 // checkpointPath returns the checkpoint file path for a given pipeline name.
 // Each pipeline gets its own checkpoint file to avoid conflicts between
@@ -329,6 +330,28 @@ func (cp *Checkpoint) IsStepCompleted(stepName string) bool {
 		}
 	}
 	return false
+}
+
+// ShouldGracefulStop checks whether a graceful stop has been requested
+// by checking for the presence of the stop file.
+func ShouldGracefulStop() bool {
+	_, err := os.Stat(stopFile)
+	return err == nil
+}
+
+// ClearGracefulStop removes the stop file after it has been acknowledged.
+func ClearGracefulStop() {
+	os.Remove(stopFile)
+}
+
+// RequestGracefulStop creates the stop file to signal the orchestrator
+// to finish the current step and then stop gracefully.
+func RequestGracefulStop() error {
+	dir := filepath.Dir(stopFile)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating stop file directory: %w", err)
+	}
+	return os.WriteFile(stopFile, []byte("stop\n"), 0o644)
 }
 
 // LoadAllCheckpoints reads all existing checkpoint files and returns them.

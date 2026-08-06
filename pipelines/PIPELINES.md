@@ -108,7 +108,7 @@ The orchestrator automatically saves progress after each completed step. If a pi
 
 **How it works:**
 - After each successful top-level step, the step name is recorded in memory.
-- On failure or rate limit, a checkpoint is saved to `.agents/tmp/.checkpoint`.
+- On failure or rate limit, a checkpoint is saved to `.agents/checkpoints/`.
 - On the next run of the same pipeline, completed steps are skipped automatically.
 - On successful completion, the checkpoint is cleared.
 
@@ -119,6 +119,33 @@ The orchestrator automatically saves progress after each completed step. If a pi
 - Exit code 2 indicates a rate limit was hit.
 - If retry is configured in lifecycle.yaml, the orchestrator waits and retries automatically.
 - If retry is not configured, the pipeline exits and you can re-run it manually later.
+
+## Graceful Stop
+
+The `trayline stop` command signals a running pipeline to finish its current step and then stop cleanly. The lifecycle after-steps (commit, squash, push) still execute, so your work is never left uncommitted.
+
+**How it works:**
+- Running `trayline stop` creates a signal file (`.agents/checkpoints/.stop`).
+- After each step completes, the orchestrator checks for this file.
+- If found, the pipeline stops gracefully — no further steps or loop iterations run.
+- Lifecycle after-steps (commit-remaining, squash-commits, sync-push) still execute.
+- A checkpoint is saved so you can resume later with a normal re-run.
+
+**Usage:**
+```bash
+# In another terminal while a pipeline is running:
+trayline stop
+```
+
+**Behavior in different contexts:**
+- **Single pipeline** — stops after the current step, runs lifecycle after-steps.
+- **Loop** — stops after the current loop iteration's step, exits the loop and pipeline.
+- **Flow** — stops after the current step in the current pipeline segment, runs lifecycle after-steps.
+
+**Exit codes:**
+- The running pipeline exits with code 3 internally (graceful stop).
+- After lifecycle after-steps complete, the final exit code is 0 (success).
+- The checkpoint is preserved so you can resume later.
 
 ## Flow (Ad-hoc Multi-Pipeline)
 
@@ -159,6 +186,9 @@ trayline run workflows/feature-impl --var specs-name=my-feature --restart
 
 # Dry run (preview what would execute):
 trayline run workflows/feature-impl --var specs-name=my-feature --dry-run
+
+# Graceful stop (in another terminal while a pipeline is running):
+trayline stop
 
 # Flow — run multiple pipelines sequentially:
 trayline flow processes/8-code-review --var path=. --var number=5 \
