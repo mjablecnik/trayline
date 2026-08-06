@@ -45,6 +45,7 @@ steps:
         - name: "implement-tasks"
           agent: "claude"
           model: "sonnet"
+          verbose: true
           prompt: |
             Read SPEC.md and TASKS.md from .agents/tmp/.
 
