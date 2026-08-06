@@ -28,6 +28,7 @@ _trayline_client() {
                 'cancel:Cancel a running task'
                 'sessions:List active sessions'
                 'terminate:Terminate a session'
+                'schedule:Schedule and manage pipeline workflows'
             )
             _describe 'subcommand' subcommands
             ;;
@@ -69,6 +70,91 @@ _trayline_client() {
                     _arguments \
                         '--help[Show help for this subcommand]' \
                         '-h[Show help for this subcommand]'
+                    ;;
+                schedule)
+                    _trayline_client_schedule
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_trayline_client_schedule() {
+    local state
+
+    _arguments -C \
+        '--project[Project name]:NAME:' \
+        '--help[Show help for this subcommand]' \
+        '-h[Show help for this subcommand]' \
+        '1:action:->action' \
+        '*::args:->schedule_args' \
+        && return 0
+
+    case "${state}" in
+        action)
+            local actions
+            actions=(
+                'list:List all workflows for the project'
+                'show:Show details of a specific workflow'
+                'cancel:Cancel a queued or running workflow'
+                'delete:Delete a queued workflow'
+                'logs:Stream logs for a workflow'
+                'tasks/:Task pipelines'
+                'processes/:Process pipelines'
+                'workflows/:Workflow pipelines'
+            )
+            _describe 'action or pipeline' actions
+            ;;
+        schedule_args)
+            case "${words[1]}" in
+                list)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '--help[Show help]' \
+                        '-h[Show help]'
+                    ;;
+                show|cancel|delete)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '--help[Show help]' \
+                        '-h[Show help]' \
+                        '1:workflow ID:'
+                    ;;
+                logs)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '--help[Show help]' \
+                        '-h[Show help]' \
+                        '1:workflow ID (optional):'
+                    ;;
+                tasks/*)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '*--var[Pipeline variable (key=value)]:VAR:' \
+                        '--help[Show help]' \
+                        '-h[Show help]'
+                    ;;
+                processes/*)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '*--var[Pipeline variable (key=value)]:VAR:' \
+                        '--help[Show help]' \
+                        '-h[Show help]'
+                    ;;
+                workflows/*)
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '*--var[Pipeline variable (key=value)]:VAR:' \
+                        '--help[Show help]' \
+                        '-h[Show help]'
+                    ;;
+                *)
+                    # Completing pipeline names or flags for schedule add
+                    _arguments \
+                        '--project[Project name]:NAME:' \
+                        '*--var[Pipeline variable (key=value)]:VAR:' \
+                        '--help[Show help]' \
+                        '-h[Show help]'
                     ;;
             esac
             ;;

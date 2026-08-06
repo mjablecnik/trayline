@@ -73,3 +73,33 @@ type WSServerMessage struct {
 	Data      string `json:"data,omitempty"`
 	Message   string `json:"message,omitempty"`
 }
+
+// ScheduleWorkflowRequest is the request body for POST /projects/{name}/workflows.
+type ScheduleWorkflowRequest struct {
+	Pipeline  string            `json:"pipeline"`
+	Variables map[string]string `json:"variables"`
+}
+
+// WorkflowSummary mirrors one item from GET /projects/{name}/workflows.
+type WorkflowSummary struct {
+	ID          string     `json:"id"`
+	Pipeline    string     `json:"pipeline"`
+	Variables   map[string]string `json:"variables"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
+	Log         string     `json:"log,omitempty"`
+	Truncated   bool       `json:"truncated,omitempty"`
+}
+
+// WSLogMessage is a message received from the workflow log WebSocket.
+type WSLogMessage struct {
+	Type      string `json:"type"`
+	Data      string `json:"data,omitempty"`
+	Status    string `json:"status,omitempty"`
+	ExitCode  *int   `json:"exit_code,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+}

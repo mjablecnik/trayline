@@ -181,3 +181,25 @@ func padRight(s string, w int) string {
 	}
 	return s + strings.Repeat(" ", w-n)
 }
+
+// FormatWorkflowsTable formats workflows as an aligned columnar table with a header row.
+func FormatWorkflowsTable(workflows []WorkflowSummary) string {
+	headers := []string{"ID", "PIPELINE", "STATUS", "CREATED", "DURATION"}
+	rows := make([][]string, len(workflows))
+	for i, wf := range workflows {
+		id := wf.ID
+		if len(id) > 8 {
+			id = id[:8]
+		}
+		duration := ""
+		if wf.StartedAt != nil && wf.CompletedAt != nil {
+			d := wf.CompletedAt.Sub(*wf.StartedAt).Round(1000000000)
+			duration = d.String()
+		} else if wf.StartedAt != nil {
+			d := time.Since(*wf.StartedAt).Round(1000000000)
+			duration = d.String() + "…"
+		}
+		rows[i] = []string{id, TruncateColumn(wf.Pipeline), wf.Status, FormatTimestamp(wf.CreatedAt), duration}
+	}
+	return renderTable(headers, rows)
+}

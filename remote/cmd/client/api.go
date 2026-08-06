@@ -361,3 +361,77 @@ func (c *APIClient) DialWebSocket(wsPath string, queryParams url.Values) (*webso
 
 	return conn, resp, nil
 }
+
+// ScheduleWorkflow sends POST /projects/{project}/workflows.
+func (c *APIClient) ScheduleWorkflow(project string, req ScheduleWorkflowRequest) (*WorkflowSummary, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, &APIError{Message: fmt.Sprintf("Error: Failed to encode request: %v", err)}
+	}
+
+	resp, body, err := c.do(http.MethodPost, "/projects/"+project+"/workflows", bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return nil, parseError(resp.StatusCode, body)
+	}
+	var wf WorkflowSummary
+	if err := json.Unmarshal(body, &wf); err != nil {
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+	}
+	return &wf, nil
+}
+
+// ListWorkflows sends GET /projects/{project}/workflows.
+func (c *APIClient) ListWorkflows(project string) ([]WorkflowSummary, error) {
+	resp, body, err := c.do(http.MethodGet, "/projects/"+project+"/workflows", nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseError(resp.StatusCode, body)
+	}
+	var workflows []WorkflowSummary
+	if err := json.Unmarshal(body, &workflows); err != nil {
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+	}
+	return workflows, nil
+}
+
+// GetWorkflow sends GET /projects/{project}/workflows/{id}.
+func (c *APIClient) GetWorkflow(project, id string) (*WorkflowSummary, error) {
+	resp, body, err := c.do(http.MethodGet, "/projects/"+project+"/workflows/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseError(resp.StatusCode, body)
+	}
+	var wf WorkflowSummary
+	if err := json.Unmarshal(body, &wf); err != nil {
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+	}
+	return &wf, nil
+}
+
+// CancelWorkflow sends DELETE /projects/{project}/workflows/{id}.
+func (c *APIClient) CancelWorkflow(project, id string) (*WorkflowSummary, error) {
+	resp, body, err := c.do(http.MethodDelete, "/projects/"+project+"/workflows/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseError(resp.StatusCode, body)
+	}
+	var wf WorkflowSummary
+	if err := json.Unmarshal(body, &wf); err != nil {
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+	}
+	return &wf, nil
+}
+
+// DialWorkflowLogs opens a WebSocket to /projects/{project}/workflows/{id}/logs.
+func (c *APIClient) DialWorkflowLogs(project, id string) (*websocket.Conn, *http.Response, error) {
+	return c.DialWebSocket("/projects/"+project+"/workflows/"+id+"/logs", nil)
+}

@@ -23,6 +23,7 @@ Subcommands:
   cancel <id>         Cancel a running task
   sessions            List active sessions
   terminate <id>      Terminate a session
+  schedule            Schedule and manage pipeline workflows
 
 Global Flags:
   --server URL        Trayline server URL (default: http://localhost:8080,
@@ -39,6 +40,9 @@ Examples:
   trayline-client run --agent kiro --prompt "Summarise this code"
   trayline-client tasks
   trayline-client sessions
+  trayline-client schedule workflows/feature-impl --var specs-name=010
+  trayline-client schedule list
+  trayline-client schedule logs
 `
 
 var subcommandUsage = map[string]string{
@@ -126,6 +130,38 @@ Terminate an active chat session.
 Examples:
   trayline-client terminate session-abc123
 `,
+	"schedule": `Usage:
+  trayline-client schedule <pipeline> [--var k=v]... [--project name]
+  trayline-client schedule list [--project name]
+  trayline-client schedule show <id> [--project name]
+  trayline-client schedule cancel <id> [--project name]
+  trayline-client schedule delete <id> [--project name]
+  trayline-client schedule logs [id] [--project name]
+
+Schedule and manage pipeline workflows on the remote server.
+
+Sub-actions:
+  (no sub-action)     Schedule a new pipeline (first positional arg is the pipeline)
+  list                List all workflows for the project (default when no args given)
+  show <id>           Show details of a specific workflow
+  cancel <id>         Cancel a queued or running workflow
+  delete <id>         Delete a queued workflow (alias for cancel)
+  logs [id]           Stream logs for a workflow; without ID, follows the active workflow
+
+Flags:
+  --project NAME      Project name (default: current directory name)
+  --var KEY=VALUE     Pipeline variable (repeatable)
+
+Examples:
+  trayline-client schedule workflows/feature-impl --var specs-name=010
+  trayline-client schedule processes/4-create-code --var path=dashboard
+  trayline-client schedule list
+  trayline-client schedule show abc12345
+  trayline-client schedule cancel abc12345
+  trayline-client schedule logs
+  trayline-client schedule logs abc12345
+  trayline-client schedule list --project my-app
+`,
 }
 
 // Dispatch parses global flags and routes to the appropriate command handler.
@@ -187,7 +223,7 @@ func Dispatch(args []string) int {
 	validSubcommands := map[string]bool{
 		"health": true, "chat": true, "run": true,
 		"tasks": true, "task": true, "cancel": true,
-		"sessions": true, "terminate": true,
+		"sessions": true, "terminate": true, "schedule": true,
 	}
 	if !validSubcommands[subcommand] {
 		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand %q.\nRun with --help for usage information.\n", subcommand)
@@ -220,6 +256,8 @@ func Dispatch(args []string) int {
 		return handleSessions(subArgs, cfg)
 	case "terminate":
 		return handleTerminate(subArgs, cfg)
+	case "schedule":
+		return handleSchedule(subArgs, cfg)
 	default:
 		// Unreachable due to validSubcommands check above.
 		fmt.Fprintf(os.Stderr, "Error: Unknown subcommand %q.\nRun with --help for usage information.\n", subcommand)
