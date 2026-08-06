@@ -16,6 +16,7 @@ Commands:
   sync <push|pull> [--verbose]          Sync project with remote server
   run <pipeline> [opts]                 Run a single pipeline (orchestrator)
   flow <pipeline> [--then <pipeline>]   Run multiple pipelines sequentially
+  schedule <pipeline|sub-action> [opts] Schedule pipelines on the remote server
   install                               Re-run installation
   version                               Print version info
   help                                  Show this help
@@ -24,6 +25,13 @@ Pipeline resolution (run/flow commands):
   ./path/to/file.yaml                   Use local file directly
   my-pipeline                           Resolve from ${PIPELINES_DIR}/my-pipeline.yaml
 
+Schedule sub-actions:
+  schedule <pipeline> [--var k=v]       Schedule a pipeline on the remote server
+  schedule list                         List scheduled workflows
+  schedule show <id>                    Show workflow detail
+  schedule cancel <id>                  Cancel a workflow
+  schedule logs [id]                    Stream workflow logs
+
 Examples:
   trayline agent claude "Fix the bug"
   trayline agent kiro -i
@@ -31,6 +39,9 @@ Examples:
   trayline run processes/8-code-review --var path=. --verbose
   trayline run ./local.yaml --dry-run
   trayline flow processes/8-code-review --var path=. --then processes/9-improvements --var path=.
+  trayline schedule workflows/feature-impl --var specs-name=010
+  trayline schedule list
+  trayline schedule logs
 EOF
   exit 0
 }
@@ -71,6 +82,9 @@ case "$COMMAND" in
     ;;
   sync)
     exec "${TRAYLINE_HOME}/sync.sh" "$@"
+    ;;
+  schedule)
+    exec "${TRAYLINE_HOME}/trayline-client" schedule "$@"
     ;;
   run)
     # Resolve pipeline names to paths

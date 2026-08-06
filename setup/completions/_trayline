@@ -243,6 +243,63 @@ _trayline_flow() {
   _describe 'option' opts
 }
 
+_trayline_schedule() {
+  local current="${words[CURRENT]}"
+  local prev="${words[CURRENT-1]}"
+
+  if (( CURRENT == 2 )); then
+    # First argument after "schedule": sub-action or pipeline name
+    local -a actions
+    actions=(
+      'list:List all workflows for the project'
+      'show:Show details of a specific workflow'
+      'cancel:Cancel a queued or running workflow'
+      'delete:Delete a queued workflow'
+      'logs:Stream logs for a workflow'
+    )
+    _describe 'action or pipeline' actions
+    _trayline_pipelines
+    return
+  fi
+
+  # Determine which sub-action was chosen
+  local sub="${words[2]}"
+  case "$sub" in
+    list)
+      _arguments \
+        '--project[Project name]:NAME:' \
+        '--help[Show help]' \
+        '-h[Show help]'
+      ;;
+    show|cancel|delete)
+      _arguments \
+        '--project[Project name]:NAME:' \
+        '--help[Show help]' \
+        '-h[Show help]' \
+        '1:workflow ID:'
+      ;;
+    logs)
+      _arguments \
+        '--project[Project name]:NAME:' \
+        '--help[Show help]' \
+        '-h[Show help]' \
+        '1:workflow ID (optional):'
+      ;;
+    *)
+      # Scheduling a pipeline — complete --var and --project flags
+      if [[ "$prev" == "--var" ]]; then
+        _trayline_pipeline_vars
+        return
+      fi
+      _arguments \
+        '--project[Project name]:NAME:' \
+        '*--var[Pipeline variable (key=value)]:variable:_trayline_pipeline_vars' \
+        '--help[Show help]' \
+        '-h[Show help]'
+      ;;
+  esac
+}
+
 _trayline() {
   local -a commands
   commands=(
@@ -250,6 +307,7 @@ _trayline() {
     'sync:Sync project with remote server'
     'run:Run a single pipeline (orchestrator)'
     'flow:Run multiple pipelines sequentially'
+    'schedule:Schedule pipelines on the remote server'
     'stop:Signal running pipeline to stop gracefully after current step'
     'install:Re-run installation'
     'version:Print version info'
@@ -268,6 +326,7 @@ _trayline() {
       sync)  _trayline_sync ;;
       run)   _trayline_run ;;
       flow)  _trayline_flow ;;
+      schedule) _trayline_schedule ;;
       stop)  _message 'no arguments' ;;
       *)     _message 'no more arguments' ;;
     esac
