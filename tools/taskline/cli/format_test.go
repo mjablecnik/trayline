@@ -10,32 +10,15 @@ import (
 	"pgregory.net/rapid"
 )
 
-// Feature: taskline, Property 15: Command truncation
+// Feature: taskline, Property 15: Command display
 //
-// For any string, if its display length exceeds 40 characters, the truncated
-// output shall be exactly 40 characters with the last character being "…"
-// (ellipsis). If its display length is <= 40 characters, the output shall
-// equal the original string unchanged.
-func TestProperty_CommandTruncation(t *testing.T) {
+// TruncateCommand always returns the input unchanged — no truncation.
+func TestProperty_CommandNoTruncation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		s := rapid.StringMatching(`[a-zA-Z0-9 _/.-]{0,80}`).Draw(t, "s")
-
+		s := rapid.StringMatching(`[a-zA-Z0-9 _/.-]{0,200}`).Draw(t, "s")
 		out := TruncateCommand(s)
-		outRunes := []rune(out)
-		inLen := len([]rune(s))
-
-		if inLen <= maxCommandDisplayLen {
-			if out != s {
-				t.Fatalf("expected unchanged string for input of length %d, got %q from %q", inLen, out, s)
-			}
-			return
-		}
-
-		if len(outRunes) != maxCommandDisplayLen {
-			t.Fatalf("expected truncated output length %d, got %d (%q)", maxCommandDisplayLen, len(outRunes), out)
-		}
-		if outRunes[len(outRunes)-1] != []rune(ellipsis)[0] {
-			t.Fatalf("expected last rune to be ellipsis %q, got %q", ellipsis, string(outRunes[len(outRunes)-1]))
+		if out != s {
+			t.Fatalf("expected unchanged string, got %q from %q", out, s)
 		}
 	})
 }
@@ -127,43 +110,15 @@ func TestFormatTaskList_ColorColorizesStatusWithReset(t *testing.T) {
 	}
 }
 
-func TestTruncateCommand_ShortUnchanged(t *testing.T) {
-	s := "echo hello"
-	if out := TruncateCommand(s); out != s {
-		t.Fatalf("expected %q unchanged, got %q", s, out)
+func TestTruncateCommand_ReturnsUnchanged(t *testing.T) {
+	short := "echo hello"
+	if out := TruncateCommand(short); out != short {
+		t.Fatalf("expected %q unchanged, got %q", short, out)
 	}
-}
 
-func TestTruncateCommand_ExactlyMaxUnchanged(t *testing.T) {
-	s := strings.Repeat("a", maxCommandDisplayLen)
-	if out := TruncateCommand(s); out != s {
-		t.Fatalf("expected %q unchanged at exactly max length, got %q", s, out)
-	}
-}
-
-func TestTruncateCommand_LongerThanMaxTruncates(t *testing.T) {
-	s := strings.Repeat("a", maxCommandDisplayLen+10)
-	out := TruncateCommand(s)
-	outRunes := []rune(out)
-	if len(outRunes) != maxCommandDisplayLen {
-		t.Fatalf("expected length %d, got %d (%q)", maxCommandDisplayLen, len(outRunes), out)
-	}
-	if !strings.HasSuffix(out, ellipsis) {
-		t.Fatalf("expected suffix %q, got %q", ellipsis, out)
-	}
-}
-
-func TestTruncateCommand_MultibyteRuneCounted(t *testing.T) {
-	// 45 multibyte runes (each 3 bytes in UTF-8): byte length (135) would
-	// exceed 40, but rune count is what matters.
-	s := strings.Repeat("あ", 45)
-	out := TruncateCommand(s)
-	outRunes := []rune(out)
-	if len(outRunes) != maxCommandDisplayLen {
-		t.Fatalf("expected rune-counted length %d, got %d (%q)", maxCommandDisplayLen, len(outRunes), out)
-	}
-	if !strings.HasSuffix(out, ellipsis) {
-		t.Fatalf("expected suffix %q, got %q", ellipsis, out)
+	long := strings.Repeat("a", 200)
+	if out := TruncateCommand(long); out != long {
+		t.Fatalf("expected long string unchanged, got truncated output")
 	}
 }
 

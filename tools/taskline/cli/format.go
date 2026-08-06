@@ -8,9 +8,7 @@ import (
 )
 
 const (
-	maxCommandDisplayLen = 40
-	ellipsis             = "…"
-	noTasksMessage       = "No tasks in queue."
+	noTasksMessage = "No tasks in queue."
 )
 
 const (
@@ -38,14 +36,9 @@ func isTerminal(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
-// TruncateCommand truncates cmd to 40 display characters, replacing the
-// last character with an ellipsis ("…") when the value exceeds that length.
+// TruncateCommand returns cmd unchanged — the full command is always displayed.
 func TruncateCommand(cmd string) string {
-	runes := []rune(cmd)
-	if len(runes) <= maxCommandDisplayLen {
-		return cmd
-	}
-	return string(runes[:maxCommandDisplayLen-1]) + ellipsis
+	return cmd
 }
 
 // FormatTimestamp formats t as "YYYY-MM-DD HH:MM" in the local timezone.
