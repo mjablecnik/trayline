@@ -8,12 +8,29 @@ steps:
     prompt: |
       You are creating a new release for the project in {{path}}.
 
-      STEP 1 — READ AI_LOG.md:
-      Read AI_LOG.md from .agents/. Find the last entry that contains "release" or "bump"
-      (this marks the previous release point). Collect all entries ABOVE that point — these are
-      the changes since the last release.
-      If no previous release entry exists, collect ALL entries in AI_LOG.md.
-      If AI_LOG.md does not exist, STOP and say: "No AI_LOG.md found — nothing to release."
+      STEP 1 — GATHER CHANGES:
+      You need to collect all changes since the last release from TWO sources:
+
+      SOURCE A — Git log:
+      1. Find the latest git tag for this project. Use `git tag --list` and filter by project prefix
+         (e.g., "dashboard/v*" if {{path}} is "dashboard"). Sort by version and take the latest.
+         If {{path}} is "." or "this", look for tags without a prefix or with the repo root name.
+      2. If a previous tag exists, run: `git log <last-tag>..HEAD --oneline -- {{path}}`
+         This gives you all commits since the last release for this project's path.
+      3. If no previous tag exists, run: `git log --oneline -- {{path}}` (all history for this path).
+      4. Parse the commit messages — these are the primary source of truth for what changed.
+
+      SOURCE B — AI_LOG.md (supplementary):
+      1. Read AI_LOG.md from .agents/ (if it exists).
+      2. Find the last entry that contains "release" or "bump" for this project.
+      3. Collect entries above that point — these provide richer context about what each change was.
+      4. If AI_LOG.md doesn't exist, that's fine — use git log alone.
+
+      MERGE: Combine both sources. Git log is authoritative (it shows exactly what was committed).
+      AI_LOG.md adds context and descriptions. Use both to build a comprehensive picture.
+
+      If git log shows NO commits since the last tag (nothing changed), STOP and say:
+      "No changes since last release [tag]. Nothing to release."
 
       STEP 2 — DETERMINE VERSION BUMP:
       Based on the collected changes, determine the appropriate version bump:
@@ -60,11 +77,13 @@ steps:
       - [list removed features, deleted code, removed dependencies]
 
       Rules for CHANGELOG entries:
-      - Derive entries from the AI_LOG.md changes since last release.
+      - Derive entries from git log commits AND AI_LOG.md context.
       - Each entry should be human-readable — written for developers, not agents.
-      - Be specific but concise: "Added checkout page with cart summary" not "Created page".
+      - Be specific but concise: "Add checkout page with cart summary" not "Created page".
+      - Group related commits into single entries (don't list every commit separately).
       - Only include sections (Added/Changed/Fixed/Removed) that have entries — skip empty ones.
       - Use present tense in changelog entries (Add, Fix, Remove, Change).
+      - Ignore chore commits (formatting, linting, CI tweaks) unless they're significant.
 
       STEP 5 — UPDATE AI_LOG.md:
       Add a new entry at the TOP of AI_LOG.md inside .agents/:
@@ -73,6 +92,7 @@ steps:
       - Bumped version: [old version] → [new version] ([patch/minor/major])
       - Changelog updated with [count] entries
       - Changes since last release: [brief summary of what was included]
+      - Commits included: [number of commits since last tag]
 
       This entry serves as the reference point for the next release.
 
@@ -91,5 +111,6 @@ steps:
       When done, print a summary:
       - Previous version → New version
       - Bump type (patch/minor/major)
+      - Number of commits included
       - Number of changelog entries
       - Git tag created
