@@ -117,6 +117,11 @@ steps:
       - Do NOT include more than 20 verification tasks total — focus on the most important workflows.
       - Every task must describe what the user DOES and what they should SEE as a result.
       - Tests interact with real running services — no mocks, no fakes. This is real E2E verification.
+      - For responsive apps: after verifying core workflows on desktop (1280px), add verification
+        tasks for critical workflows on mobile (375px) and tablet (768px) viewports.
+        Focus on: navigation (hamburger menu), layout shifts, touch targets, and any
+        viewport-specific UI (bottom sheets, modals, sidebars collapsing, etc.).
+        Mark viewport-specific tasks with the viewport: e.g., "[mobile] Navigate to..."
 
   - name: "start-application"
     agent: "claude"
@@ -258,6 +263,10 @@ steps:
                - Handle async operations: use waitForSelector, waitForResponse, etc.
                - If login is required and not yet done in this test, include login steps first
                - Add a descriptive comment at the top of the file explaining what workflow it verifies
+               - If the task is marked with a viewport (e.g., "[mobile]"), set the viewport
+                 at the start of the test: `await page.setViewportSize({ width: 375, height: 812 })`
+                 for mobile, `{ width: 768, height: 1024 }` for tablet.
+                 Desktop (1280x720) is the default — no explicit viewport needed.
 
             2. RUN THE TEST:
                - Execute: `npx playwright test [test-file] --reporter=line`
