@@ -59,12 +59,27 @@ fi
 # ---------------------------------------------------------------------------
 # Sync pipelines — copy new/updated files, remove deleted ones
 # ---------------------------------------------------------------------------
+
+# Colors (disabled when NO_COLOR is set or output is not a TTY)
+if [[ -z "${NO_COLOR:-}" ]] && [[ -t 2 ]]; then
+  C_GREEN='\033[0;32m'
+  C_RED='\033[0;31m'
+  C_DIM='\033[2m'
+  C_RESET='\033[0m'
+else
+  C_GREEN='' C_RED='' C_DIM='' C_RESET=''
+fi
+
 echo "==> Syncing pipelines..."
 
 # Copy lifecycle.yaml
 if [[ -f "$PIPELINES_SOURCE/lifecycle.yaml" ]]; then
-  cp "$PIPELINES_SOURCE/lifecycle.yaml" "$PIPELINES_DEST/lifecycle.yaml"
-  echo "    Updated lifecycle.yaml"
+  if [[ ! -f "$PIPELINES_DEST/lifecycle.yaml" ]] || [[ "$PIPELINES_SOURCE/lifecycle.yaml" -nt "$PIPELINES_DEST/lifecycle.yaml" ]]; then
+    cp "$PIPELINES_SOURCE/lifecycle.yaml" "$PIPELINES_DEST/lifecycle.yaml"
+    echo -e "    ${C_GREEN}Updated${C_RESET} lifecycle.yaml"
+  else
+    echo -e "    ${C_DIM}Skipped lifecycle.yaml (up to date)${C_RESET}"
+  fi
 fi
 
 # Sync subdirectories (tasks, processes, workflows)
@@ -85,9 +100,9 @@ for dir in tasks processes workflows; do
     dest="$DST_DIR/$BASENAME"
     if [[ ! -f "$dest" ]] || [[ "$f" -nt "$dest" ]]; then
       cp "$f" "$dest"
-      echo "    Updated $dir/$BASENAME"
+      echo -e "    ${C_GREEN}Updated${C_RESET} $dir/$BASENAME"
     else
-      echo "    Skipped $dir/$BASENAME (up to date)"
+      echo -e "    ${C_DIM}Skipped $dir/$BASENAME (up to date)${C_RESET}"
     fi
   done
 
@@ -97,7 +112,7 @@ for dir in tasks processes workflows; do
     BASENAME="$(basename "$f")"
     if [[ ! -f "$SRC_DIR/$BASENAME" ]]; then
       rm "$f"
-      echo "    Removed $dir/$BASENAME (deleted from source)"
+      echo -e "    ${C_RED}Removed${C_RESET} $dir/$BASENAME (deleted from source)"
     fi
   done
 done
