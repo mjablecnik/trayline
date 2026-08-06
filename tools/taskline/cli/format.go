@@ -60,26 +60,27 @@ func statusColor(status string) string {
 }
 
 // FormatTaskList renders tasks as a column-aligned table with header row
-// "#  ID  NAME  COMMAND  STATUS  CREATED", each column padded with trailing
+// "#  ID  NAME  STATUS  CREATED  COMMAND", each column padded with trailing
 // spaces to the width of its longest value. When tasks is empty, it returns
 // a message instead of an empty table (Requirement 14.6). The STATUS column
-// is colorized when color is true.
+// is colorized when color is true. COMMAND is placed last so long commands
+// don't push other columns out of view.
 func FormatTaskList(tasks []TaskListItem, color bool) string {
 	if len(tasks) == 0 {
 		return noTasksMessage
 	}
 
-	const statusColIdx = 4
-	headers := []string{"#", "ID", "NAME", "COMMAND", "STATUS", "CREATED"}
+	const statusColIdx = 3
+	headers := []string{"#", "ID", "NAME", "STATUS", "CREATED", "COMMAND"}
 	rows := make([][]string, 0, len(tasks))
 	for _, t := range tasks {
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", t.Position),
 			t.ID,
 			t.Name,
-			TruncateCommand(t.Command),
 			t.Status,
 			FormatTimestamp(t.CreatedAt),
+			TruncateCommand(t.Command),
 		})
 	}
 
