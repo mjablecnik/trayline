@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
 TRAYLINE_HOME="${TRAYLINE_HOME:-${HOME}/.trayline}"
