@@ -66,10 +66,20 @@
 		<div
 			class="flex flex-col items-start gap-3 border-t border-slate-200 px-4 py-3 tablet:hidden dark:border-slate-800"
 		>
-			<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
-			<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}>{$t('nav.sessions')}</a>
-			<a href={resolve('/assistant')} class={navLinkClass(isAssistantActive)}
-				>{$t('nav.assistant')}</a
+			<a
+				href={resolve('/')}
+				class={navLinkClass(isProjectsActive)}
+				onclick={() => (mobileMenuOpen = false)}>{$t('nav.projects')}</a
+			>
+			<a
+				href={resolve('/sessions')}
+				class={navLinkClass(isSessionsActive)}
+				onclick={() => (mobileMenuOpen = false)}>{$t('nav.sessions')}</a
+			>
+			<a
+				href={resolve('/assistant')}
+				class={navLinkClass(isAssistantActive)}
+				onclick={() => (mobileMenuOpen = false)}>{$t('nav.assistant')}</a
 			>
 			<LanguageSwitcher />
 			{#if $isAuthenticated}
