@@ -78,6 +78,9 @@ func NewRouter(
 	// Spec discovery endpoint.
 	mux.HandleFunc("GET /projects/{name}/specs", specH.HandleListSpecs)
 
+	// Global workflow overview (cross-project, active only).
+	mux.HandleFunc("GET /workflows", workflowH.HandleListAll)
+
 	// Workflow endpoints.
 	mux.HandleFunc("POST /projects/{name}/workflows", workflowH.HandleSchedule)
 	mux.HandleFunc("GET /projects/{name}/workflows", workflowH.HandleList)

@@ -10,6 +10,7 @@
 
 	let isProjectsActive = $derived(page.url.pathname === resolve('/'));
 	let isSessionsActive = $derived(page.url.pathname.startsWith(resolve('/sessions')));
+	let isWorkflowsActive = $derived(page.url.pathname.startsWith(resolve('/workflows')));
 	let isAssistantActive = $derived(page.url.pathname.startsWith(resolve('/assistant')));
 
 	function navLinkClass(active: boolean): string {
@@ -31,6 +32,9 @@
 				<a href={resolve('/')} class={navLinkClass(isProjectsActive)}>{$t('nav.projects')}</a>
 				<a href={resolve('/sessions')} class={navLinkClass(isSessionsActive)}
 					>{$t('nav.sessions')}</a
+				>
+				<a href={resolve('/workflows')} class={navLinkClass(isWorkflowsActive)}
+					>{$t('nav.workflows')}</a
 				>
 				<a href={resolve('/assistant')} class={navLinkClass(isAssistantActive)}
 					>{$t('nav.assistant')}</a
@@ -75,6 +79,11 @@
 				href={resolve('/sessions')}
 				class={navLinkClass(isSessionsActive)}
 				onclick={() => (mobileMenuOpen = false)}>{$t('nav.sessions')}</a
+			>
+			<a
+				href={resolve('/workflows')}
+				class={navLinkClass(isWorkflowsActive)}
+				onclick={() => (mobileMenuOpen = false)}>{$t('nav.workflows')}</a
 			>
 			<a
 				href={resolve('/assistant')}

@@ -314,6 +314,10 @@ export interface Workflow {
 	truncated?: boolean;
 }
 
+export interface GlobalWorkflow extends Workflow {
+	project: string;
+}
+
 export interface ScheduleWorkflowRequest {
 	pipeline: string;
 	variables: Record<string, string>;
@@ -414,6 +418,8 @@ export const api = {
 
 	getWorkflows: (name: string) =>
 		request<Workflow[]>('GET', `/projects/${encodeURIComponent(name)}/workflows`),
+
+	getAllWorkflows: () => request<GlobalWorkflow[]>('GET', '/workflows'),
 
 	getWorkflow: (name: string, id: string) =>
 		request<Workflow>(

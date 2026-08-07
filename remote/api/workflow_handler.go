@@ -168,6 +168,20 @@ func (h *WorkflowHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// HandleListAll handles GET /workflows — returns all active (queued/running)
+// workflows across all projects.
+func (h *WorkflowHandler) HandleListAll(w http.ResponseWriter, r *http.Request) {
+	workflows := h.store.ListActiveSnapshot()
+	resp := make([]GlobalWorkflowResponse, len(workflows))
+	for i, wf := range workflows {
+		resp[i] = GlobalWorkflowResponse{
+			WorkflowResponse: workflowToResponse(wf, false),
+			Project:          wf.Project,
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // HandleDetail handles GET /projects/{name}/workflows/{id}.
 func (h *WorkflowHandler) HandleDetail(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")

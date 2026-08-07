@@ -226,6 +226,24 @@ func (s *WorkflowStore) All() []*Workflow {
 	return all
 }
 
+// ListActiveSnapshot returns copies of all non-terminal workflows across all
+// projects (queued or running), ordered by created_at descending (newest first).
+func (s *WorkflowStore) ListActiveSnapshot() []Workflow {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	all := make([]Workflow, 0)
+	for _, w := range s.workflows {
+		if !IsWorkflowTerminal(w.Status) {
+			all = append(all, *w)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].CreatedAt.After(all[j].CreatedAt)
+	})
+	return all
+}
+
 // Evict removes the oldest terminal workflows for a project beyond the
 // maxWorkflowsPerProject cap, keeping only the most recent 20.
 func (s *WorkflowStore) Evict(project string) {

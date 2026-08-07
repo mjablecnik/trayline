@@ -6,6 +6,7 @@ export default {
 	'nav.logout': 'Log out',
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Assistant',
+	'nav.workflows': 'Workflows',
 
 	'auth.title': 'Trayline Dashboard',
 	'auth.subtitle': 'Enter your API token to connect.',
@@ -91,6 +92,10 @@ export default {
 	'workflows.empty': 'No workflows have been scheduled yet.',
 	'workflows.emptyCta': 'Click "New Workflow" above to schedule your first pipeline run.',
 	'workflows.error': 'Could not load workflows.',
+	'workflows.overview.title': 'Active Workflows',
+	'workflows.overview.empty': 'No active workflows.',
+	'workflows.overview.emptyDescription': 'All queued and running workflows will appear here.',
+	'workflows.overview.refresh': 'Refresh',
 	'workflows.status.queued': 'Queued',
 	'workflows.status.running': 'Running',
 	'workflows.status.completed': 'Completed',

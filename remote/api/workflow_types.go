@@ -37,6 +37,13 @@ type WorkflowResponse struct {
 	Truncated   bool                 `json:"truncated,omitempty"`
 }
 
+// GlobalWorkflowResponse extends WorkflowResponse with the project name for
+// the cross-project GET /workflows endpoint.
+type GlobalWorkflowResponse struct {
+	WorkflowResponse
+	Project string `json:"project"`
+}
+
 // workflowToResponse builds a WorkflowResponse from a workflow snapshot.
 // includeLog controls whether the captured log output is included (detail
 // endpoint) or omitted (list endpoint).

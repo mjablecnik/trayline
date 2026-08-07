@@ -8,6 +8,7 @@ const cs: Record<keyof typeof en, string> = {
 	'nav.logout': 'Odhlásit',
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Asistent',
+	'nav.workflows': 'Workflows',
 
 	'auth.title': 'Trayline Dashboard',
 	'auth.subtitle': 'Pro připojení zadejte API token.',
@@ -93,6 +94,10 @@ const cs: Record<keyof typeof en, string> = {
 	'workflows.empty': 'Zatím nebyl naplánován žádný workflow.',
 	'workflows.emptyCta': 'Kliknutím na „Nový workflow" výše naplánujte první běh pipeline.',
 	'workflows.error': 'Workflow se nepodařilo načíst.',
+	'workflows.overview.title': 'Aktivní workflows',
+	'workflows.overview.empty': 'Žádné aktivní workflows.',
+	'workflows.overview.emptyDescription': 'Zde se zobrazí všechny naplánované a běžící workflows.',
+	'workflows.overview.refresh': 'Obnovit',
 	'workflows.status.queued': 'Ve frontě',
 	'workflows.status.running': 'Běží',
 	'workflows.status.completed': 'Dokončeno',
