@@ -84,7 +84,7 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/sync.sh" "$@"
     ;;
   schedule)
-    exec "${TRAYLINE_HOME}/trayline-client" schedule "$@"
+    exec trayline-client schedule "$@"
     ;;
   run)
     # Resolve pipeline names to paths
