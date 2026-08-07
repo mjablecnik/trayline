@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -115,15 +116,31 @@ func (s *WorkflowStore) Remove(id string) {
 // Snapshot returns a copy of the workflow with the given ID, safe to read
 // without racing the queue processor's concurrent field mutations (unlike
 // dereferencing a Get() pointer directly — see .agents/MEMORY.md). Returns
-// ok=false if no workflow with that ID exists.
+// ok=false if no workflow with that ID exists. Supports prefix matching:
+// if no exact match is found, searches for a unique workflow whose ID starts
+// with the given prefix.
 func (s *WorkflowStore) Snapshot(id string) (Workflow, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	w, ok := s.workflows[id]
-	if !ok {
-		return Workflow{}, false
+	// Exact match first.
+	if w, ok := s.workflows[id]; ok {
+		return *w, true
 	}
-	return *w, true
+	// Prefix match: find unique workflow whose ID starts with the given prefix.
+	var match *Workflow
+	for wid, w := range s.workflows {
+		if strings.HasPrefix(wid, id) {
+			if match != nil {
+				// Ambiguous prefix — multiple matches.
+				return Workflow{}, false
+			}
+			match = w
+		}
+	}
+	if match != nil {
+		return *match, true
+	}
+	return Workflow{}, false
 }
 
 // ListByProjectSnapshot returns copies of the same set ListByProject would

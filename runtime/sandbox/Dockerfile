@@ -101,7 +101,7 @@ RUN chmod -R a+rX /opt/flutter \
 # Ensure ld.lld is available where Flutter expects it (next to clang++ binary)
 RUN ln -sf /usr/bin/ld /usr/lib/llvm-*/bin/ld.lld 2>/dev/null || true
 
-ENV PATH="/home/agent/.trayline:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
+ENV PATH="/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
 ENV CARGO_HOME="/home/agent/.cargo"
 ENV RUSTUP_HOME="/home/agent/.rustup"

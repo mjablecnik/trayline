@@ -456,7 +456,11 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 
 // buildContainerEnv constructs the environment variable list for agent containers.
 func (m *ContainerManager) buildContainerEnv() []string {
-	return []string{dockerHostEnv, "NO_COLOR=1"}
+	return []string{
+		dockerHostEnv,
+		"NO_COLOR=1",
+		"PATH=/home/agent/.trayline:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	}
 }
 
 // buildContainerBinds constructs the volume bind list for agent containers.
