@@ -328,6 +328,10 @@ steps:
       STEP 1 — STOP ALL SERVICES:
       Read .agents/tmp/VERIFICATION_SETUP.md for the list of all running services.
       Stop each service using its recorded "Stop Command" — in reverse order (frontend first, databases last).
+
+      CRITICAL SAFETY RULE: NEVER stop containers named "trayline-server", "trayline-proxy",
+      or any container that is part of the trayline infrastructure itself. Only stop application
+      containers that were started as part of the verification setup. If unsure, skip it.
       Verify all ports are free after stopping.
 
       STEP 2 — ORGANIZE TEST FILES:
