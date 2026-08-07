@@ -292,6 +292,7 @@ _trayline_schedule() {
         return
       fi
       _arguments \
+        '1:pipeline:_trayline_pipelines' \
         '--project[Project name]:NAME:' \
         '*--var[Pipeline variable (key=value)]:variable:_trayline_pipeline_vars' \
         '--help[Show help]' \
