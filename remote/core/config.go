@@ -57,6 +57,11 @@ type Config struct {
 	// AssistantDataDir is the host directory mounted as /workspace in personal
 	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
 	AssistantDataDir string
+
+	// ReposDir is the host directory containing bare git repositories used as
+	// remotes by project working copies. Mounted into workflow containers at
+	// the same path so `git pull agent main` works. Empty disables the mount.
+	ReposDir string
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -232,6 +237,17 @@ func LoadConfig() (*Config, error) {
 
 	// DASHBOARD_ORIGIN (optional; empty disables CORS)
 	cfg.DashboardOrigin = os.Getenv("DASHBOARD_ORIGIN")
+
+	// REPOS_DIR (optional; host path to bare git repos mounted into workflow containers)
+	cfg.ReposDir = os.Getenv("REPOS_DIR")
+	if cfg.ReposDir == "" {
+		// Default: ~/repos (sibling of typical home directory layout)
+		home, _ := os.UserHomeDir()
+		candidate := filepath.Join(home, "repos")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			cfg.ReposDir = candidate
+		}
+	}
 
 	// TRAYLINE_HOME_DIR (default: ~/.trayline, expanded using the running user's home directory)
 	cfg.TraylineHomeDir = os.Getenv("TRAYLINE_HOME_DIR")

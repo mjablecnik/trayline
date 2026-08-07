@@ -148,16 +148,30 @@ else
   echo "Trayline home directory already exists: $TRAYLINE_HOME_DIR"
 fi
 
+# Resolve repos directory (bare git repos used as remotes by projects).
+REPOS_DIR="${REPOS_DIR:-${HOME}/repos}"
+
+# Build repos volume flag (only if directory exists)
+REPOS_VOLUME=""
+if [ -d "$REPOS_DIR" ]; then
+  echo "Repos directory: $REPOS_DIR"
+  REPOS_VOLUME="-v ${REPOS_DIR}:${REPOS_DIR}"
+else
+  echo "Repos directory not found ($REPOS_DIR), skipping mount."
+fi
+
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
   --env-file "$ENV_FILE" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -e TRAYLINE_HOME_DIR="${TRAYLINE_HOME_DIR}" \
+  -e REPOS_DIR="${REPOS_DIR}" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
   -v "${ASSISTANT_DATA_DIR}:${ASSISTANT_DATA_DIR}" \
   -v "${TRAYLINE_HOME_DIR}:${TRAYLINE_HOME_DIR}:ro" \
+  ${REPOS_VOLUME} \
   -p "${APP_PORT}:${APP_PORT}" \
   trayline-server
 

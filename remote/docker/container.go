@@ -630,6 +630,9 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 	if m.config.TraylineHomeDir != "" {
 		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
 	}
+	if m.config.ReposDir != "" {
+		binds = append(binds, m.config.ReposDir+":"+m.config.ReposDir)
+	}
 	return binds
 }
 
