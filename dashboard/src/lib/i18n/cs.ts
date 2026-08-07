@@ -19,6 +19,12 @@ const cs: Record<keyof typeof en, string> = {
 	'projects.error': 'Projekty se nepodařilo načíst.',
 	'projects.branch': 'Větev',
 	'projects.uncommittedChanges': 'Neuložené změny',
+	'projects.pinned': 'Připnuté',
+	'projects.others': 'Ostatní projekty',
+	'projects.showOthers': 'Zobrazit ostatní projekty',
+	'projects.hideOthers': 'Skrýt ostatní projekty',
+	'projects.pin': 'Připnout projekt',
+	'projects.unpin': 'Odepnout projekt',
 
 	'project.error': 'Tento projekt se nepodařilo načíst.',
 

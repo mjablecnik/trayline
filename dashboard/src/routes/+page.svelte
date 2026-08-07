@@ -6,9 +6,20 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 
 	type State =
-		{ status: 'loading' } | { status: 'error' } | { status: 'loaded'; projects: Project[] };
+		| { status: 'loading' }
+		| { status: 'error' }
+		| { status: 'loaded'; projects: Project[] };
 
 	let state = $state<State>({ status: 'loading' });
+	let showOthers = $state(false);
+
+	const pinnedProjects = $derived(
+		state.status === 'loaded' ? state.projects.filter((p) => p.pinned) : []
+	);
+	const otherProjects = $derived(
+		state.status === 'loaded' ? state.projects.filter((p) => !p.pinned) : []
+	);
+	const hasBothSections = $derived(pinnedProjects.length > 0 && otherProjects.length > 0);
 
 	async function loadProjects() {
 		state = { status: 'loading' };
@@ -18,6 +29,10 @@
 		} catch {
 			state = { status: 'error' };
 		}
+	}
+
+	function handlePinToggle() {
+		loadProjects();
 	}
 
 	$effect(() => {
@@ -68,11 +83,67 @@
 				<p class="text-sm text-slate-500 dark:text-slate-400">{$t('projects.empty')}</p>
 			</div>
 		{:else}
-			<div class={gridClass}>
-				{#each state.projects as project (project.name)}
-					<ProjectCard {project} />
-				{/each}
-			</div>
+			<!-- Pinned projects section -->
+			{#if pinnedProjects.length > 0}
+				{#if hasBothSections}
+					<h2
+						class="mb-3 flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400"
+					>
+						<svg viewBox="0 0 24 24" fill="currentColor" class="size-3.5 text-sky-500" aria-hidden="true">
+							<path
+								d="M16 2a1 1 0 0 1 .8.4l3 4a1 1 0 0 1-.1 1.3l-2.4 2.4.7 4.2a1 1 0 0 1-.5 1l-3.2 1.8-1.3 5.5a1 1 0 0 1-1.9.1L10 17.5l-4.3 4.3a1 1 0 0 1-1.4-1.4L8.5 16l-5.2-2.1a1 1 0 0 1 .1-1.9l5.5-1.3 1.8-3.2a1 1 0 0 1 1-.5l4.2.7 2.4-2.4a1 1 0 0 1 .5-.3H16Z"
+							/>
+						</svg>
+						{$t('projects.pinned')}
+					</h2>
+				{/if}
+				<div class={gridClass}>
+					{#each pinnedProjects as project (project.name)}
+						<ProjectCard {project} onPinToggle={handlePinToggle} />
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Other projects section -->
+			{#if otherProjects.length > 0}
+				{#if hasBothSections}
+					<div class="mt-8">
+						<button
+							type="button"
+							onclick={() => (showOthers = !showOthers)}
+							class="mb-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								class="size-3.5 transition-transform {showOthers ? 'rotate-90' : ''}"
+								aria-hidden="true"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+							</svg>
+							{showOthers ? $t('projects.hideOthers') : $t('projects.showOthers')}
+							<span class="text-slate-400 dark:text-slate-500">({otherProjects.length})</span>
+						</button>
+
+						{#if showOthers}
+							<div class={gridClass}>
+								{#each otherProjects as project (project.name)}
+									<ProjectCard {project} onPinToggle={handlePinToggle} />
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<!-- No pinned projects — show all directly -->
+					<div class={gridClass}>
+						{#each otherProjects as project (project.name)}
+							<ProjectCard {project} onPinToggle={handlePinToggle} />
+						{/each}
+					</div>
+				{/if}
+			{/if}
 		{/if}
 	</div>
 {/if}

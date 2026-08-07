@@ -49,6 +49,8 @@ func NewRouter(
 	// Project endpoints (dashboard).
 	mux.HandleFunc("GET /projects", projectH.HandleListProjects)
 	mux.HandleFunc("GET /projects/{name}", projectH.HandleGetProject)
+	mux.HandleFunc("PUT /projects/{name}/pin", projectH.HandlePinProject)
+	mux.HandleFunc("DELETE /projects/{name}/pin", projectH.HandleUnpinProject)
 	mux.HandleFunc("GET /projects/{name}/tree/{ref}/{path...}", projectH.HandleGetTree)
 	mux.HandleFunc("GET /projects/{name}/blob/{ref}/{path...}", projectH.HandleGetBlob)
 

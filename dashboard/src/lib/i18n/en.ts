@@ -17,6 +17,12 @@ export default {
 	'projects.error': 'Could not load projects.',
 	'projects.branch': 'Branch',
 	'projects.uncommittedChanges': 'Uncommitted changes',
+	'projects.pinned': 'Pinned',
+	'projects.others': 'Other projects',
+	'projects.showOthers': 'Show other projects',
+	'projects.hideOthers': 'Hide other projects',
+	'projects.pin': 'Pin project',
+	'projects.unpin': 'Unpin project',
 
 	'project.error': 'Could not load this project.',
 

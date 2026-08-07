@@ -7,6 +7,7 @@ type ProjectSummary struct {
 	Branch                string  `json:"branch"`
 	LastCommit            *Commit `json:"last_commit"`
 	HasUncommittedChanges bool    `json:"has_uncommitted_changes"`
+	Pinned                bool    `json:"pinned"`
 }
 
 // ProjectDetail is returned by GET /projects/{name}.

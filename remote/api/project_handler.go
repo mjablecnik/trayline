@@ -2,12 +2,14 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"remote/core"
@@ -20,11 +22,100 @@ type ProjectHandler struct {
 	projectsDir string
 	git         *git.Runner
 	logger      *core.Logger
+	pinMu       sync.RWMutex
 }
 
 // NewProjectHandler creates a ProjectHandler.
 func NewProjectHandler(projectsDir string, gitRunner *git.Runner, logger *core.Logger) *ProjectHandler {
 	return &ProjectHandler{projectsDir: projectsDir, git: gitRunner, logger: logger}
+}
+
+// pinnedFilePath returns the path to the pinned.json file.
+func (h *ProjectHandler) pinnedFilePath() string {
+	return filepath.Join(h.projectsDir, ".pinned.json")
+}
+
+// loadPinned reads the set of pinned project names from disk.
+func (h *ProjectHandler) loadPinned() map[string]bool {
+	h.pinMu.RLock()
+	defer h.pinMu.RUnlock()
+
+	data, err := os.ReadFile(h.pinnedFilePath())
+	if err != nil {
+		return map[string]bool{}
+	}
+	var names []string
+	if err := json.Unmarshal(data, &names); err != nil {
+		return map[string]bool{}
+	}
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
+}
+
+// savePinned writes the set of pinned project names to disk.
+func (h *ProjectHandler) savePinned(pinned map[string]bool) error {
+	h.pinMu.Lock()
+	defer h.pinMu.Unlock()
+
+	names := make([]string, 0, len(pinned))
+	for n := range pinned {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	data, err := json.MarshalIndent(names, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(h.pinnedFilePath(), data, 0644)
+}
+
+// HandlePinProject handles PUT /projects/{name}/pin.
+func (h *ProjectHandler) HandlePinProject(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	_, err := resolveProjectPath(h.projectsDir, h.git.IsRepo, name)
+	if err != nil {
+		writeProjectNotFound(w, name)
+		return
+	}
+
+	pinned := h.loadPinned()
+	pinned[name] = true
+	if err := h.savePinned(pinned); err != nil {
+		h.logger.Error(r.Context(), "failed to save pinned state: "+err.Error())
+		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+			Error:   "INTERNAL_ERROR",
+			Message: "failed to save pin state",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleUnpinProject handles DELETE /projects/{name}/pin.
+func (h *ProjectHandler) HandleUnpinProject(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	_, err := resolveProjectPath(h.projectsDir, h.git.IsRepo, name)
+	if err != nil {
+		writeProjectNotFound(w, name)
+		return
+	}
+
+	pinned := h.loadPinned()
+	delete(pinned, name)
+	if err := h.savePinned(pinned); err != nil {
+		h.logger.Error(r.Context(), "failed to save pinned state: "+err.Error())
+		writeJSON(w, http.StatusInternalServerError, core.ErrorResponse{
+			Error:   "INTERNAL_ERROR",
+			Message: "failed to save pin state",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // langMap maps file extensions to a syntax-highlighting language hint.
@@ -84,6 +175,8 @@ func (h *ProjectHandler) HandleListProjects(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	pinned := h.loadPinned()
+
 	projects := []ProjectSummary{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -116,10 +209,15 @@ func (h *ProjectHandler) HandleListProjects(w http.ResponseWriter, r *http.Reque
 			Branch:                branch,
 			LastCommit:            toAPICommit(lastCommit),
 			HasUncommittedChanges: uncommitted,
+			Pinned:                pinned[entry.Name()],
 		})
 	}
 
+	// Sort: pinned first, then by last commit date (newest first) within each group.
 	sort.Slice(projects, func(i, j int) bool {
+		if projects[i].Pinned != projects[j].Pinned {
+			return projects[i].Pinned
+		}
 		ti, _ := time.Parse(time.RFC3339, projects[i].LastCommit.Date)
 		tj, _ := time.Parse(time.RFC3339, projects[j].LastCommit.Date)
 		return ti.After(tj)

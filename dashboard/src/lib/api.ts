@@ -86,6 +86,7 @@ export interface Project {
 	last_commit: CommitSummary | null;
 	branch: string;
 	has_uncommitted_changes: boolean;
+	pinned: boolean;
 }
 
 export interface ProjectDetail {
@@ -330,6 +331,12 @@ export function buildWorkflowLogWsUrl(projectName: string, workflowId: string): 
 
 export const api = {
 	getProjects: () => request<Project[]>('GET', '/projects'),
+
+	pinProject: (name: string) =>
+		request<void>('PUT', `/projects/${encodeURIComponent(name)}/pin`),
+
+	unpinProject: (name: string) =>
+		request<void>('DELETE', `/projects/${encodeURIComponent(name)}/pin`),
 
 	getProject: (name: string) =>
 		request<ProjectDetail>('GET', `/projects/${encodeURIComponent(name)}`),
