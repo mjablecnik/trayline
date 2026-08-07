@@ -633,6 +633,20 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 	if m.config.ReposDir != "" {
 		binds = append(binds, m.config.ReposDir+":"+m.config.ReposDir)
 	}
+	// Claude credentials (read-only source; seed script copies them before exec)
+	if m.config.ClaudeHostDir != "" {
+		binds = append(binds, m.config.ClaudeHostDir+":"+agentHome+"/.claude-src:ro")
+	}
+	if m.config.ClaudeConfigHostFile != "" {
+		binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
+	}
+	// Kiro credentials
+	if m.config.KiroHostDir != "" {
+		binds = append(binds, m.config.KiroHostDir+":"+agentHome+"/.kiro")
+	}
+	if m.config.KiroCredsHostDir != "" {
+		binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
+	}
 	return binds
 }
 
@@ -641,9 +655,13 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 // invocation. The caller must attach (via AttachWorkflowContainer) before starting
 // (via StartContainer), so container output from the very first byte is captured.
 func (m *ContainerManager) StartWorkflowContainer(ctx context.Context, projectName string, cmd []string) (string, error) {
+	// Wrap command with Claude credential seed script so pipeline steps
+	// using agent:claude can authenticate without interactive login.
+	wrappedCmd := wrapWithClaudeCredentialSeed(cmd)
+
 	cfg := &container.Config{
 		Image:      SandboxImage,
-		Cmd:        cmd,
+		Cmd:        wrappedCmd,
 		Env:        m.buildContainerEnv(),
 		Tty:        false,
 		WorkingDir: workspaceMount,
