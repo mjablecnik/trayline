@@ -54,6 +54,10 @@
 	let hasReconnected = false;
 	let reconnectTimeoutId: number | undefined;
 	let clientClosed = false;
+	// When reconnecting, the backend replays the full buffer. Instead of
+	// clearing logText immediately (which causes a visible flash), we flag
+	// the next output message to *replace* the log content atomically.
+	let pendingReplace = false;
 
 	function scrollToBottom() {
 		if (logEl) logEl.scrollTop = logEl.scrollHeight;
@@ -65,7 +69,12 @@
 	}
 
 	function appendOutput(data: string) {
-		logText += data;
+		if (pendingReplace) {
+			logText = data;
+			pendingReplace = false;
+		} else {
+			logText += data;
+		}
 		if (!userScrolledUp) tick().then(scrollToBottom);
 	}
 
@@ -108,9 +117,10 @@
 
 	function connect() {
 		clientClosed = false;
-		// Clear accumulated log — the backend always replays the full buffer
-		// from the start on each new connection.
-		logText = '';
+		// Mark that the next output message should replace (not append to)
+		// the current log — the backend replays the full buffer on each
+		// new connection. This avoids a visible flash from clearing logText.
+		pendingReplace = true;
 		const socket = new WebSocket(buildWorkflowLogWsUrl(projectName, workflowId));
 
 		socket.onopen = () => {
