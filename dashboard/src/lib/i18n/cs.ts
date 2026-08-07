@@ -4,7 +4,7 @@ const cs: Record<keyof typeof en, string> = {
 	'app.name': 'Trayline',
 
 	'nav.projects': 'Projekty',
-	'nav.sessions': 'Relace',
+	'nav.sessions': 'Agenti',
 	'nav.logout': 'Odhlásit',
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Asistent',
@@ -167,7 +167,7 @@ const cs: Record<keyof typeof en, string> = {
 	'agent.uploadError': '⚠️ Nahrání souboru selhalo.',
 	'agent.removeAttachment': 'Odebrat přílohu',
 
-	'sessions.title': 'Relace',
+	'sessions.title': 'Agenti',
 	'sessions.refresh': 'Obnovit',
 	'sessions.empty': 'Žádné aktivní relace.',
 	'sessions.error': 'Relace se nepodařilo načíst.',

@@ -2,7 +2,7 @@ export default {
 	'app.name': 'Trayline',
 
 	'nav.projects': 'Projects',
-	'nav.sessions': 'Sessions',
+	'nav.sessions': 'Agents',
 	'nav.logout': 'Log out',
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Assistant',
@@ -165,7 +165,7 @@ export default {
 	'agent.uploadError': '⚠️ File upload failed.',
 	'agent.removeAttachment': 'Remove attachment',
 
-	'sessions.title': 'Sessions',
+	'sessions.title': 'Agents',
 	'sessions.refresh': 'Refresh',
 	'sessions.empty': 'No active sessions.',
 	'sessions.error': 'Could not load sessions.',
