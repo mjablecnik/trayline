@@ -48,6 +48,7 @@
 	let finalStatus = $state<WorkflowStatus | null>(isTerminal ? untrack(() => status) : null);
 	let finalExitCode = $state<number | null>(isTerminal ? untrack(() => initialExitCode) : null);
 	let userScrolledUp = $state(false);
+	let expanded = $state(false);
 	let logEl = $state<HTMLDivElement | undefined>(undefined);
 
 	let ws: WebSocket | null = null;
@@ -182,7 +183,9 @@
 		bind:this={logEl}
 		onscroll={handleScroll}
 		role="log"
-		class="max-h-64 overflow-y-auto rounded-md bg-slate-900 p-3 font-mono text-xs whitespace-pre-wrap text-slate-100"
+		class="overflow-y-auto rounded-md bg-slate-900 p-3 font-mono text-xs whitespace-pre-wrap text-slate-100 transition-[max-height] duration-300 ease-in-out {expanded
+			? 'max-h-[80vh]'
+			: 'max-h-64'}"
 	>
 		{#if phase === 'waiting' && !logText}
 			{$t('workflows.logs.waiting')}
@@ -190,6 +193,21 @@
 			{@html ansiToHtml(logText)}
 		{/if}
 	</div>
+
+	<button
+		type="button"
+		onclick={() => {
+			expanded = !expanded;
+			if (!expanded && logEl) {
+				tick().then(() => {
+					if (logEl) logEl.scrollTop = logEl.scrollHeight;
+				});
+			}
+		}}
+		class="self-end text-xs text-slate-400 transition-colors hover:text-slate-200"
+	>
+		{expanded ? '▲ ' : '▼ '}{expanded ? $t('workflows.logs.collapse') : $t('workflows.logs.expand')}
+	</button>
 
 	{#if phase === 'reconnecting'}
 		<p class="text-xs text-amber-500 dark:text-amber-400">{$t('workflows.logs.reconnecting')}</p>

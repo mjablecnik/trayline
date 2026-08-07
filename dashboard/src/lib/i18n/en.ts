@@ -125,6 +125,8 @@ export default {
 	'workflows.logs.disconnected': 'Logs are unavailable — connection lost.',
 	'workflows.logs.truncated': 'Older output was truncated.',
 	'workflows.logs.finished': 'Finished with status: {status}',
+	'workflows.logs.expand': 'Expand log',
+	'workflows.logs.collapse': 'Collapse log',
 
 	'agent.sessions': 'Sessions',
 	'agent.selectAgent': 'Select agent',

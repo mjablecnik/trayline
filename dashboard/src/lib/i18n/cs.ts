@@ -127,6 +127,8 @@ const cs: Record<keyof typeof en, string> = {
 	'workflows.logs.disconnected': 'Logy nejsou dostupné — spojení bylo přerušeno.',
 	'workflows.logs.truncated': 'Starší výstup byl zkrácen.',
 	'workflows.logs.finished': 'Dokončeno se stavem: {status}',
+	'workflows.logs.expand': 'Zvětšit log',
+	'workflows.logs.collapse': 'Zmenšit log',
 
 	'agent.sessions': 'Relace',
 	'agent.selectAgent': 'Vyberte agenta',
