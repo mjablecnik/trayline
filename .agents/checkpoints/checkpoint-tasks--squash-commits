@@ -1,0 +1,10 @@
+{
+  "pipeline": "/home/agent/.trayline/pipelines/tasks/squash-commits.yaml",
+  "variables": {
+    "pipeline-name": "13-verify-workflow.yaml"
+  },
+  "completed_steps": null,
+  "next_step": "squash-commits",
+  "timestamp": "2026-08-07T10:01:10Z",
+  "rate_limited": false
+}
