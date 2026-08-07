@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import { buildWorkflowLogWsUrl, type WorkflowStatus } from '$lib/api';
+	import { ansiToHtml } from '$lib/ansi';
 	import { getToken } from '$lib/auth';
 	import { t, type TranslationKey } from '$lib/i18n';
 
@@ -107,6 +108,9 @@
 
 	function connect() {
 		clientClosed = false;
+		// Clear accumulated log — the backend always replays the full buffer
+		// from the start on each new connection.
+		logText = '';
 		const socket = new WebSocket(buildWorkflowLogWsUrl(projectName, workflowId));
 
 		socket.onopen = () => {
@@ -170,7 +174,11 @@
 		role="log"
 		class="max-h-64 overflow-y-auto rounded-md bg-slate-900 p-3 font-mono text-xs whitespace-pre-wrap text-slate-100"
 	>
-		{phase === 'waiting' && !logText ? $t('workflows.logs.waiting') : logText}
+		{#if phase === 'waiting' && !logText}
+			{$t('workflows.logs.waiting')}
+		{:else}
+			{@html ansiToHtml(logText)}
+		{/if}
 	</div>
 
 	{#if phase === 'reconnecting'}
