@@ -110,37 +110,44 @@ The brief (Czech) asks two things:
   visible (Chat active) and the agent selector (agent/model dropdowns + Start button) fits within 375px
   with no horizontal overflow; tab targets are tappable. — VERIFIED:
   e2e/verification/workflow-mobile-assistant-page.spec.ts, passed.
-- [ ] 11. `[mobile]` Start the assistant session (select defaults, click Start). Expected: the chat view
+- [x] 11. `[mobile]` Start the assistant session (select defaults, click Start). Expected: the chat view
   fits the mobile viewport — message log area, a full-width textarea (placeholder "Message the agent..."),
   the 📎 attach button and a Send button all visible and reachable without horizontal scrolling; the input
-  row does not overflow the 375px width.
+  row does not overflow the 375px width. — VERIFIED: e2e/verification/workflow-mobile-assistant-chat.spec.ts,
+  passed.
 
 ### Workflow 6: Per-project pages render correctly on mobile (375px)
-- [ ] 12. `[mobile]` Navigate to http://localhost:5173/trayline/tree/ (Files tab). Expected: the project
+- [x] 12. `[mobile]` Navigate to http://localhost:5173/trayline/tree/ (Files tab). Expected: the project
   header + branch selector wrap onto their own line(s) without overflow, and the TabBar
   (Files/Commits/Changes/Env/Workflows/Agent) is **horizontally scrollable** rather than overflowing the
   page — the tab strip itself scrolls but the page body does not overflow at 375px. The active tab
-  (Files) is underlined.
-- [ ] 13. `[mobile]` Tap the **Commits** tab. Expected: navigate to the commits view; commit rows render
-  in a single column, hashes/messages are not clipped, no horizontal overflow at 375px.
-- [ ] 14. `[mobile]` Tap the **Changes** tab. Expected: the changes/diff view renders; any diff content is
-  contained (its own scroll region) so the page itself has no horizontal overflow at 375px.
-- [ ] 15. `[mobile]` Tap the **Env** tab. Expected: env file list / editor rows stack readably in a single
-  column; inputs fit within 375px; no horizontal overflow.
-- [ ] 16. `[mobile]` Tap the **Workflows** tab. Expected: workflow list / empty-state renders in a single
-  column; any action buttons are tappable and within the viewport; no horizontal overflow.
-- [ ] 17. `[mobile]` Tap the **Agent** tab. Expected: the agent chat view (selector then, after Start, the
+  (Files) is underlined. — VERIFIED: e2e/verification/workflow-mobile-project-tabs.spec.ts, passed.
+- [x] 13. `[mobile]` Tap the **Commits** tab. Expected: navigate to the commits view; commit rows render
+  in a single column, hashes/messages are not clipped, no horizontal overflow at 375px. — VERIFIED: same
+  test file as task 12, passed.
+- [x] 14. `[mobile]` Tap the **Changes** tab. Expected: the changes/diff view renders; any diff content is
+  contained (its own scroll region) so the page itself has no horizontal overflow at 375px. — VERIFIED:
+  same test file as task 12, passed.
+- [x] 15. `[mobile]` Tap the **Env** tab. Expected: env file list / editor rows stack readably in a single
+  column; inputs fit within 375px; no horizontal overflow. — VERIFIED: same test file as task 12, passed.
+- [x] 16. `[mobile]` Tap the **Workflows** tab. Expected: workflow list / empty-state renders in a single
+  column; any action buttons are tappable and within the viewport; no horizontal overflow. — VERIFIED:
+  e2e/verification/workflow-mobile-project-tabs-2.spec.ts, passed.
+- [x] 17. `[mobile]` Tap the **Agent** tab. Expected: the agent chat view (selector then, after Start, the
   message log + textarea + Send) fits the mobile viewport with no horizontal overflow; input row usable.
+  — VERIFIED: same test file as task 16, passed.
 
 ### Workflow 7: Responsive switch — tablet & desktop (768px / 1280px)
-- [ ] 18. `[tablet]` Set viewport 768×1024 and load http://localhost:5173/. Expected: the inline nav
+- [x] 18. `[tablet]` Set viewport 768×1024 and load http://localhost:5173/. Expected: the inline nav
   (Projects / Sessions / Assistant links + language switcher + Logout) is now visible in the header and
-  the hamburger button is hidden — confirms the `tablet` (768px) breakpoint switches layouts.
-- [ ] 19. `[tablet]` At 768px, verify the projects grid shows **two columns** (`tablet:grid-cols-2`) and
-  there is no horizontal overflow.
-- [ ] 20. `[desktop]` Set viewport 1280×800 and load http://localhost:5173/. Expected: inline nav still
+  the hamburger button is hidden — confirms the `tablet` (768px) breakpoint switches layouts. — VERIFIED:
+  e2e/verification/workflow-tablet-desktop-responsive.spec.ts, passed.
+- [x] 19. `[tablet]` At 768px, verify the projects grid shows **two columns** (`tablet:grid-cols-2`) and
+  there is no horizontal overflow. — VERIFIED: same test file as task 18, passed.
+- [x] 20. `[desktop]` Set viewport 1280×800 and load http://localhost:5173/. Expected: inline nav still
   shown, hamburger hidden, projects grid shows **three columns** (`desktop:grid-cols-3`); content is
-  centered within the `max-w-6xl` container with no horizontal overflow.
+  centered within the `max-w-6xl` container with no horizontal overflow. — VERIFIED: same test file as
+  task 18, passed.
 
 ## Environment
 - Everything runs locally — the agent API server, spawned agent containers, and LLM calls execute
