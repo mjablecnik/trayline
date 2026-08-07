@@ -117,6 +117,11 @@ echo "==> Installing runtime scripts..."
 sed 's/\r$//' "$REPO_ROOT/runtime/trayline" > "$BIN_DIR/trayline"
 chmod +x "$BIN_DIR/trayline"
 
+# Also install trayline wrapper into TRAYLINE_HOME so Docker containers
+# (which mount ~/.trayline at /home/agent/.trayline) can find it in PATH.
+sed 's/\r$//' "$REPO_ROOT/runtime/trayline" > "$TRAYLINE_HOME/trayline"
+chmod +x "$TRAYLINE_HOME/trayline"
+
 sed 's/\r$//' "$REPO_ROOT/runtime/trayline-agent" > "$TRAYLINE_HOME/trayline-agent"
 chmod +x "$TRAYLINE_HOME/trayline-agent"
 
