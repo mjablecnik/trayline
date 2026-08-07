@@ -52,7 +52,7 @@ test('mobile (375px): projects grid is single-column and header stays sticky on 
 	await page.waitForTimeout(200);
 
 	await expect(page.getByRole('link', { name: 'Trayline' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Menu' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
 	const headerBoxAfter = await header.boundingBox();
 	expect(headerBoxAfter?.y).toBe(headerBoxBefore?.y); // still pinned at the same y (top)
 	expect(headerBoxAfter?.y).toBeLessThanOrEqual(0.5);

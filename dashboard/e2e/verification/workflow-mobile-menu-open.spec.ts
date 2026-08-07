@@ -19,7 +19,7 @@ test('mobile (375px): hamburger button opens the mobile menu panel', async ({ pa
 	await page.setViewportSize({ width: 375, height: 812 });
 	await login(page);
 
-	const menuButton = page.getByRole('button', { name: 'Menu' });
+	const menuButton = page.getByRole('button', { name: 'Menu', exact: true });
 	await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
 
 	await menuButton.click();
