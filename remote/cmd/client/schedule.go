@@ -73,6 +73,29 @@ func dispatchScheduleSub(sub string, args []string, cfg *Config) int {
 
 // handleScheduleAdd schedules a new workflow (pipeline).
 func handleScheduleAdd(args []string, cfg *Config) int {
+	// Go's flag package stops parsing at the first non-flag argument.
+	// Reorder args so flags come before the positional pipeline name.
+	var flagArgs []string
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--var" || args[i] == "--project" {
+			flagArgs = append(flagArgs, args[i])
+			i++
+			if i < len(args) {
+				flagArgs = append(flagArgs, args[i])
+			}
+		} else if strings.HasPrefix(args[i], "--var=") || strings.HasPrefix(args[i], "--project=") {
+			flagArgs = append(flagArgs, args[i])
+		} else if args[i] == "--help" || args[i] == "-h" {
+			flagArgs = append(flagArgs, args[i])
+		} else if strings.HasPrefix(args[i], "-") {
+			flagArgs = append(flagArgs, args[i])
+		} else {
+			positional = append(positional, args[i])
+		}
+	}
+	reordered := append(flagArgs, positional...)
+
 	fs := flag.NewFlagSet("schedule", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
@@ -80,7 +103,7 @@ func handleScheduleAdd(args []string, cfg *Config) int {
 	var varFlags varSliceFlag
 	fs.Var(&varFlags, "var", "")
 
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reordered); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\nRun with --help for usage information.\n", err)
 		return 2
 	}
