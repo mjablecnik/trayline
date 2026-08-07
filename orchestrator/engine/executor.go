@@ -56,6 +56,11 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+	// In workflow containers (TRAYLINE_DIRECT_AGENT=1), invoke the agent CLI
+	// directly instead of going through trayline-agent (which tries docker-in-docker).
+	if os.Getenv("TRAYLINE_DIRECT_AGENT") == "1" {
+		return r.runDirectAgent(agent, prompt, model, projectDir, env, verbose, stdout, stderr)
+	}
 	agentBin := resolveAgentBinary()
 	args := []string{agent, "-p", projectDir}
 	if model != "" {
@@ -63,6 +68,34 @@ func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, pr
 	}
 	args = append(args, prompt)
 	return runSubprocess(agentBin, args, projectDir, env, verbose, stdout, stderr)
+}
+
+// runDirectAgent invokes the agent CLI binary directly (no Docker wrapper).
+// Used inside workflow containers where the CLI is already installed.
+func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+	var bin string
+	var args []string
+
+	switch agent {
+	case "claude":
+		bin = "claude"
+		args = []string{"--dangerously-skip-permissions"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		args = append(args, "-p", prompt)
+	case "kiro":
+		bin = "kiro-cli"
+		args = []string{"chat", "--trust-all-tools", "--no-interactive"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		args = append(args, prompt)
+	default:
+		return "", 1, fmt.Errorf("unknown agent: %s", agent)
+	}
+
+	return runSubprocess(bin, args, projectDir, env, verbose, stdout, stderr)
 }
 
 // resolveAgentBinary finds trayline-agent next to the current executable first,

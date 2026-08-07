@@ -459,6 +459,7 @@ func (m *ContainerManager) buildContainerEnv() []string {
 	return []string{
 		dockerHostEnv,
 		"NO_COLOR=1",
+		"TRAYLINE_DIRECT_AGENT=1",
 		"PATH=/home/agent/.trayline:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 	}
 }
