@@ -48,7 +48,7 @@ _trayline_pipeline_vars() {
         (( i++ ))
         ;;
       --*) ;;
-      run|flow) ;;
+      run|flow|schedule) ;;
       *)
         # Non-flag argument = pipeline reference for this segment
         if [[ -z "$segment_pipeline" ]]; then
