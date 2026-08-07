@@ -7,89 +7,146 @@
 - Base URL: http://localhost:5173
 - Auth required: yes (Bearer token entered on the landing page)
 - Login credentials: API token = `66b8eb77f5f183cd0078aa5b229d1234c48290338bd3c28d10eb2b9e8d9feb2a`
-  (read from the running `trayline-server` container's `API_TOKEN` env var; stored by the app in localStorage under key `trayline.token`)
+  (stored by the app in localStorage under key `trayline.token`)
 
 ## What is being verified (from BRIEF.md)
-In the dashboard chat — for BOTH the **project agent** and the **main/assistant agent** — a user must be able to attach a file/image three ways:
-1. via the attachment icon (📎 → file picker)
-2. via drag-and-drop into the browser
-3. via copy-paste (Ctrl/Cmd+V of an image on the clipboard)
+The brief (Czech) asks two things:
+1. **Run the dashboard and verify every page renders correctly on mobile** according to sound UX/UI
+   principles — no horizontal overflow / content cut off, readable text, adequately sized & spaced
+   touch targets, header/nav usable, single-column layouts where appropriate.
+2. **Verify the mobile (hamburger) menu closes again** after the user clicks a nav link or the page
+   changes.
 
-The AI agent on the other side must then **recognize and describe** the image, **including reading any text that appears in the image** (OCR). Test images are downloaded from the internet (see Setup Notes).
+### Relevant implementation facts (read before testing)
+- Breakpoints (from `src/app.css`): `tablet = 768px`, `desktop = 1024px`, `wide = 1280px`. The
+  primary responsive switch is `tablet` (768px): **below 768px the hamburger button shows**; at
+  768px and up the inline nav shows and the hamburger is hidden (`tablet:hidden` / `hidden tablet:flex`).
+- Mobile menu lives in `src/lib/components/Header.svelte`. The hamburger button has
+  `aria-label="Menu"` and `aria-expanded={mobileMenuOpen}`. When open, a panel renders three links
+  (Projects / Sessions / Assistant), the LanguageSwitcher, and (if authed) LogoutButton.
+- **Suspected defect to confirm/deny:** the mobile menu links have **no** `onclick` that closes the
+  panel and there is **no** `$effect` resetting `mobileMenuOpen` on navigation. So after tapping a
+  link the panel is expected to STAY OPEN (aria-expanded stays true / panel still visible). Workflow 3
+  is designed to surface this precisely — report it as a UX bug if reproduced.
+- Routes: `/` (projects grid), `/sessions`, `/assistant`, and per-project pages under `/[project]/`:
+  `tree/[...path]`, `commits`, `commits/[hash]`, `changes`, `env`, `workflows`, `agent`. Project pages
+  share a layout with a horizontally-scrollable `TabBar` (Files/Commits/Changes/Env/Workflows/Agent).
+- A real project named **`trayline`** exists on the server. Use it for per-project pages.
 
 ## Setup Notes
-
 ### Backend is already running (do NOT mock anything)
-- The full stack is live in Docker on the `trayline-net` network:
-  - `trayline-server` (agent API) — container `trayline-server`, listening on **`http://trayline-server:9000`** (host publish `0.0.0.0:9000` is NOT reachable from this sandbox; use the container hostname).
-  - `trayline-sandbox` agent containers are spawned per chat session and run the real `claude` CLI (vision-capable). Default agent = `claude`, default model = `sonnet`.
-- This sandbox is itself a container attached to `trayline-net`, so `curl http://trayline-server:9000/health` works from the sandbox shell and from a browser launched here. Verify before testing:
-  `curl -s http://trayline-server:9000/health` → `{"status":"ok"}`
-- If the server ever needs (re)starting, its start script is `remote/scripts/start-docker.sh` (loads `~/.trayline/env/server.env`). See the `sandbox-docker-net` skill if a published Docker port is unreachable.
+- Full stack is live in Docker on the `trayline-net` network. Agent API server = container
+  `trayline-server`, reachable at **`http://trayline-server:9000`** from this sandbox (the host-published
+  `0.0.0.0:9000` is NOT reachable — use the container hostname). Verify first:
+  `curl -s http://trayline-server:9000/health` → `{"status":"ok"}` (confirmed working).
 
 ### Serving the dashboard for Playwright
-- Run the Vite dev server from `/workspace/dashboard` with the API URL pointed at the live server:
+- From `/workspace/dashboard` (node_modules already installed):
   `PUBLIC_API_URL=http://trayline-server:9000 npm run dev -- --host 0.0.0.0 --port 5173`
-  (`node_modules` is already installed. The committed `.env.local` points at the wrong/exited `trayline-server-test:8081`, so override `PUBLIC_API_URL` on the command line as shown.)
-- **CORS caveat (important):** the running server has `DASHBOARD_ORIGIN=https://trayline-dashboard.fly.dev`, so REST responses only carry `Access-Control-Allow-Origin` for that origin. A browser loading the app from `http://localhost:5173` will have its REST calls (project list, sessions) blocked by CORS. WebSocket chat is NOT affected (the server's `CheckOrigin` returns true). To make the REST calls work in the E2E browser, launch Chromium with web security disabled, e.g. Playwright:
-  `chromium.launch({ args: ['--disable-web-security', '--user-data-dir=/tmp/pw-profile'] })`.
-  (Alternative: restart `trayline-server` with `DASHBOARD_ORIGIN=http://localhost:5173`, but the browser-flag approach is non-invasive and preferred.)
-- Chromium is pre-installed at `/opt/playwright-browsers` — do NOT run `playwright install` (see `sandbox-playwright-browsers` skill).
+  (The committed `.env.local` points at the wrong `trayline-server-test:8081`; override on the CLI as shown.)
+- **CORS caveat:** the server sets `DASHBOARD_ORIGIN=https://trayline-dashboard.fly.dev`, so REST calls
+  (project list, sessions) from `http://localhost:5173` are blocked by CORS unless the browser runs with
+  web security disabled. Launch Chromium with
+  `args: ['--disable-web-security', '--user-data-dir=/tmp/pw-profile']`. (WebSocket chat is unaffected.)
+- Chromium is pre-installed at `/opt/playwright-browsers` — do NOT run `playwright install`
+  (see `sandbox-playwright-browsers` skill).
 
-### Test images (download from the internet — internet access confirmed working)
-Prepare these files on disk before the run so Playwright can set them on the file input / synthesize drag/paste events. Use deterministic content so assertions are exact:
-- **Text/OCR image** `/workspace/.agents/tmp/ocr-test.png` — an image whose only content is a known unique phrase:
-  `curl -s -o /workspace/.agents/tmp/ocr-test.png "https://placehold.co/600x200/png?text=TRAYLINE+OCR+7492"`
-  Expected recognizable text: `TRAYLINE OCR 7492` (assert the agent's reply contains `7492` and `TRAYLINE OCR`).
-- **Photo image** `/workspace/.agents/tmp/photo-test.jpg` — a clearly recognizable real-world subject. Download a stable public-domain image and note its subject, e.g. a red London bus / a banana / the Google logo. Assert the agent's description mentions the known subject keyword. (If a download is flaky, fall back to a second `placehold.co` image with distinct text, and treat it as a second OCR check.)
-
-### Project & routes used
-- A real project named **`trayline`** exists on the server (confirmed via `GET /projects`). Use it for the project-agent workflows.
-- Project agent chat: `http://localhost:5173/trayline/agent`
-- Main/assistant agent chat: `http://localhost:5173/assistant`
-
-### Behavior notes that shape the steps
-- Attaching a file only **stages** it (shows a thumbnail/📄 chip above the textarea). The file is uploaded and the agent is prompted only when you press **Send** with a non-empty text message. **You must type a prompt** (e.g. "Describe this image and read any text in it") together with the attachment — an attachment with empty text uploads the file but never triggers an agent response.
-- On upload the server emits a `file_uploaded` message → the UI shows a system bubble `📁 <filename> uploaded`.
-- Agent replies stream in from a real LLM inside a container, so they can take a while. Use a generous timeout (up to ~120s) when waiting for the agent's description text.
-- Starting a chat requires the agent selector: agent defaults to `claude`, model defaults to `sonnet`; click **Start Agent** to open the session.
+### Viewport convention for this run
+- **Mobile = 375×812** (primary; iPhone-class). Tablet = **768×1024**. A couple of desktop checks at
+  **1280×800** to confirm the responsive switch. Tag each task with its viewport, e.g. `[mobile]`.
+- On EVERY mobile page, in addition to page-specific assertions, verify there is **no horizontal
+  scroll/overflow**: `document.documentElement.scrollWidth <= window.innerWidth + 1` (allow 1px rounding).
+  A failure here means content overflows the viewport — a mobile UX bug to report.
 
 ## Workflows
 
-### Workflow 1: Login with API token
-- [x] 1. Navigate to http://localhost:5173. Expected: the token entry screen is visible — heading and a password input with a "Connect"/"Attach" button (component `TokenEntry`).
-- [x] 2. Type the API token into the password field and submit. Expected: the token screen disappears and the projects grid loads, showing at least one project card including one named `trayline`.
+### Workflow 1: Login on mobile (375px)
+- [x] 1. `[mobile]` Set viewport 375×812, navigate to http://localhost:5173. Expected: the TokenEntry
+  screen is visible — an `<h1>` (auth title) and a `type=password` input with a "Connect" submit button;
+  the input and button are full-width / comfortably tappable and fit within the 375px viewport (no
+  horizontal overflow). — VERIFIED: e2e/verification/workflow-mobile-login.spec.ts, passed.
+- [x] 2. `[mobile]` Type the API token into the password field and submit. Expected: the token screen
+  disappears and the projects view loads (see Workflow 2). The header now shows the app name on the left
+  and a single hamburger button on the right (no inline nav links visible at 375px). — VERIFIED: same
+  test file as task 1, passed.
 
-### Workflow 2: Project agent — attach image via 📎 icon, agent describes it
-- [x] 3. Navigate to http://localhost:5173/trayline/agent. Expected: the agent selector is shown with agent `claude` and model `sonnet` preselected and a "Start Agent" button.
-- [x] 4. Click "Start Agent" and wait for the session to open. Expected: the selector is replaced by the chat view — a message log area, a textarea with placeholder "Message the agent...", the 📎 attach button, and a "Send" button.
-- [x] 5. Set the hidden file input (the 📎 button's `input[type=file]`) to `/workspace/.agents/tmp/photo-test.jpg`. Expected: a pending-attachment chip appears above the textarea showing an image thumbnail and the filename `photo-test.jpg`, with a ✕ remove button.
-- [x] 6. Type `Describe this image in one sentence.` in the textarea and click "Send". Expected: a system bubble `📁 photo-test.jpg uploaded` appears, followed by the user's message bubble; the pending chip is cleared.
-- [x] 7. Wait for the agent reply (up to ~120s). Expected: an agent message bubble streams in with a coherent description that mentions the known subject of `photo-test.jpg` (e.g. the object/scene it depicts).
+### Workflow 2: Projects page renders correctly on mobile (375px)
+- [x] 3. `[mobile]` On http://localhost:5173/ verify the projects grid is a **single column** at 375px
+  (cards stack vertically, each card full-width) and at least one card labelled `trayline` is visible.
+  Expected: no horizontal overflow; card text/badges are not clipped. — VERIFIED:
+  e2e/verification/workflow-mobile-projects-page.spec.ts, passed.
+- [x] 4. `[mobile]` Verify the sticky header stays at the top: it has `sticky top-0`; scroll the page and
+  confirm the app-name link and hamburger remain visible and aligned within the 375px width. — VERIFIED:
+  same test file as task 3, passed.
 
-### Workflow 3: Project agent — attach image via drag-and-drop
-- [x] 8. In the same project-agent session, dispatch a drag-and-drop of `/workspace/.agents/tmp/ocr-test.png` onto the message log area (the element with `role="log"`, which has `ondrop`). Expected: a pending-attachment chip for `ocr-test.png` appears above the textarea.
-- [x] 9. Type `What text is written in this image?` and click "Send". Expected: `📁 ocr-test.png uploaded` system bubble, then the user message bubble.
-- [x] 10. Wait for the agent reply. Expected: the agent's message contains the exact text from the image — includes `7492` and mentions `TRAYLINE OCR` — proving OCR of image text works over the drag-and-drop path.
+### Workflow 3: Mobile menu open / close behaviour (375px) — CORE of the brief
+- [x] 5. `[mobile]` On any page (start at `/`), click the hamburger button (`aria-label="Menu"`).
+  Expected: `aria-expanded` becomes `true` and a menu panel appears listing links **Projects**,
+  **Sessions**, **Assistant** plus the language switcher and Logout; the icon switches to an ✕ (close).
+  — VERIFIED: e2e/verification/workflow-mobile-menu-open.spec.ts, passed.
+- [x] 6. `[mobile]` With the menu open, click the hamburger again. Expected: `aria-expanded` becomes
+  `false` and the panel is removed — confirms the toggle closes it. — VERIFIED:
+  e2e/verification/workflow-mobile-menu-close-toggle.spec.ts, passed.
+- [x] 7. `[mobile]` Open the menu again, then click the **Sessions** link. Expected (per brief): the app
+  navigates to `/sessions` AND the mobile menu closes automatically — the panel is gone and
+  `aria-expanded` is `false` on the new page. **If the panel is still open / `aria-expanded` stays
+  `true` after navigation, record this as a UX defect** (menu does not close on link click). —
+  REPRODUCED THE DEFECT, then FIXED: `dashboard/src/lib/components/Header.svelte` mobile nav links had
+  no `onclick` closing the panel. Added `onclick={() => (mobileMenuOpen = false)}` to each mobile link.
+  VERIFIED: e2e/verification/workflow-mobile-menu-close-on-nav.spec.ts, passed after fix.
+- [x] 8. `[mobile]` From `/sessions`, open the menu and click **Assistant**. Expected: navigates to
+  `/assistant` and, again, the menu should be closed afterwards. Note the observed behaviour (closed vs.
+  still-open) to corroborate task 7. — VERIFIED: same test file as task 7 (covers both navigations),
+  passed after the Header.svelte fix.
 
-### Workflow 4: Project agent — attach image via copy-paste
-- [x] 11. Focus the textarea and dispatch a `paste` ClipboardEvent carrying `ocr-test.png` as an `image/*` clipboard file item. Expected: a pending-attachment chip appears (filename like `clipboard-<n>.png`) and no image markup is pasted as text into the textarea.
-- [x] 12. Type `Read the text in the pasted image.` and click "Send", then wait for the reply. Expected: `📁 …uploaded` system bubble, then an agent reply that again contains `7492` / `TRAYLINE OCR`, proving the paste path uploads and is recognized.
+### Workflow 4: Sessions page renders correctly on mobile (375px)
+- [x] 9. `[mobile]` Navigate to http://localhost:5173/sessions. Expected: a page heading (Sessions) is
+  visible; either a session list or an empty-state message renders; content is single-column, text is not
+  clipped, and there is no horizontal overflow at 375px. — VERIFIED:
+  e2e/verification/workflow-mobile-sessions-page.spec.ts, passed.
 
-### Workflow 5: Main/assistant agent — attach image via 📎 icon, agent reads text (OCR)
-- [x] 13. Navigate to http://localhost:5173/assistant. Expected: the assistant page loads with a Chat/Files tab bar (Chat active) and an agent selector (agent `claude`, model `sonnet`) with a Start button.
-- [x] 14. Start the assistant session. Expected: the chat view appears with the message log, textarea (placeholder "Message the agent..."), the 📎 `FileUploadButton`, and a "Send" button.
-- [x] 15. Use the 📎 file input to select `/workspace/.agents/tmp/ocr-test.png`. Expected: a pending-attachment chip with the image thumbnail and filename `ocr-test.png` appears above the textarea.
-- [x] 16. Type `Read and quote the text shown in this image.` and click "Send". Expected: `📁 ocr-test.png uploaded` system bubble, then the user message bubble.
-- [x] 17. Wait for the agent reply (up to ~120s). Expected: the assistant's reply contains the image's text — includes `7492` and `TRAYLINE OCR` — proving the main agent recognizes text in the image.
+### Workflow 5: Assistant page renders correctly on mobile (375px)
+- [x] 10. `[mobile]` Navigate to http://localhost:5173/assistant. Expected: a Chat/Files tab bar is
+  visible (Chat active) and the agent selector (agent/model dropdowns + Start button) fits within 375px
+  with no horizontal overflow; tab targets are tappable. — VERIFIED:
+  e2e/verification/workflow-mobile-assistant-page.spec.ts, passed.
+- [ ] 11. `[mobile]` Start the assistant session (select defaults, click Start). Expected: the chat view
+  fits the mobile viewport — message log area, a full-width textarea (placeholder "Message the agent..."),
+  the 📎 attach button and a Send button all visible and reachable without horizontal scrolling; the input
+  row does not overflow the 375px width.
 
-### Workflow 6: Main/assistant agent — drag-and-drop image, agent describes it
-- [x] 18. In the same assistant session, drag-and-drop `/workspace/.agents/tmp/photo-test.jpg` onto the assistant message log area (element with `role="log"` / `ondrop`). Expected: a pending-attachment chip for `photo-test.jpg` appears.
-- [x] 19. Type `Describe what is in this image.` and click "Send". Expected: `📁 photo-test.jpg uploaded` system bubble, then the user message bubble.
-- [x] 20. Wait for the agent reply. Expected: an agent message bubble with a coherent description mentioning the known subject of `photo-test.jpg`, confirming the main agent recognizes and describes dropped images.
+### Workflow 6: Per-project pages render correctly on mobile (375px)
+- [ ] 12. `[mobile]` Navigate to http://localhost:5173/trayline/tree/ (Files tab). Expected: the project
+  header + branch selector wrap onto their own line(s) without overflow, and the TabBar
+  (Files/Commits/Changes/Env/Workflows/Agent) is **horizontally scrollable** rather than overflowing the
+  page — the tab strip itself scrolls but the page body does not overflow at 375px. The active tab
+  (Files) is underlined.
+- [ ] 13. `[mobile]` Tap the **Commits** tab. Expected: navigate to the commits view; commit rows render
+  in a single column, hashes/messages are not clipped, no horizontal overflow at 375px.
+- [ ] 14. `[mobile]` Tap the **Changes** tab. Expected: the changes/diff view renders; any diff content is
+  contained (its own scroll region) so the page itself has no horizontal overflow at 375px.
+- [ ] 15. `[mobile]` Tap the **Env** tab. Expected: env file list / editor rows stack readably in a single
+  column; inputs fit within 375px; no horizontal overflow.
+- [ ] 16. `[mobile]` Tap the **Workflows** tab. Expected: workflow list / empty-state renders in a single
+  column; any action buttons are tappable and within the viewport; no horizontal overflow.
+- [ ] 17. `[mobile]` Tap the **Agent** tab. Expected: the agent chat view (selector then, after Start, the
+  message log + textarea + Send) fits the mobile viewport with no horizontal overflow; input row usable.
+
+### Workflow 7: Responsive switch — tablet & desktop (768px / 1280px)
+- [ ] 18. `[tablet]` Set viewport 768×1024 and load http://localhost:5173/. Expected: the inline nav
+  (Projects / Sessions / Assistant links + language switcher + Logout) is now visible in the header and
+  the hamburger button is hidden — confirms the `tablet` (768px) breakpoint switches layouts.
+- [ ] 19. `[tablet]` At 768px, verify the projects grid shows **two columns** (`tablet:grid-cols-2`) and
+  there is no horizontal overflow.
+- [ ] 20. `[desktop]` Set viewport 1280×800 and load http://localhost:5173/. Expected: inline nav still
+  shown, hamburger hidden, projects grid shows **three columns** (`desktop:grid-cols-3`); content is
+  centered within the `max-w-6xl` container with no horizontal overflow.
 
 ## Environment
-- Everything runs locally — the agent API server, the spawned agent containers, and the LLM calls all execute against real services reachable on the `trayline-net` Docker network (`http://trayline-server:9000`).
-- Do NOT mock any API calls or agent responses. These are real end-to-end tests: real WebSocket chat, real file upload into the agent container, real vision model describing/reading the image.
-- Services that must be running: `trayline-server` (verify `http://trayline-server:9000/health` → `{"status":"ok"}`) and the Docker daemon proxy (`trayline-proxy`) so the server can spawn `trayline-sandbox` chat containers. Both are already up.
-- The dashboard itself must be served locally with `PUBLIC_API_URL=http://trayline-server:9000` and the browser launched with `--disable-web-security` (see Setup Notes → CORS caveat).
+- Everything runs locally — the agent API server, spawned agent containers, and LLM calls execute
+  against real services on the `trayline-net` Docker network (`http://trayline-server:9000`).
+- Do NOT mock any API calls or agent responses. Real WebSocket chat and REST calls only.
+- Services that must be running: `trayline-server` (verify `http://trayline-server:9000/health` →
+  `{"status":"ok"}`); already up.
+- Serve the dashboard locally with `PUBLIC_API_URL=http://trayline-server:9000` and launch Chromium with
+  `--disable-web-security` (see Setup Notes → CORS caveat).

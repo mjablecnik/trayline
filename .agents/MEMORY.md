@@ -452,6 +452,27 @@
 - Solution: Install the needed revision to a writable custom path instead of the default: `mkdir -p /workspace/.playwright-browsers && PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright-browsers npx playwright install chromium` (downloads chromium + chromium-headless-shell + ffmpeg, ~300MB, works fine — internet access is available). Then always run tests with that same env var set: `PLAYWRIGHT_BROWSERS_PATH=/workspace/.playwright-browsers npx playwright test ...`. Do not touch `/opt/playwright-browsers` (still root-owned/read-only) — this workaround is fully local to the project checkout and survives across test runs in this session since the browsers dir persists at `/workspace/.playwright-browsers`.
 - Source: verify-workflow, 2026-08-05
 
+## Mobile menu did not close on nav link tap (real bug), and `getByRole('button', {name: 'Menu'})` is substring-matched against project card text
+- Project: dashboard (trayline dashboard e2e verification, mobile UX workflow 3, tasks 6-8)
+- Problem: (1) `src/lib/components/Header.svelte`'s mobile menu panel links had no `onclick` closing
+  `mobileMenuOpen` and no `$effect` resetting it on navigation, so tapping Projects/Sessions/Assistant in
+  the open panel navigated correctly but left the panel open (`aria-expanded` stayed `true`) — a real UX
+  bug, not a test artifact. (2) Separately, `page.getByRole('button', { name: 'Menu' })` (no `exact: true`)
+  does case-insensitive **substring** matching by default, so once a git commit message containing "...and
+  menu open" landed (from an earlier test-file commit in this very verification run) it started showing up
+  in the "trayline" project card's accessible name on the projects grid, causing a strict-mode violation
+  (2 matching buttons) in previously-passing tests (`workflow-mobile-login`, `workflow-mobile-menu-open`,
+  `workflow-mobile-projects-page`).
+- Solution: Fixed the real bug by adding `onclick={() => (mobileMenuOpen = false)}` to each mobile nav
+  link in `Header.svelte`. Fixed the selector fragility by adding `exact: true` to all `getByRole('button',
+  { name: 'Menu' })` / nav-link locators and scoping them to `page.locator('header')` so they can never
+  collide with dynamic project-card text (commit messages, session summaries) that happens to contain the
+  same words. General lesson: any Playwright test asserting on short/generic accessible names ("Menu",
+  "Assistant", "Projects") in an app that also renders free-form user/repo content (commit messages,
+  session titles) should scope to a stable container and use `exact: true` — the app's real data can and
+  will eventually collide with a substring match.
+- Source: verify-workflow, 2026-08-07
+
 ## Workflow 5 (assistant 📎 OCR) test failed once on a transient upstream 529 Overloaded, not a real bug
 - Project: dashboard (trayline dashboard e2e verification, file-attachment workflow, task 13-17)
 - Problem: `workflow-assistant-attach-icon.spec.ts` timed out waiting 120s for `getByRole('log').locator('.prose').last()` to appear — the UI was stuck showing "Agent is thinking..." with Send/Attach disabled. `docker logs` on the session's `trayline-assistant-*` sandbox container showed the real cause: the in-container `claude` CLI hit repeated `"error_status":529,"error":"overloaded"` from the Anthropic API, retried 10 times with exponential backoff (~200s total, all inside the container's own retry logic), and only then surfaced a synthetic `"API Error: 529 Overloaded"` assistant message — which took longer than the test's 120s poll window to arrive. Not a frontend bug, not a backend bug: the vision/OCR feature itself works.
