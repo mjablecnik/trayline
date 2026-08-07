@@ -44,12 +44,39 @@ func ResolveConfig(serverFlag, tokenFlag string, verbose, quiet bool) (*Config, 
 		serverEnv, _ = godotenv.Read(traylineHome + "/env/server.env")
 	}
 
-	serverURL := resolveValueWithFallback(serverFlag, "TRAYLINE_SERVER_URL", dotenv, serverEnv, "http://localhost:8080")
+	serverURL := resolveValueWithFallback(serverFlag, "TRAYLINE_SERVER_URL", dotenv, serverEnv, "")
 	token := resolveValueWithFallback(tokenFlag, "TRAYLINE_API_TOKEN", dotenv, serverEnv, "")
 
 	// If token not found under TRAYLINE_API_TOKEN, try API_TOKEN (server.env uses this key).
 	if token == "" {
 		token = resolveValueWithFallback("", "API_TOKEN", dotenv, serverEnv, "")
+	}
+
+	// If server URL not explicitly set, try to construct it from ~/.trayline/config
+	// (AGENT_HOST) + server.env (APP_PORT).
+	if serverURL == "" {
+		var traylineConfig map[string]string
+		if traylineHome != "" {
+			traylineConfig, _ = godotenv.Read(traylineHome + "/config")
+		}
+		agentHost := ""
+		if v, ok := traylineConfig["AGENT_HOST"]; ok && v != "" {
+			agentHost = v
+		}
+		port := "8080"
+		if v, ok := serverEnv["APP_PORT"]; ok && v != "" {
+			port = v
+		}
+		if agentHost != "" {
+			// Extract host/IP from user@host format
+			host := agentHost
+			if idx := strings.Index(host, "@"); idx >= 0 {
+				host = host[idx+1:]
+			}
+			serverURL = "http://" + host + ":" + port
+		} else {
+			serverURL = "http://localhost:" + port
+		}
 	}
 
 	if token == "" {
