@@ -27,10 +27,14 @@
 	}
 </script>
 
-<button
-	type="button"
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
 	onclick={handleClick}
 	class="group relative flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+	role="link"
+	tabindex="0"
+	onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(); }}
 >
 	<button
 		type="button"
@@ -91,4 +95,4 @@
 			{$t('projects.uncommittedChanges')}
 		</div>
 	{/if}
-</button>
+</div>
