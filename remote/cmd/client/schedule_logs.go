@@ -71,6 +71,7 @@ func streamWorkflowLogs(client *APIClient, project, id string, cfg *Config, sigC
 func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-chan os.Signal) int {
 	fmtr := NewFormatter()
 	var lastStreamedID string
+	waitingPrinted := false
 
 	for {
 		// Check for interrupt before polling.
@@ -89,9 +90,10 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 
 		if wfID == "" {
 			// Nothing running or queued — wait and retry.
-			if !cfg.Quiet {
+			if !cfg.Quiet && !waitingPrinted {
 				fmt.Fprintf(os.Stderr, "%s Waiting for workflows on project %q...\n",
 					fmtr.Cyan(os.Stderr, "ℹ"), project)
+				waitingPrinted = true
 			}
 			select {
 			case <-sigCh:
@@ -100,6 +102,8 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 				continue
 			}
 		}
+
+		waitingPrinted = false
 
 		if !cfg.Quiet {
 			fmt.Fprintf(os.Stderr, "%s Streaming logs for %s (%s)\n",
