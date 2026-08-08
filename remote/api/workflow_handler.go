@@ -388,9 +388,11 @@ func (h *WorkflowHandler) HandleRetry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.persist(r.Context())
-	h.queues.Enqueue(name)
 
 	updated, _ := h.store.Snapshot(id)
+
+	h.queues.Enqueue(name)
+
 	writeJSON(w, http.StatusOK, workflowToResponse(updated, true))
 }
 

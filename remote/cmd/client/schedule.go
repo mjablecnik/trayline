@@ -293,8 +293,9 @@ func handleScheduleRetry(args []string, cfg *Config) int {
 	}
 
 	if !cfg.Quiet {
-		fmt.Fprintf(os.Stderr, "✓ Workflow %s retried (status: %s)\n", wf.ID, wf.Status)
+		fmt.Fprintf(os.Stderr, "✓ Workflow %s retried (status: queued)\n", wf.ID)
 	}
+	fmt.Println(wf.ID)
 	return 0
 }
 
