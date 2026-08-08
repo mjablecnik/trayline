@@ -272,6 +272,22 @@ func (s *WorkflowStore) HasQueuedWaiting(project string) bool {
 	return false
 }
 
+// HasFailed reports whether a project has at least one failed workflow.
+// When true, the processor loop halts and does not pick up the next queued
+// workflow until the failed one is resolved (deleted or retried via a new
+// schedule request).
+func (s *WorkflowStore) HasFailed(project string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, id := range s.byProject[project] {
+		if w, ok := s.workflows[id]; ok && w.Status == WorkflowFailed {
+			return true
+		}
+	}
+	return false
+}
+
 // All returns all workflows (unordered). Used for state persistence.
 func (s *WorkflowStore) All() []*Workflow {
 	s.mu.RLock()

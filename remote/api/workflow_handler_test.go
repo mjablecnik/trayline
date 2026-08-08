@@ -293,11 +293,22 @@ func TestHandleCancel_Queued(t *testing.T) {
 func TestHandleCancel_ConflictWhenTerminal(t *testing.T) {
 	h, s := newTestWorkflowHandler(t, newFakeQueueContainerClient())
 	addQueuedWorkflow(s, "w1", "proj", "processes/demo", time.Now())
-	s.Update("w1", func(wf *store.Workflow) { wf.Status = store.WorkflowFailed })
+	s.Update("w1", func(wf *store.Workflow) { wf.Status = store.WorkflowCompleted })
 
 	rec := doWorkflowRequest(h.HandleCancel, http.MethodDelete, "/projects/proj/workflows/w1", nil, map[string]string{"name": "proj", "id": "w1"})
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCancel_DeleteFailed(t *testing.T) {
+	h, s := newTestWorkflowHandler(t, newFakeQueueContainerClient())
+	addQueuedWorkflow(s, "w1", "proj", "processes/demo", time.Now())
+	s.Update("w1", func(wf *store.Workflow) { wf.Status = store.WorkflowFailed })
+
+	rec := doWorkflowRequest(h.HandleCancel, http.MethodDelete, "/projects/proj/workflows/w1", nil, map[string]string{"name": "proj", "id": "w1"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for deleting failed workflow, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -388,8 +399,16 @@ func TestWorkflowHandler_StateMachineEditCancelConstraints(t *testing.T) {
 		s.Update(cancelID, func(wf *store.Workflow) { wf.Status = status })
 
 		cancelRec := doWorkflowRequest(h.HandleCancel, http.MethodDelete, "/projects/proj/workflows/"+cancelID, nil, map[string]string{"name": "proj", "id": cancelID})
-		if store.IsWorkflowTerminal(status) && cancelRec.Code != http.StatusConflict {
-			t.Fatalf("status %q: expected cancel to be rejected with 409, got %d: %s", status, cancelRec.Code, cancelRec.Body.String())
+		// Failed workflows can be deleted (unblocks queue); completed and cancelled reject with 409.
+		if status == store.WorkflowCompleted || status == store.WorkflowCancelled {
+			if cancelRec.Code != http.StatusConflict {
+				t.Fatalf("status %q: expected cancel to be rejected with 409, got %d: %s", status, cancelRec.Code, cancelRec.Body.String())
+			}
+		}
+		if status == store.WorkflowFailed {
+			if cancelRec.Code != http.StatusOK {
+				t.Fatalf("status %q: expected cancel (delete failed) to succeed with 200, got %d: %s", status, cancelRec.Code, cancelRec.Body.String())
+			}
 		}
 	})
 }

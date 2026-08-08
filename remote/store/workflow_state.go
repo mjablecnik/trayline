@@ -14,8 +14,9 @@ import (
 const (
 	workflowStateFileName = "workflows.json"
 	// WorkflowLogBufferSize is the maximum number of log bytes retained per
-	// workflow (1 MB), per Requirement 7.6.
-	WorkflowLogBufferSize = 1 * 1024 * 1024
+	// workflow (10 MB). Large enough to cover long-running pipelines with
+	// verbose output (8h+ runs) while preventing unbounded memory growth.
+	WorkflowLogBufferSize = 10 * 1024 * 1024
 )
 
 // persistedWorkflow holds the fields needed to reconstruct a Workflow after restart.

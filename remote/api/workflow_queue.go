@@ -96,10 +96,20 @@ func (q *WorkflowQueueManager) Enqueue(project string) {
 
 // processLoop is the per-project processor goroutine. It repeatedly runs the
 // oldest queued workflow to completion until the project's queue is empty,
-// then exits. Exit is synchronized with Enqueue via q.mu so a workflow
-// scheduled concurrently with the exit check is never lost.
+// then exits. If a workflow fails, the loop halts and does not process
+// further queued workflows until the failed one is resolved (like taskline's
+// halt-on-failure behavior). Exit is synchronized with Enqueue via q.mu so a
+// workflow scheduled concurrently with the exit check is never lost.
 func (q *WorkflowQueueManager) processLoop(project string) {
 	for {
+		// Halt: do not process more workflows while a failed one exists.
+		// The user must delete the failed workflow or schedule a new one
+		// (which clears the halt) before processing resumes.
+		if q.store.HasFailed(project) {
+			q.waitForNotify(project)
+			continue
+		}
+
 		if q.store.HasRunning(project) {
 			q.waitForNotify(project)
 			continue

@@ -281,6 +281,7 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 		conflict   bool
 		wasQueued  bool
 		wasRunning bool
+		wasFailed  bool
 	)
 	now := time.Now()
 	h.store.Update(id, func(wf *store.Workflow) {
@@ -291,6 +292,9 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 			wasQueued = true
 		case store.WorkflowRunning:
 			wasRunning = true
+		case store.WorkflowFailed:
+			// Allow deleting failed workflows to unblock the queue.
+			wasFailed = true
 		default:
 			conflict = true
 		}
@@ -299,7 +303,7 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	if conflict {
 		writeJSON(w, http.StatusConflict, core.ErrorResponse{
 			Error:   "CONFLICT",
-			Message: "workflow is already in a terminal status",
+			Message: "workflow is already in a terminal status (completed or cancelled)",
 		})
 		return
 	}
@@ -307,6 +311,16 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	if wasQueued {
 		h.store.Evict(name)
 		h.persist(r.Context())
+	}
+
+	if wasFailed {
+		// Remove the failed workflow from the store and wake the processor
+		// loop so it can resume processing queued workflows.
+		h.store.Remove(id)
+		h.persist(r.Context())
+		h.queues.Enqueue(name)
+		writeJSON(w, http.StatusOK, workflowToResponse(existing, false))
+		return
 	}
 
 	if wasRunning {
