@@ -81,6 +81,13 @@ func (v *varFlags) Set(val string) error {
 	return nil
 }
 
+func init() {
+	loc, err := time.LoadLocation("Europe/Prague")
+	if err == nil {
+		time.Local = loc
+	}
+}
+
 func main() {
 	// Check for "flow" subcommand before standard flag parsing
 	if len(os.Args) > 1 && os.Args[1] == "flow" {
@@ -359,10 +366,10 @@ func runWithLifecycle(executor *engine.Executor, lifecyclePath string, pipelineN
 				if sleepDuration <= 0 {
 					sleepDuration = waitDuration // fallback if somehow in the past
 				}
-				fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Reset at %s UTC — waiting until %s UTC...%s\n",
+				fmt.Printf("\n%s%s⏳ Rate limit hit (attempt %d/%d). Reset at %s — waiting until %s...%s\n",
 					colorBold, colorYellow, attempt, maxAttempts,
-					resetTime.Format("15:04"),
-					resetTime.Add(10*time.Minute).Format("15:04"),
+					resetTime.Local().Format("15:04"),
+					resetTime.Add(10*time.Minute).Local().Format("15:04"),
 					colorReset)
 			} else {
 				sleepDuration = waitDuration

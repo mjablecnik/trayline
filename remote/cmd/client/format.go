@@ -91,9 +91,9 @@ func TruncateColumn(s string) string {
 	return string(runes[:maxColumnWidth-1]) + "…"
 }
 
-// FormatTimestamp formats t as "YYYY-MM-DD HH:MM".
+// FormatTimestamp formats t as "YYYY-MM-DD HH:MM" in the local timezone.
 func FormatTimestamp(t time.Time) string {
-	return t.Format("2006-01-02 15:04")
+	return t.Local().Format("2006-01-02 15:04")
 }
 
 // PrintPrompt writes the interactive input prompt "> " to w with green color when w is a TTY.
