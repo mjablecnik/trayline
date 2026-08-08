@@ -143,6 +143,11 @@ func main() {
 			}
 		}
 
+		// Cancel all running workflows so their containers shut down cleanly.
+		// This mirrors taskline's behavior: wait for running work to finish
+		// before exiting so state is always persisted correctly.
+		workflowQueues.Shutdown(25 * time.Second)
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

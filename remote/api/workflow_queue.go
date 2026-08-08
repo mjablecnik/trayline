@@ -212,6 +212,14 @@ func (q *WorkflowQueueManager) runWorkflow(wf *store.Workflow) {
 	}
 	attached.Close()
 
+	// Wait for the container to actually exit before reading its exit code.
+	// The output stream (copyDone) can close prematurely if the Docker proxy
+	// restarts or the connection blinks — in that case the container may still
+	// be running. ContainerWait ensures we get the real exit code.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer waitCancel()
+	_ = q.cm.WaitContainer(waitCtx, containerID)
+
 	exitCode := 0
 	if info, inspectErr := q.cm.InspectContainer(context.Background(), containerID); inspectErr == nil && info.State != nil {
 		exitCode = info.State.ExitCode
@@ -315,6 +323,36 @@ func (q *WorkflowQueueManager) CancelRunning(id string) error {
 	}
 	go q.escalateToSigkill(containerID)
 	return nil
+}
+
+// Shutdown cancels all running workflows and waits for their processor
+// goroutines to finalize within the given timeout. Called during server
+// graceful shutdown to ensure workflow containers are stopped cleanly and
+// their final status is persisted, rather than leaving orphaned containers.
+func (q *WorkflowQueueManager) Shutdown(timeout time.Duration) {
+	// Cancel all running workflows by invoking their context cancel functions.
+	for _, w := range q.store.All() {
+		if w.Status == store.WorkflowRunning && w.CancelFunc != nil {
+			w.CancelFunc()
+		}
+	}
+
+	// Wait for all processor goroutines to finish (running workflows reach
+	// a terminal status). Poll until no running workflows remain or timeout.
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		hasRunning := false
+		for _, w := range q.store.All() {
+			if w.Status == store.WorkflowRunning {
+				hasRunning = true
+				break
+			}
+		}
+		if !hasRunning {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // escalateToSigkill polls containerID's state and sends SIGKILL if it is

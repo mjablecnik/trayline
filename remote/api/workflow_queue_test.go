@@ -116,6 +116,12 @@ func (f *fakeQueueContainerClient) ContainerKill(_ context.Context, containerID 
 	return nil
 }
 
+func (f *fakeQueueContainerClient) ContainerWait(_ context.Context, _ string, _ container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+	ch := make(chan container.WaitResponse, 1)
+	ch <- container.WaitResponse{StatusCode: 0}
+	return ch, make(chan error)
+}
+
 func newTestQueueManager(t *testing.T, client docker.ContainerClient) (*WorkflowQueueManager, *store.WorkflowStore) {
 	t.Helper()
 	cfg := &core.Config{

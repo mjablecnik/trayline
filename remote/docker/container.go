@@ -412,6 +412,22 @@ func (m *ContainerManager) KillContainer(ctx context.Context, containerID, signa
 	return m.client.ContainerKill(ctx, containerID, signal)
 }
 
+// WaitContainer blocks until the container has exited or ctx is cancelled.
+// It is used after the output stream closes to ensure the container has
+// actually terminated before reading its exit code, protecting against
+// premature stream disconnection (e.g. Docker proxy restart).
+func (m *ContainerManager) WaitContainer(ctx context.Context, containerID string) error {
+	waitCh, errCh := m.client.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	select {
+	case <-waitCh:
+		return nil
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // CaptureContainerOutput reads up to 1MB of stdout/stderr from a container that
 // may already have exited. Used during startup recovery.
 func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, containerID string) (*ContainerResult, error) {
