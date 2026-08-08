@@ -312,14 +312,24 @@ func (w *workflowOutputWriter) Write(p []byte) (int, error) {
 	}
 
 	chunk := string(p)
+
+	// Collect subscribers under lock, send outside to avoid holding the
+	// store lock during potentially blocking channel sends.
+	var subs []chan string
 	w.q.store.Update(w.id, func(wf *store.Workflow) {
-		for _, sub := range wf.LogSubs {
-			select {
-			case sub <- chunk:
-			default:
-			}
+		if len(wf.LogSubs) > 0 {
+			subs = make([]chan string, len(wf.LogSubs))
+			copy(subs, wf.LogSubs)
 		}
 	})
+	for _, sub := range subs {
+		select {
+		case sub <- chunk:
+		case <-time.After(100 * time.Millisecond):
+			// Subscriber cannot keep up — drop this chunk rather than
+			// blocking the container's output pipe indefinitely.
+		}
+	}
 	return len(p), nil
 }
 

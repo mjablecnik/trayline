@@ -336,10 +336,10 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 const wsLogPollInterval = 100 * time.Millisecond
 
 // wsLogSubBuffer is the channel capacity for a live log-stream subscriber.
-// workflowOutputWriter.Write sends to it non-blocking (see workflow_queue.go),
-// so a full channel means this subscriber silently drops chunks rather than
-// stalling the workflow's output pipe.
-const wsLogSubBuffer = 64
+// workflowOutputWriter.Write sends to it with a short timeout (see
+// workflow_queue.go), so a full channel means this subscriber drops chunks
+// only if the client cannot keep up for an extended period.
+const wsLogSubBuffer = 4096
 
 // workflowLogMessage is the JSON shape of every message sent on the
 // GET /projects/{name}/workflows/{id}/logs WebSocket (Requirement 7.2-7.5).
