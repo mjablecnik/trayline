@@ -360,8 +360,12 @@ func (h *WorkflowHandler) HandleRetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use the full ID from the snapshot (Snapshot supports prefix match,
+	// but Update requires exact ID).
+	fullID := existing.ID
+
 	var conflict bool
-	h.store.Update(id, func(wf *store.Workflow) {
+	h.store.Update(fullID, func(wf *store.Workflow) {
 		if wf.Status != store.WorkflowFailed {
 			conflict = true
 			return
@@ -389,7 +393,7 @@ func (h *WorkflowHandler) HandleRetry(w http.ResponseWriter, r *http.Request) {
 
 	h.persist(r.Context())
 
-	updated, _ := h.store.Snapshot(id)
+	updated, _ := h.store.Snapshot(fullID)
 
 	h.queues.Enqueue(name)
 
