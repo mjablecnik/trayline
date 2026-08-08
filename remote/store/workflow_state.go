@@ -30,6 +30,7 @@ type persistedWorkflow struct {
 	CompletedAt *time.Time        `json:"completed_at,omitempty"`
 	Error       string            `json:"error,omitempty"`
 	ExitCode    *int              `json:"exit_code,omitempty"`
+	NotBefore   *time.Time        `json:"not_before,omitempty"`
 	Log         string            `json:"log,omitempty"`
 }
 
@@ -109,6 +110,7 @@ func (sm *WorkflowStateManager) buildState() workflowState {
 			CompletedAt: w.CompletedAt,
 			Error:       w.Error,
 			ExitCode:    w.ExitCode,
+			NotBefore:   w.NotBefore,
 			Log:         log,
 		})
 	}
@@ -157,6 +159,7 @@ func (sm *WorkflowStateManager) Load() error {
 			CompletedAt: pw.CompletedAt,
 			Error:       pw.Error,
 			ExitCode:    pw.ExitCode,
+			NotBefore:   pw.NotBefore,
 			LogBuffer:   buf,
 		})
 	}

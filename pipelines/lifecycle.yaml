@@ -3,7 +3,7 @@ log-task: "tasks/update-ai-log"
 retry:
   on-rate-limit: true
   wait-minutes: 30
-  max-retries: 8
+  max-retries: 11
 
 before:
   - name: "sync-pull"

@@ -111,11 +111,23 @@ func (q *WorkflowQueueManager) processLoop(project string) {
 			continue
 		}
 
+		// No immediately eligible workflow. Check if any are waiting for
+		// their NotBefore backoff to expire (rate-limited re-queued).
+		if q.store.HasQueuedWaiting(project) {
+			q.waitForNotify(project)
+			continue
+		}
+
 		q.mu.Lock()
 		if q.store.NextQueued(project) != nil {
 			// A workflow was enqueued between the check above and
 			// acquiring the lock; keep processing instead of exiting.
 			q.mu.Unlock()
+			continue
+		}
+		if q.store.HasQueuedWaiting(project) {
+			q.mu.Unlock()
+			q.waitForNotify(project)
 			continue
 		}
 		delete(q.active, project)
@@ -215,6 +227,11 @@ func (q *WorkflowQueueManager) runWorkflow(wf *store.Workflow) {
 		q.finishWorkflow(wf, store.WorkflowCancelled, "", &exitCode)
 	case timedOut:
 		q.finishWorkflow(wf, store.WorkflowFailed, fmt.Sprintf("workflow timed out after %s", q.config.WorkflowTimeout), &exitCode)
+	case exitCode == 2:
+		// Exit code 2 from `trayline run` means rate limit — the orchestrator's
+		// internal retries were exhausted. Re-queue the workflow with a backoff
+		// delay so it will be retried once the rate limit window resets.
+		q.requeueRateLimited(wf)
 	case exitCode != 0:
 		errMsg := strings.TrimSpace(stderrCap.String())
 		if errMsg == "" {
@@ -243,6 +260,30 @@ func (q *WorkflowQueueManager) finishWorkflow(wf *store.Workflow, status store.W
 		w.CancelFunc = nil
 	})
 	q.store.Evict(wf.Project)
+	q.persist()
+}
+
+// rateLimitBackoff is how long a rate-limited workflow waits before being
+// eligible for execution again.
+const rateLimitBackoff = 30 * time.Minute
+
+// requeueRateLimited resets a running workflow back to queued with a NotBefore
+// delay. This handles the case where the orchestrator's internal rate-limit
+// retries were exhausted (exit code 2) — instead of marking the workflow as
+// failed, it gets another chance after the backoff period.
+func (q *WorkflowQueueManager) requeueRateLimited(wf *store.Workflow) {
+	notBefore := time.Now().Add(rateLimitBackoff)
+	q.store.Update(wf.ID, func(w *store.Workflow) {
+		w.Status = store.WorkflowQueued
+		w.StartedAt = nil
+		w.NotBefore = &notBefore
+		w.Error = fmt.Sprintf("rate limited, retrying after %s", notBefore.Local().Format("15:04"))
+		w.ExitCode = nil
+		w.ContainerID = ""
+		w.CancelFunc = nil
+		w.LogBuffer = nil
+		w.LogSubs = nil
+	})
 	q.persist()
 }
 

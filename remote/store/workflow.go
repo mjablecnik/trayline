@@ -53,6 +53,9 @@ type Workflow struct {
 	CompletedAt *time.Time         `json:"completed_at,omitempty"`
 	Error       string             `json:"error,omitempty"`
 	ExitCode    *int               `json:"exit_code,omitempty"`
+	// NotBefore delays execution — NextQueued skips this workflow until
+	// time.Now() is past this timestamp. Used for rate-limit backoff.
+	NotBefore   *time.Time         `json:"not_before,omitempty"`
 	ContainerID string             `json:"-"`
 	CancelFunc  context.CancelFunc `json:"-"`
 	LogBuffer   *RingBuffer        `json:"-"`
@@ -220,13 +223,18 @@ func (s *WorkflowStore) ListByProject(project string) []*Workflow {
 }
 
 // NextQueued returns the oldest queued workflow for a project (by creation
-// order), or nil if none is queued.
+// order) that is eligible to run now, or nil if none is queued. Workflows
+// with a NotBefore timestamp in the future are skipped (rate-limit backoff).
 func (s *WorkflowStore) NextQueued(project string) *Workflow {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	now := time.Now()
 	for _, id := range s.byProject[project] {
 		if w, ok := s.workflows[id]; ok && w.Status == WorkflowQueued {
+			if w.NotBefore != nil && now.Before(*w.NotBefore) {
+				continue
+			}
 			return w
 		}
 	}
@@ -241,6 +249,24 @@ func (s *WorkflowStore) HasRunning(project string) bool {
 	for _, id := range s.byProject[project] {
 		if w, ok := s.workflows[id]; ok && w.Status == WorkflowRunning {
 			return true
+		}
+	}
+	return false
+}
+
+// HasQueuedWaiting reports whether a project has queued workflows that are
+// not yet eligible (NotBefore is in the future). Used to keep the processor
+// loop alive during rate-limit backoff.
+func (s *WorkflowStore) HasQueuedWaiting(project string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	now := time.Now()
+	for _, id := range s.byProject[project] {
+		if w, ok := s.workflows[id]; ok && w.Status == WorkflowQueued {
+			if w.NotBefore != nil && now.Before(*w.NotBefore) {
+				return true
+			}
 		}
 	}
 	return false
