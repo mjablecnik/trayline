@@ -153,9 +153,12 @@ func (q *WorkflowQueueManager) waitForNotify(project string) {
 }
 
 // runWorkflow creates a container, runs the workflow's pipeline command to
-// completion (or timeout), streams its output, and records the final status.
+// completion, streams its output, and records the final status. There is no
+// execution timeout — pipelines run until they finish naturally (they have
+// their own internal rate-limit retry and checkpoint mechanisms). The only
+// way to stop a running workflow is via CancelRunning (user-initiated cancel).
 func (q *WorkflowQueueManager) runWorkflow(wf *store.Workflow) {
-	ctx, cancel := context.WithTimeout(context.Background(), q.config.WorkflowTimeout)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	startedAt := time.Now()
@@ -207,7 +210,6 @@ func (q *WorkflowQueueManager) runWorkflow(wf *store.Workflow) {
 		_ = q.cm.KillContainer(context.Background(), containerID, "SIGKILL")
 		<-copyDone
 	}
-	timedOut := ctx.Err() == context.DeadlineExceeded
 	attached.Close()
 
 	exitCode := 0
@@ -225,8 +227,6 @@ func (q *WorkflowQueueManager) runWorkflow(wf *store.Workflow) {
 		// termination — report "cancelled" regardless of the exit code a
 		// SIGTERM/SIGKILL produced, not "failed".
 		q.finishWorkflow(wf, store.WorkflowCancelled, "", &exitCode)
-	case timedOut:
-		q.finishWorkflow(wf, store.WorkflowFailed, fmt.Sprintf("workflow timed out after %s", q.config.WorkflowTimeout), &exitCode)
 	case exitCode == 2:
 		// Exit code 2 from `trayline run` means rate limit — the orchestrator's
 		// internal retries were exhausted. Re-queue the workflow with a backoff

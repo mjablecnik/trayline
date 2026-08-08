@@ -216,7 +216,6 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		t.Setenv("PROJECTS_DIR", "/tmp")
 		os.Unsetenv("TRAYLINE_HOME_DIR")
 		os.Unsetenv("PIPELINES_DIR")
-		os.Unsetenv("WORKFLOW_TIMEOUT")
 
 		cfg, err := LoadConfig()
 		if err != nil {
@@ -230,19 +229,15 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		if cfg.PipelinesDir != wantHome+"/pipelines" {
 			t.Errorf("expected PipelinesDir %q, got %q", wantHome+"/pipelines", cfg.PipelinesDir)
 		}
-		if cfg.WorkflowTimeout != 5*time.Hour {
-			t.Errorf("expected WorkflowTimeout default 5h, got %v", cfg.WorkflowTimeout)
-		}
 	})
 
-	t.Run("TRAYLINE_HOME_DIR, PIPELINES_DIR, WORKFLOW_TIMEOUT overrides honored", func(t *testing.T) {
+	t.Run("TRAYLINE_HOME_DIR and PIPELINES_DIR overrides honored", func(t *testing.T) {
 		t.Setenv("APP_PORT", "8080")
 		t.Setenv("API_TOKEN", "test-token")
 		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
 		t.Setenv("PROJECTS_DIR", "/tmp")
 		t.Setenv("TRAYLINE_HOME_DIR", "/custom/trayline")
 		t.Setenv("PIPELINES_DIR", "/custom/pipelines")
-		t.Setenv("WORKFLOW_TIMEOUT", "2h")
 
 		cfg, err := LoadConfig()
 		if err != nil {
@@ -253,22 +248,6 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 		}
 		if cfg.PipelinesDir != "/custom/pipelines" {
 			t.Errorf("expected PipelinesDir override, got %q", cfg.PipelinesDir)
-		}
-		if cfg.WorkflowTimeout != 2*time.Hour {
-			t.Errorf("expected WorkflowTimeout override 2h, got %v", cfg.WorkflowTimeout)
-		}
-	})
-
-	t.Run("invalid WORKFLOW_TIMEOUT fails", func(t *testing.T) {
-		t.Setenv("APP_PORT", "8080")
-		t.Setenv("API_TOKEN", "test-token")
-		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
-		t.Setenv("PROJECTS_DIR", "/tmp")
-		t.Setenv("WORKFLOW_TIMEOUT", "not-a-duration")
-
-		_, err := LoadConfig()
-		if err == nil {
-			t.Fatal("expected error for invalid WORKFLOW_TIMEOUT")
 		}
 	})
 

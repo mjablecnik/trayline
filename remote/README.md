@@ -28,7 +28,6 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `DASHBOARD_ORIGIN` | — | No | Allowed CORS origin for the dashboard frontend; empty disables CORS |
 | `TRAYLINE_HOME_DIR` | `~/.trayline` | No | Host path mounted read-only into workflow containers at `/home/agent/.trayline` |
 | `PIPELINES_DIR` | `TRAYLINE_HOME_DIR/pipelines` | No | Directory used for pipeline discovery and workflow execution |
-| `WORKFLOW_TIMEOUT` | `5h` | No | Maximum duration a single workflow execution may run |
 | `DOCKER_HOST` | — | No | Docker proxy endpoint; set automatically by `start-docker.sh` |
 | `KIRO_HOST_DIR` | — | No | Host path to `~/.kiro` (workspace config, steering files) |
 | `KIRO_CREDS_HOST_DIR` | — | No | Host path to `~/.local/share/kiro-cli` (auth token) |

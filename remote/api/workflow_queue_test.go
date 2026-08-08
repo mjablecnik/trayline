@@ -119,8 +119,7 @@ func (f *fakeQueueContainerClient) ContainerKill(_ context.Context, containerID 
 func newTestQueueManager(t *testing.T, client docker.ContainerClient) (*WorkflowQueueManager, *store.WorkflowStore) {
 	t.Helper()
 	cfg := &core.Config{
-		ProjectsDir:     t.TempDir(),
-		WorkflowTimeout: 10 * time.Second,
+		ProjectsDir: t.TempDir(),
 	}
 	cm := docker.NewContainerManager(client, cfg, nil)
 	s := store.NewWorkflowStore()

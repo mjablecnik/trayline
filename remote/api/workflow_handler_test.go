@@ -41,9 +41,8 @@ func newTestWorkflowHandler(t *testing.T, client docker.ContainerClient) (*Workf
 	}
 
 	cfg := &core.Config{
-		ProjectsDir:     projectsDir,
-		PipelinesDir:    pipelinesDir,
-		WorkflowTimeout: 10 * time.Second,
+		ProjectsDir:  projectsDir,
+		PipelinesDir: pipelinesDir,
 	}
 	s := store.NewWorkflowStore()
 	cm := docker.NewContainerManager(client, cfg, nil)
