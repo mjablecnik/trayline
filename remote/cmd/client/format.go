@@ -139,7 +139,13 @@ func FormatSessionsTable(sessions []SessionSummary) string {
 
 // renderTable produces a header row followed by data rows, with each column
 // padded to a consistent width determined by the widest value in that column.
-func renderTable(headers []string, rows [][]string) string {
+// Values are truncated to maxColumnWidth unless the column index is in noTruncate.
+func renderTable(headers []string, rows [][]string, noTruncate ...int) string {
+	noTruncSet := make(map[int]bool, len(noTruncate))
+	for _, idx := range noTruncate {
+		noTruncSet[idx] = true
+	}
+
 	colCount := len(headers)
 	widths := make([]int, colCount)
 	for i, h := range headers {
@@ -147,7 +153,11 @@ func renderTable(headers []string, rows [][]string) string {
 	}
 	for _, row := range rows {
 		for i := 0; i < colCount && i < len(row); i++ {
-			w := utf8.RuneCountInString(TruncateColumn(row[i]))
+			cell := row[i]
+			if !noTruncSet[i] {
+				cell = TruncateColumn(cell)
+			}
+			w := utf8.RuneCountInString(cell)
 			if w > widths[i] {
 				widths[i] = w
 			}
@@ -170,7 +180,10 @@ func renderTable(headers []string, rows [][]string) string {
 			}
 			var cell string
 			if i < len(row) {
-				cell = TruncateColumn(row[i])
+				cell = row[i]
+				if !noTruncSet[i] {
+					cell = TruncateColumn(cell)
+				}
 			}
 			sb.WriteString(padRight(cell, widths[i]))
 		}
@@ -216,7 +229,7 @@ func FormatWorkflowsTable(workflows []WorkflowSummary) string {
 		}
 		rows[i] = []string{id, TruncateColumn(wf.Pipeline), vars, wf.Status, FormatTimestamp(wf.CreatedAt), started, finished, duration}
 	}
-	return renderTable(headers, rows)
+	return renderTable(headers, rows, 2)
 }
 
 // formatVars formats a variable map as a compact "k=v k2=v2" string for table display.
