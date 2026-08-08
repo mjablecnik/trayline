@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -82,13 +84,13 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 		}
 
 		// Find the running or next queued workflow.
-		wfID, pipeline, err := findActiveWorkflow(client, project, lastStreamedID)
+		wf, err := findActiveWorkflow(client, project, lastStreamedID)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 
-		if wfID == "" {
+		if wf == nil {
 			// Nothing running or queued — wait and retry.
 			if !cfg.Quiet && !waitingPrinted {
 				fmt.Fprintf(os.Stderr, "%s Waiting for workflows on project %q...\n",
@@ -107,13 +109,13 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 
 		if !cfg.Quiet {
 			fmt.Fprintf(os.Stderr, "%s Streaming logs for %s (%s)\n",
-				fmtr.Cyan(os.Stderr, "▸"), wfID[:8], pipeline)
+				fmtr.Cyan(os.Stderr, "▸"), wf.ID[:8], formatWorkflowCommand(wf))
 		}
 
-		conn, _, dialErr := client.DialWorkflowLogs(project, wfID)
+		conn, _, dialErr := client.DialWorkflowLogs(project, wf.ID)
 		if dialErr != nil {
 			// Workflow might have completed between list and connect.
-			lastStreamedID = wfID
+			lastStreamedID = wf.ID
 			continue
 		}
 
@@ -124,7 +126,7 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 			return 130
 		}
 
-		lastStreamedID = wfID
+		lastStreamedID = wf.ID
 
 		// Brief pause before checking for next workflow.
 		select {
@@ -138,28 +140,48 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 // findActiveWorkflow finds the currently running workflow for a project, or the
 // next queued one. It skips lastStreamedID to avoid re-streaming a workflow
 // that just finished.
-func findActiveWorkflow(client *APIClient, project, lastStreamedID string) (id, pipeline string, err error) {
+func findActiveWorkflow(client *APIClient, project, lastStreamedID string) (*WorkflowSummary, error) {
 	workflows, apiErr := client.ListWorkflows(project)
 	if apiErr != nil {
-		return "", "", apiErr
+		return nil, apiErr
 	}
 
 	// First pass: find running workflow.
-	for _, wf := range workflows {
-		if wf.Status == "running" && wf.ID != lastStreamedID {
-			return wf.ID, wf.Pipeline, nil
+	for i := range workflows {
+		if workflows[i].Status == "running" && workflows[i].ID != lastStreamedID {
+			return &workflows[i], nil
 		}
 	}
 
 	// Second pass: find oldest queued workflow.
 	for i := len(workflows) - 1; i >= 0; i-- {
-		wf := workflows[i]
-		if wf.Status == "queued" && wf.ID != lastStreamedID {
-			return wf.ID, wf.Pipeline, nil
+		if workflows[i].Status == "queued" && workflows[i].ID != lastStreamedID {
+			return &workflows[i], nil
 		}
 	}
 
-	return "", "", nil
+	return nil, nil
+}
+
+// formatWorkflowCommand formats a workflow as a human-readable command string,
+// e.g. "processes/4-create-code --var path=dashboard --var specs-name=010".
+func formatWorkflowCommand(wf *WorkflowSummary) string {
+	var b strings.Builder
+	b.WriteString(wf.Pipeline)
+	if len(wf.Variables) > 0 {
+		keys := make([]string, 0, len(wf.Variables))
+		for k := range wf.Variables {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			b.WriteString(" --var ")
+			b.WriteString(k)
+			b.WriteByte('=')
+			b.WriteString(wf.Variables[k])
+		}
+	}
+	return b.String()
 }
 
 // readLogStream reads from a workflow log WebSocket and prints output to stdout
