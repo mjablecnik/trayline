@@ -56,16 +56,40 @@ func handleScheduleLogs(args []string, cfg *Config) int {
 }
 
 // streamWorkflowLogs connects to a specific workflow's log WebSocket and
-// prints output until the workflow finishes or the user interrupts.
+// prints output until the workflow finishes or the user interrupts. If the
+// connection drops while the workflow is still running, it reconnects
+// automatically.
 func streamWorkflowLogs(client *APIClient, project, id string, cfg *Config, sigCh <-chan os.Signal) int {
-	conn, _, err := client.DialWorkflowLogs(project, id)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	defer conn.Close()
+	fmtr := NewFormatter()
+	for {
+		conn, _, err := client.DialWorkflowLogs(project, id)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 
-	return readLogStream(conn, cfg, sigCh)
+		code := readLogStream(conn, cfg, sigCh)
+		conn.Close()
+
+		if code == 130 {
+			return 130
+		}
+
+		// Check if workflow actually finished or if connection just dropped.
+		wf, getErr := client.GetWorkflow(project, id)
+		if getErr != nil {
+			return 0
+		}
+		if wf.Status == "running" || wf.Status == "queued" {
+			if !cfg.Quiet {
+				fmt.Fprintf(os.Stderr, "%s Connection lost, reconnecting...\n",
+					fmtr.Yellow(os.Stderr, "⟳"))
+			}
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return 0
+	}
 }
 
 // followProjectLogs continuously streams logs for whatever workflow is running
@@ -124,6 +148,20 @@ func followProjectLogs(client *APIClient, project string, cfg *Config, sigCh <-c
 
 		if code == 130 {
 			return 130
+		}
+
+		// Check if the workflow actually finished or if we just lost the
+		// connection. If the workflow is still running/queued, reconnect
+		// instead of moving on to the next one.
+		postWf, postErr := client.GetWorkflow(project, wf.ID)
+		if postErr == nil && (postWf.Status == "running" || postWf.Status == "queued") {
+			// Connection dropped but workflow still running — reconnect.
+			if !cfg.Quiet {
+				fmt.Fprintf(os.Stderr, "%s Connection lost, reconnecting to %s...\n",
+					fmtr.Yellow(os.Stderr, "⟳"), wf.ID[:8])
+			}
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
 		lastStreamedID = wf.ID
