@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -189,13 +190,14 @@ func padRight(s string, w int) string {
 
 // FormatWorkflowsTable formats workflows as an aligned columnar table with a header row.
 func FormatWorkflowsTable(workflows []WorkflowSummary) string {
-	headers := []string{"ID", "PIPELINE", "STATUS", "CREATED", "STARTED", "FINISHED", "DURATION"}
+	headers := []string{"ID", "PIPELINE", "VARIABLES", "STATUS", "CREATED", "STARTED", "FINISHED", "DURATION"}
 	rows := make([][]string, len(workflows))
 	for i, wf := range workflows {
 		id := wf.ID
 		if len(id) > 8 {
 			id = id[:8]
 		}
+		vars := formatVars(wf.Variables)
 		started := ""
 		if wf.StartedAt != nil {
 			started = FormatTime(*wf.StartedAt)
@@ -212,7 +214,24 @@ func FormatWorkflowsTable(workflows []WorkflowSummary) string {
 			d := time.Since(*wf.StartedAt).Round(1000000000)
 			duration = d.String() + "…"
 		}
-		rows[i] = []string{id, TruncateColumn(wf.Pipeline), wf.Status, FormatTimestamp(wf.CreatedAt), started, finished, duration}
+		rows[i] = []string{id, TruncateColumn(wf.Pipeline), vars, wf.Status, FormatTimestamp(wf.CreatedAt), started, finished, duration}
 	}
 	return renderTable(headers, rows)
+}
+
+// formatVars formats a variable map as a compact "k=v k2=v2" string for table display.
+func formatVars(vars map[string]string) string {
+	if len(vars) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = k + "=" + vars[k]
+	}
+	return strings.Join(parts, " ")
 }
