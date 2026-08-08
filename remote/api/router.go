@@ -87,6 +87,7 @@ func NewRouter(
 	mux.HandleFunc("GET /projects/{name}/workflows/{id}", workflowH.HandleDetail)
 	mux.HandleFunc("PUT /projects/{name}/workflows/{id}", workflowH.HandleEdit)
 	mux.HandleFunc("DELETE /projects/{name}/workflows/{id}", workflowH.HandleCancel)
+	mux.HandleFunc("POST /projects/{name}/workflows/{id}/retry", workflowH.HandleRetry)
 	mux.HandleFunc("GET /projects/{name}/workflows/{id}/logs", workflowH.HandleLogs)
 
 	// Assistant endpoints.

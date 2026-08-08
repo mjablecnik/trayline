@@ -431,6 +431,22 @@ func (c *APIClient) CancelWorkflow(project, id string) (*WorkflowSummary, error)
 	return &wf, nil
 }
 
+// RetryWorkflow sends POST /projects/{project}/workflows/{id}/retry.
+func (c *APIClient) RetryWorkflow(project, id string) (*WorkflowSummary, error) {
+	resp, body, err := c.do(http.MethodPost, "/projects/"+project+"/workflows/"+id+"/retry", nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseError(resp.StatusCode, body)
+	}
+	var wf WorkflowSummary
+	if err := json.Unmarshal(body, &wf); err != nil {
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("Error: Failed to parse response: %v", err)}
+	}
+	return &wf, nil
+}
+
 // DialWorkflowLogs opens a WebSocket to /projects/{project}/workflows/{id}/logs.
 func (c *APIClient) DialWorkflowLogs(project, id string) (*websocket.Conn, *http.Response, error) {
 	return c.DialWebSocket("/projects/"+project+"/workflows/"+id+"/logs", nil)

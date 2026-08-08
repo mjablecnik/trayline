@@ -15,6 +15,7 @@ var scheduleSubcommands = map[string]bool{
 	"show":   true,
 	"cancel": true,
 	"delete": true,
+	"retry":  true,
 	"logs":   true,
 }
 
@@ -63,6 +64,8 @@ func dispatchScheduleSub(sub string, args []string, cfg *Config) int {
 		return handleScheduleCancel(args, cfg)
 	case "delete":
 		return handleScheduleDelete(args, cfg)
+	case "retry":
+		return handleScheduleRetry(args, cfg)
 	case "logs":
 		return handleScheduleLogs(args, cfg)
 	default:
@@ -257,6 +260,42 @@ func handleScheduleCancel(args []string, cfg *Config) int {
 func handleScheduleDelete(args []string, cfg *Config) int {
 	// delete is semantically the same as cancel — server handles the distinction.
 	return handleScheduleCancel(args, cfg)
+}
+
+// handleScheduleRetry retries a failed workflow (resets to queued).
+func handleScheduleRetry(args []string, cfg *Config) int {
+	fs := flag.NewFlagSet("schedule retry", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	projectFlag := fs.String("project", "", "")
+
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\nRun with --help for usage information.\n", err)
+		return 2
+	}
+
+	if fs.NArg() == 0 {
+		fmt.Fprintln(os.Stderr, "Error: workflow ID is required.\nRun with --help for usage information.")
+		return 2
+	}
+
+	id := fs.Arg(0)
+	project := resolveProject(*projectFlag)
+	if project == "" {
+		fmt.Fprintln(os.Stderr, "Error: Could not determine project name. Use --project flag or run from a project directory.")
+		return 2
+	}
+
+	client := NewAPIClient(cfg)
+	wf, err := client.RetryWorkflow(project, id)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	if !cfg.Quiet {
+		fmt.Fprintf(os.Stderr, "✓ Workflow %s retried (status: %s)\n", wf.ID, wf.Status)
+	}
+	return 0
 }
 
 // printWorkflowDetail prints a detailed view of a single workflow.

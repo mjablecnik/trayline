@@ -343,6 +343,57 @@ func (h *WorkflowHandler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workflowToResponse(updated, true))
 }
 
+// HandleRetry handles POST /projects/{name}/workflows/{id}/retry.
+// Resets a failed workflow back to "queued" so it runs again, unblocking
+// the project's queue (like taskline's retry command).
+func (h *WorkflowHandler) HandleRetry(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if !h.projectExists(name) {
+		writeProjectNotFound(w, name)
+		return
+	}
+
+	id := r.PathValue("id")
+	existing, ok := h.store.Snapshot(id)
+	if !ok || existing.Project != name {
+		writeWorkflowNotFound(w, id)
+		return
+	}
+
+	var conflict bool
+	h.store.Update(id, func(wf *store.Workflow) {
+		if wf.Status != store.WorkflowFailed {
+			conflict = true
+			return
+		}
+		wf.Status = store.WorkflowQueued
+		wf.StartedAt = nil
+		wf.CompletedAt = nil
+		wf.ExitCode = nil
+		wf.Error = ""
+		wf.ContainerID = ""
+		wf.CancelFunc = nil
+		wf.CancelRequested = false
+		wf.LogBuffer = nil
+		wf.LogSubs = nil
+		wf.NotBefore = nil
+	})
+
+	if conflict {
+		writeJSON(w, http.StatusConflict, core.ErrorResponse{
+			Error:   "CONFLICT",
+			Message: "only failed workflows can be retried",
+		})
+		return
+	}
+
+	h.persist(r.Context())
+	h.queues.Enqueue(name)
+
+	updated, _ := h.store.Snapshot(id)
+	writeJSON(w, http.StatusOK, workflowToResponse(updated, true))
+}
+
 // wsLogPollInterval bounds how long the log-streaming loop waits between
 // checks of a workflow's status while waiting for it to start running or to
 // reach a terminal status; output itself is delivered immediately via the
