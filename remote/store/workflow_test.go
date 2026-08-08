@@ -230,8 +230,8 @@ func TestWorkflowStore_ListingOrderedAndCapped(t *testing.T) {
 			t.Fatalf("expected %d workflows, got %d", wantLen, len(list))
 		}
 		for i := 1; i < len(list); i++ {
-			if list[i-1].CreatedAt.Before(list[i].CreatedAt) {
-				t.Fatalf("list not sorted descending at index %d: %v before %v", i, list[i-1].CreatedAt, list[i].CreatedAt)
+			if list[i-1].CreatedAt.After(list[i].CreatedAt) {
+				t.Fatalf("list not sorted ascending at index %d: %v after %v", i, list[i-1].CreatedAt, list[i].CreatedAt)
 			}
 		}
 	})

@@ -24,6 +24,19 @@ func IsWorkflowTerminal(s WorkflowStatus) bool {
 	return s == WorkflowCompleted || s == WorkflowFailed || s == WorkflowCancelled
 }
 
+// workflowStatusPriority returns the sort priority for a workflow status.
+// Lower value = higher priority (appears first in the list).
+func workflowStatusPriority(s WorkflowStatus) int {
+	switch s {
+	case WorkflowRunning:
+		return 0
+	case WorkflowQueued:
+		return 1
+	default:
+		return 2
+	}
+}
+
 // maxWorkflowsPerProject is the number of workflows retained per project;
 // oldest terminal workflows are evicted beyond this cap.
 const maxWorkflowsPerProject = 20
@@ -144,8 +157,9 @@ func (s *WorkflowStore) Snapshot(id string) (Workflow, bool) {
 }
 
 // ListByProjectSnapshot returns copies of the same set ListByProject would
-// return (up to the 20 most recent workflows for a project, ordered by
-// created_at descending), safe to read without racing concurrent mutation.
+// return (up to the 20 most recent workflows for a project), safe to read
+// without racing concurrent mutation. Sorted by execution order: running first,
+// then queued (oldest first = next to execute), then terminal (newest first).
 func (s *WorkflowStore) ListByProjectSnapshot(project string) []Workflow {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -158,6 +172,15 @@ func (s *WorkflowStore) ListByProjectSnapshot(project string) []Workflow {
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
+		pi, pj := workflowStatusPriority(all[i].Status), workflowStatusPriority(all[j].Status)
+		if pi != pj {
+			return pi < pj
+		}
+		// Running and queued: oldest first (execution order).
+		// Terminal: newest first (most recent completions on top).
+		if !IsWorkflowTerminal(all[i].Status) {
+			return all[i].CreatedAt.Before(all[j].CreatedAt)
+		}
 		return all[i].CreatedAt.After(all[j].CreatedAt)
 	})
 	if len(all) > maxWorkflowsPerProject {
@@ -167,7 +190,8 @@ func (s *WorkflowStore) ListByProjectSnapshot(project string) []Workflow {
 }
 
 // ListByProject returns up to the 20 most recent workflows for a project,
-// ordered by created_at descending (most recent first).
+// sorted by execution order: running first, then queued (oldest first), then
+// terminal (newest first).
 func (s *WorkflowStore) ListByProject(project string) []*Workflow {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -180,6 +204,13 @@ func (s *WorkflowStore) ListByProject(project string) []*Workflow {
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
+		pi, pj := workflowStatusPriority(all[i].Status), workflowStatusPriority(all[j].Status)
+		if pi != pj {
+			return pi < pj
+		}
+		if !IsWorkflowTerminal(all[i].Status) {
+			return all[i].CreatedAt.Before(all[j].CreatedAt)
+		}
 		return all[i].CreatedAt.After(all[j].CreatedAt)
 	})
 	if len(all) > maxWorkflowsPerProject {
@@ -227,7 +258,8 @@ func (s *WorkflowStore) All() []*Workflow {
 }
 
 // ListActiveSnapshot returns copies of all non-terminal workflows across all
-// projects (queued or running), ordered by created_at descending (newest first).
+// projects (queued or running), sorted by execution order: running first, then
+// queued oldest-first (next to execute at the top).
 func (s *WorkflowStore) ListActiveSnapshot() []Workflow {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -239,7 +271,12 @@ func (s *WorkflowStore) ListActiveSnapshot() []Workflow {
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].CreatedAt.After(all[j].CreatedAt)
+		pi, pj := workflowStatusPriority(all[i].Status), workflowStatusPriority(all[j].Status)
+		if pi != pj {
+			return pi < pj
+		}
+		// Within same status: oldest first (execution order).
+		return all[i].CreatedAt.Before(all[j].CreatedAt)
 	})
 	return all
 }
