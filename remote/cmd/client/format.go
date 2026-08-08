@@ -96,6 +96,11 @@ func FormatTimestamp(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04")
 }
 
+// FormatTime formats t as "HH:MM" in the local timezone.
+func FormatTime(t time.Time) string {
+	return t.Local().Format("15:04")
+}
+
 // PrintPrompt writes the interactive input prompt "> " to w with green color when w is a TTY.
 func PrintPrompt(w io.Writer) {
 	f, ok := w.(*os.File)
@@ -184,12 +189,20 @@ func padRight(s string, w int) string {
 
 // FormatWorkflowsTable formats workflows as an aligned columnar table with a header row.
 func FormatWorkflowsTable(workflows []WorkflowSummary) string {
-	headers := []string{"ID", "PIPELINE", "STATUS", "CREATED", "DURATION"}
+	headers := []string{"ID", "PIPELINE", "STATUS", "CREATED", "STARTED", "FINISHED", "DURATION"}
 	rows := make([][]string, len(workflows))
 	for i, wf := range workflows {
 		id := wf.ID
 		if len(id) > 8 {
 			id = id[:8]
+		}
+		started := ""
+		if wf.StartedAt != nil {
+			started = FormatTime(*wf.StartedAt)
+		}
+		finished := ""
+		if wf.CompletedAt != nil {
+			finished = FormatTime(*wf.CompletedAt)
 		}
 		duration := ""
 		if wf.StartedAt != nil && wf.CompletedAt != nil {
@@ -199,7 +212,7 @@ func FormatWorkflowsTable(workflows []WorkflowSummary) string {
 			d := time.Since(*wf.StartedAt).Round(1000000000)
 			duration = d.String() + "…"
 		}
-		rows[i] = []string{id, TruncateColumn(wf.Pipeline), wf.Status, FormatTimestamp(wf.CreatedAt), duration}
+		rows[i] = []string{id, TruncateColumn(wf.Pipeline), wf.Status, FormatTimestamp(wf.CreatedAt), started, finished, duration}
 	}
 	return renderTable(headers, rows)
 }

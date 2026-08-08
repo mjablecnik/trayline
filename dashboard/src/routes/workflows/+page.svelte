@@ -4,7 +4,7 @@
 	import WorkflowLogViewer from '$lib/components/WorkflowLogViewer.svelte';
 	import { t, type TranslationKey } from '$lib/i18n';
 	import { locale } from '$lib/stores/locale';
-	import { formatRelativeDate } from '$lib/utils/date';
+	import { formatRelativeDate, formatTimeCzech } from '$lib/utils/date';
 
 	type LoadState =
 		| { status: 'loading' }
@@ -211,6 +211,12 @@
 										{/if}
 										{$t(statusLabelKey[workflow.status])}
 									</span>
+
+									{#if workflow.started_at}
+										<span class="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+											{formatTimeCzech(workflow.started_at)}{#if workflow.completed_at}–{formatTimeCzech(workflow.completed_at)}{/if}
+										</span>
+									{/if}
 
 									<span class="shrink-0 text-xs text-slate-400 dark:text-slate-500">
 										{formatRelativeDate(workflow.created_at, $locale)}

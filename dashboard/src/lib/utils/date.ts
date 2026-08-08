@@ -23,3 +23,13 @@ export function formatRelativeDate(date: string | Date, locale: Locale, now = Da
 
 	return rtf.format(Math.round(diffSeconds), 'second');
 }
+
+/** Formats a date as "HH:MM" in Europe/Prague timezone. */
+export function formatTimeCzech(date: string | Date): string {
+	const target = typeof date === 'string' ? new Date(date) : date;
+	return target.toLocaleTimeString('cs-CZ', {
+		timeZone: 'Europe/Prague',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+}
