@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -86,6 +87,10 @@ func Execute(name string, args []string, client *Client, stdout, stderr io.Write
 		return cmdResume(client, args, stdout, stderr)
 	case "status":
 		return cmdStatus(client, args, stdout, stderr)
+	case "projects":
+		return cmdProjects(client, args, stdout, stderr)
+	case "logs":
+		return cmdLogs(client, args, stdout, stderr)
 	default:
 		return usageError(stderr, fmt.Sprintf("unknown subcommand %q", name))
 	}
@@ -248,6 +253,81 @@ func cmdStatus(client *Client, args []string, stdout, stderr io.Writer) int {
 	if result.FailedTask != nil {
 		fmt.Fprintf(stdout, "Failed task: %s (%s) - %s [exit %d]\n",
 			result.FailedTask.Name, result.FailedTask.ID, result.FailedTask.Command, result.FailedTask.ExitCode)
+	}
+	return 0
+}
+
+// cmdProjects implements the "projects" subcommand (FR-5.4): list every
+// project known to the server with its queue state and pending count.
+func cmdProjects(client *Client, args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		return usageError(stderr, "projects takes no arguments")
+	}
+	projects, err := client.ListProjects()
+	if err != nil {
+		return serverError(stderr, err)
+	}
+	fmt.Fprintln(stdout, FormatProjectsList(projects, ColorEnabled()))
+	return 0
+}
+
+// cmdLogs implements the "logs" subcommand (FR-5.5, FR-5.6). With no flags
+// it follows the log in real time. --tail N (without --follow) prints the
+// last N lines and exits. --follow --tail N prints the last N lines then
+// continues streaming (design.md "taskline logs Command").
+func cmdLogs(client *Client, args []string, stdout, stderr io.Writer) int {
+	var follow, tailSet bool
+	var tail int
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--follow":
+			follow = true
+		case args[i] == "--tail":
+			if i+1 >= len(args) {
+				return usageError(stderr, "flag --tail requires a value")
+			}
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n < 0 {
+				return usageError(stderr, "--tail must be a non-negative integer")
+			}
+			tail, tailSet = n, true
+		case strings.HasPrefix(args[i], "--tail="):
+			n, err := strconv.Atoi(strings.TrimPrefix(args[i], "--tail="))
+			if err != nil || n < 0 {
+				return usageError(stderr, "--tail must be a non-negative integer")
+			}
+			tail, tailSet = n, true
+		default:
+			return usageError(stderr, fmt.Sprintf("unknown flag %q", args[i]))
+		}
+	}
+	if !tailSet && !follow {
+		follow = true
+	}
+
+	if tailSet {
+		content, err := client.GetLogs(tail)
+		if err != nil {
+			return serverError(stderr, err)
+		}
+		fmt.Fprint(stdout, content)
+	}
+
+	if follow {
+		body, err := client.StreamLogs()
+		if err != nil {
+			return serverError(stderr, err)
+		}
+		defer body.Close()
+
+		scanner := bufio.NewScanner(body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if data, ok := strings.CutPrefix(line, "data: "); ok {
+				fmt.Fprintln(stdout, data)
+			}
+		}
 	}
 	return 0
 }

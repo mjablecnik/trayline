@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,11 +15,11 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *C
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return srv, NewClient(srv.URL)
+	return srv, NewClient(srv.URL, "proj")
 }
 
 func TestNewClient_TrimsTrailingSlash(t *testing.T) {
-	c := NewClient("http://example.com/")
+	c := NewClient("http://example.com/", "proj")
 	if c.baseURL != "http://example.com" {
 		t.Fatalf("expected trailing slash trimmed, got %q", c.baseURL)
 	}
@@ -57,8 +59,8 @@ func TestClient_CreateTask_SendsMethodPathAndBody(t *testing.T) {
 	if gotMethod != http.MethodPost {
 		t.Errorf("expected POST, got %s", gotMethod)
 	}
-	if gotPath != "/tasks" {
-		t.Errorf("expected path /tasks, got %s", gotPath)
+	if gotPath != "/projects/proj/tasks" {
+		t.Errorf("expected path /projects/proj/tasks, got %s", gotPath)
 	}
 	if gotBody.Command != "echo hi" || gotBody.Name != "my-task" || gotBody.Position == nil || *gotBody.Position != 2 {
 		t.Errorf("unexpected request body: %+v", gotBody)
@@ -89,6 +91,26 @@ func TestClient_CreateTask_OmitsNameAndPositionWhenUnset(t *testing.T) {
 	}
 }
 
+func TestClient_ProjectNameIsEscapedInPath(t *testing.T) {
+	var gotRawPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawPath = r.URL.EscapedPath()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]TaskListItem{})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "my project/x")
+	if _, err := c.ListTasks(); err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+
+	want := "/projects/" + url.PathEscape("my project/x") + "/tasks"
+	if gotRawPath != want {
+		t.Errorf("expected escaped path %q, got %q", want, gotRawPath)
+	}
+}
+
 func TestClient_ListTasks_DecodesArray(t *testing.T) {
 	var gotMethod, gotPath string
 	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -105,8 +127,8 @@ func TestClient_ListTasks_DecodesArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
-	if gotMethod != http.MethodGet || gotPath != "/tasks" {
-		t.Errorf("expected GET /tasks, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodGet || gotPath != "/projects/proj/tasks" {
+		t.Errorf("expected GET /projects/proj/tasks, got %s %s", gotMethod, gotPath)
 	}
 	if len(tasks) != 2 || tasks[0].ID != "a" || tasks[1].ID != "b" {
 		t.Errorf("unexpected tasks: %+v", tasks)
@@ -145,12 +167,12 @@ func TestClient_DeleteTask_EscapesIdentifierPath(t *testing.T) {
 	if gotMethod != http.MethodDelete {
 		t.Errorf("expected DELETE, got %s", gotMethod)
 	}
-	wantEscaped := "/tasks/" + url.PathEscape("id with space/slash")
+	wantEscaped := "/projects/proj/tasks/" + url.PathEscape("id with space/slash")
 	if gotEscapedPath != wantEscaped {
 		t.Errorf("expected escaped path %q, got %q", wantEscaped, gotEscapedPath)
 	}
-	if gotDecodedPath != "/tasks/id with space/slash" {
-		t.Errorf("expected decoded path %q, got %q", "/tasks/id with space/slash", gotDecodedPath)
+	if gotDecodedPath != "/projects/proj/tasks/id with space/slash" {
+		t.Errorf("expected decoded path %q, got %q", "/projects/proj/tasks/id with space/slash", gotDecodedPath)
 	}
 	if task.ID != "id with space/slash" {
 		t.Errorf("unexpected task: %+v", task)
@@ -175,8 +197,8 @@ func TestClient_UpdateTask_SendsPatchWithBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateTask: %v", err)
 	}
-	if gotMethod != http.MethodPatch || gotPath != "/tasks/abc" {
-		t.Errorf("expected PATCH /tasks/abc, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodPatch || gotPath != "/projects/proj/tasks/abc" {
+		t.Errorf("expected PATCH /projects/proj/tasks/abc, got %s %s", gotMethod, gotPath)
 	}
 	if gotBody.Command != "echo updated" || gotBody.Name != "new-name" {
 		t.Errorf("unexpected body: %+v", gotBody)
@@ -199,8 +221,8 @@ func TestClient_Retry_DecodesTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retry: %v", err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/tasks/retry" {
-		t.Errorf("expected POST /tasks/retry, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodPost || gotPath != "/projects/proj/tasks/retry" {
+		t.Errorf("expected POST /projects/proj/tasks/retry, got %s %s", gotMethod, gotPath)
 	}
 	if task.ID != "abc" {
 		t.Errorf("unexpected task: %+v", task)
@@ -220,8 +242,8 @@ func TestClient_Skip_DecodesIDNameResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Skip: %v", err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/tasks/skip" {
-		t.Errorf("expected POST /tasks/skip, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodPost || gotPath != "/projects/proj/tasks/skip" {
+		t.Errorf("expected POST /projects/proj/tasks/skip, got %s %s", gotMethod, gotPath)
 	}
 	if result.ID != "abc" || result.Name != "n" {
 		t.Errorf("unexpected result: %+v", result)
@@ -241,8 +263,8 @@ func TestClient_Stop_DecodesTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/tasks/stop" {
-		t.Errorf("expected POST /tasks/stop, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodPost || gotPath != "/projects/proj/tasks/stop" {
+		t.Errorf("expected POST /projects/proj/tasks/stop, got %s %s", gotMethod, gotPath)
 	}
 	if task.Status != "failed" {
 		t.Errorf("unexpected task: %+v", task)
@@ -262,8 +284,8 @@ func TestClient_Resume_DecodesQueueActionResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/queue/resume" {
-		t.Errorf("expected POST /queue/resume, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodPost || gotPath != "/projects/proj/queue/resume" {
+		t.Errorf("expected POST /projects/proj/queue/resume, got %s %s", gotMethod, gotPath)
 	}
 	if result.State != "running" || result.Message != "resumed" {
 		t.Errorf("unexpected result: %+v", result)
@@ -288,8 +310,8 @@ func TestClient_Status_DecodesQueueStatusResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
-	if gotMethod != http.MethodGet || gotPath != "/queue/status" {
-		t.Errorf("expected GET /queue/status, got %s %s", gotMethod, gotPath)
+	if gotMethod != http.MethodGet || gotPath != "/projects/proj/queue/status" {
+		t.Errorf("expected GET /projects/proj/queue/status, got %s %s", gotMethod, gotPath)
 	}
 	if result.State != "running" || result.PendingCount != 3 {
 		t.Errorf("unexpected result: %+v", result)
@@ -386,7 +408,7 @@ func TestClient_Do_EmptySuccessBodySkipsDecode(t *testing.T) {
 
 func TestClient_Do_ConnectionErrorIsWrapped(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	c := NewClient(srv.URL)
+	c := NewClient(srv.URL, "proj")
 	srv.Close() // ensure nothing is listening on this address anymore
 
 	_, err := c.Retry()
@@ -398,5 +420,106 @@ func TestClient_Do_ConnectionErrorIsWrapped(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "connecting to") {
 		t.Errorf("expected error to mention connecting to, got %q", err.Error())
+	}
+}
+
+func TestClient_ListProjects_DecodesArrayFromUnscopedPath(t *testing.T) {
+	var gotMethod, gotPath string
+	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]ProjectListItem{
+			{Name: "dashboard", State: "running", PendingCount: 3},
+			{Name: "backend", State: "idle", PendingCount: 0},
+		})
+	})
+
+	projects, err := c.ListProjects()
+	if err != nil {
+		t.Fatalf("ListProjects: %v", err)
+	}
+	if gotMethod != http.MethodGet || gotPath != "/projects" {
+		t.Errorf("expected GET /projects (unscoped), got %s %s", gotMethod, gotPath)
+	}
+	if len(projects) != 2 || projects[0].Name != "dashboard" || projects[1].State != "idle" {
+		t.Errorf("unexpected projects: %+v", projects)
+	}
+}
+
+func TestClient_GetLogs_OmitsTailQueryWhenNonPositive(t *testing.T) {
+	var gotPath, gotQuery string
+	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "line1\nline2\n")
+	})
+
+	content, err := c.GetLogs(0)
+	if err != nil {
+		t.Fatalf("GetLogs: %v", err)
+	}
+	if gotPath != "/projects/proj/logs" || gotQuery != "" {
+		t.Errorf("expected GET /projects/proj/logs with no query, got %s?%s", gotPath, gotQuery)
+	}
+	if content != "line1\nline2\n" {
+		t.Errorf("unexpected content: %q", content)
+	}
+}
+
+func TestClient_GetLogs_IncludesTailQuery(t *testing.T) {
+	var gotQuery string
+	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		fmt.Fprint(w, "last line\n")
+	})
+
+	if _, err := c.GetLogs(50); err != nil {
+		t.Fatalf("GetLogs: %v", err)
+	}
+	if gotQuery != "tail=50" {
+		t.Errorf("expected query tail=50, got %q", gotQuery)
+	}
+}
+
+func TestClient_GetLogs_APIErrorOnNonSuccessStatus(t *testing.T) {
+	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "NOT_FOUND", "message": "no such project"})
+	})
+
+	_, err := c.GetLogs(0)
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T (%v)", err, err)
+	}
+	if apiErr.Message != "no such project" {
+		t.Errorf("unexpected APIError: %+v", apiErr)
+	}
+}
+
+func TestClient_StreamLogs_ReturnsReadableBody(t *testing.T) {
+	_, c := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/proj/logs/stream" {
+			t.Errorf("expected GET /projects/proj/logs/stream, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: hello\n\n")
+	})
+
+	body, err := c.StreamLogs()
+	if err != nil {
+		t.Fatalf("StreamLogs: %v", err)
+	}
+	defer body.Close()
+
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("reading stream body: %v", err)
+	}
+	if !strings.Contains(string(data), "data: hello") {
+		t.Errorf("expected stream body to contain event data, got %q", data)
 	}
 }

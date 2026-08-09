@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	noTasksMessage = "No tasks in queue."
+	noTasksMessage    = "No tasks in queue."
+	noProjectsMessage = "No projects known to the server."
 )
 
 const (
@@ -59,6 +60,17 @@ func statusColor(status string) string {
 	}
 }
 
+func queueStateColor(state string) string {
+	switch state {
+	case "running":
+		return colorGreen
+	case "halted":
+		return colorRed
+	default:
+		return ""
+	}
+}
+
 // FormatTaskList renders tasks as a column-aligned table with header row
 // "#  ID  NAME  STATUS  CREATED  COMMAND", each column padded with trailing
 // spaces to the width of its longest value. When tasks is empty, it returns
@@ -70,7 +82,6 @@ func FormatTaskList(tasks []TaskListItem, color bool) string {
 		return noTasksMessage
 	}
 
-	const statusColIdx = 3
 	headers := []string{"#", "ID", "NAME", "STATUS", "CREATED", "COMMAND"}
 	rows := make([][]string, 0, len(tasks))
 	for _, t := range tasks {
@@ -84,6 +95,35 @@ func FormatTaskList(tasks []TaskListItem, color bool) string {
 		})
 	}
 
+	return formatTable(headers, rows, 3, statusColor, color)
+}
+
+// FormatProjectsList renders projects as a column-aligned table with header
+// row "PROJECT  STATE  PENDING" (design.md "taskline projects Command").
+// When projects is empty, it returns a message instead of an empty table,
+// matching FormatTaskList's empty-state behavior.
+func FormatProjectsList(projects []ProjectListItem, color bool) string {
+	if len(projects) == 0 {
+		return noProjectsMessage
+	}
+
+	headers := []string{"PROJECT", "STATE", "PENDING"}
+	rows := make([][]string, 0, len(projects))
+	for _, p := range projects {
+		rows = append(rows, []string{
+			p.Name,
+			p.State,
+			fmt.Sprintf("%d", p.PendingCount),
+		})
+	}
+
+	return formatTable(headers, rows, 1, queueStateColor, color)
+}
+
+// formatTable renders headers+rows as a column-aligned table, each column
+// padded with trailing spaces to the width of its longest value. The column
+// at colorColIdx is colorized via colorFn when color is true.
+func formatTable(headers []string, rows [][]string, colorColIdx int, colorFn func(string) string, color bool) string {
 	widths := make([]int, len(headers))
 	for i, h := range headers {
 		widths[i] = len([]rune(h))
@@ -99,8 +139,8 @@ func FormatTaskList(tasks []TaskListItem, color bool) string {
 	writeRow := func(b *strings.Builder, cells []string, colorize bool) {
 		for i, cell := range cells {
 			padded := padRight(cell, widths[i])
-			if colorize && i == statusColIdx {
-				if code := statusColor(cell); code != "" {
+			if colorize && i == colorColIdx {
+				if code := colorFn(cell); code != "" {
 					padded = code + padded + colorReset
 				}
 			}

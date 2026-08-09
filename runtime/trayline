@@ -16,7 +16,7 @@ Commands:
   sync <push|pull> [--verbose]          Sync project with remote server
   run <pipeline> [opts]                 Run a single pipeline (orchestrator)
   flow <pipeline> [--then <pipeline>]   Run multiple pipelines sequentially
-  schedule <pipeline|sub-action> [opts] Schedule pipelines on the remote server
+  schedule <pipeline|sub-action> [opts] Schedule pipelines via the local taskline queue
   install                               Re-run installation
   version                               Print version info
   help                                  Show this help
@@ -25,12 +25,16 @@ Pipeline resolution (run/flow commands):
   ./path/to/file.yaml                   Use local file directly
   my-pipeline                           Resolve from ${PIPELINES_DIR}/my-pipeline.yaml
 
-Schedule sub-actions:
-  schedule <pipeline> [--var k=v]       Schedule a pipeline on the remote server
-  schedule list                         List scheduled workflows
-  schedule show <id>                    Show workflow detail
-  schedule cancel <id>                  Cancel a workflow
-  schedule logs [id]                    Stream workflow logs
+Schedule sub-actions (delegates to the local taskline CLI, project-scoped
+by the current directory's basename, override with --project):
+  schedule <pipeline> [--var k=v]       Schedule a pipeline
+  schedule list                         List queued/running tasks
+  schedule status                       Show queue status
+  schedule logs                         Stream logs in real time
+  schedule retry                        Retry the failed task
+  schedule stop                         Stop the running task
+  schedule cancel <id>                  Cancel a task (stop if running, else delete)
+  schedule delete <id>                  Delete a queued task
 
 Examples:
   trayline agent claude "Fix the bug"
@@ -84,7 +88,93 @@ case "$COMMAND" in
     exec "${TRAYLINE_HOME}/sync.sh" "$@"
     ;;
   schedule)
-    exec trayline-client schedule "$@"
+    # Redirect to the local taskline CLI, project-scoped by the current
+    # directory's basename (FR-6.2), overridable via --project.
+    PROJECT="$(basename "$(pwd)")"
+    ARGS=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --project)
+          PROJECT="$2"
+          shift 2
+          ;;
+        --project=*)
+          PROJECT="${1#--project=}"
+          shift
+          ;;
+        *)
+          ARGS+=("$1")
+          shift
+          ;;
+      esac
+    done
+    set -- "${ARGS[@]}"
+
+    if [[ $# -eq 0 ]]; then
+      echo "error: schedule requires a sub-action or pipeline name" >&2
+      exit 1
+    fi
+
+    SUB="$1"; shift
+
+    case "$SUB" in
+      list)
+        exec taskline list --project "$PROJECT"
+        ;;
+      status)
+        exec taskline status --project "$PROJECT"
+        ;;
+      logs)
+        exec taskline logs --project "$PROJECT" --follow
+        ;;
+      retry)
+        exec taskline retry --project "$PROJECT"
+        ;;
+      stop)
+        exec taskline stop --project "$PROJECT"
+        ;;
+      delete)
+        [[ $# -ge 1 ]] || { echo "error: schedule delete requires an id argument" >&2; exit 1; }
+        exec taskline delete "$1" --project "$PROJECT"
+        ;;
+      cancel)
+        # Cancel stops the task if it's the one currently running, otherwise
+        # it deletes the (pending) task (FR-6.4).
+        [[ $# -ge 1 ]] || { echo "error: schedule cancel requires an id argument" >&2; exit 1; }
+        ID="$1"
+        CURRENT_ID=$(taskline status --project "$PROJECT" 2>/dev/null | sed -n 's/^Current task: [^(]*(\([^)]*\)).*/\1/p')
+        if [[ -n "$CURRENT_ID" && "$CURRENT_ID" == "$ID" ]]; then
+          exec taskline stop --project "$PROJECT"
+        else
+          exec taskline delete "$ID" --project "$PROJECT"
+        fi
+        ;;
+      *)
+        # Default: schedule a pipeline (FR-6.1, FR-6.9, FR-6.10). Resolve the
+        # pipeline name to a full path, then build a single "trayline run ..."
+        # command string that taskline executes via sh -c, shell-quoting each
+        # part so --var values with spaces survive the round trip.
+        PIPELINE=$(resolve_pipeline "$SUB")
+        CMD_PARTS=(trayline run "$PIPELINE")
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --var)
+              CMD_PARTS+=(--var "$2")
+              shift 2
+              ;;
+            *)
+              echo "error: unknown schedule option '$1'" >&2
+              exit 1
+              ;;
+          esac
+        done
+        CMD=""
+        for part in "${CMD_PARTS[@]}"; do
+          CMD="${CMD}$(printf '%q' "$part") "
+        done
+        exec taskline add "${CMD% }" --project "$PROJECT"
+        ;;
+    esac
     ;;
   run)
     # Resolve pipeline names to paths

@@ -9,15 +9,17 @@ import (
 )
 
 const (
-	defaultPort      = 9090
-	defaultStateFile = "./taskline-state.json"
+	defaultPort     = 9090
+	defaultStateDir = "./state/"
+	defaultLogDir   = "./logs/"
 )
 
 // Config holds the server's runtime configuration, loaded from environment
 // variables (optionally populated from a .env file).
 type Config struct {
 	Port         int
-	StateFile    string
+	StateDir     string
+	LogDir       string
 	NotifyEmail  string
 	SMTPHost     string
 	SMTPPort     string
@@ -40,9 +42,14 @@ func LoadConfig() (Config, error) {
 		return Config{}, err
 	}
 
-	stateFile := os.Getenv("STATE_FILE")
-	if stateFile == "" {
-		stateFile = defaultStateFile
+	stateDir := os.Getenv("STATE_DIR")
+	if stateDir == "" {
+		stateDir = defaultStateDir
+	}
+
+	logDir := os.Getenv("LOG_DIR")
+	if logDir == "" {
+		logDir = defaultLogDir
 	}
 
 	notifyEmail := os.Getenv("NOTIFY_EMAIL")
@@ -60,7 +67,8 @@ func LoadConfig() (Config, error) {
 
 	return Config{
 		Port:                 port,
-		StateFile:            stateFile,
+		StateDir:             stateDir,
+		LogDir:               logDir,
 		NotifyEmail:          notifyEmail,
 		SMTPHost:             smtpHost,
 		SMTPPort:             smtpPort,

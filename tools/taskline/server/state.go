@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -118,4 +119,49 @@ func LoadState(path string, names *NameGenerator) (*Queue, error) {
 	}
 
 	return &Queue{State: sf.State, Tasks: tasks, names: names}, nil
+}
+
+// projectStateFileRE matches the state file names the Registry creates via
+// Registry.StatePath: taskline-<project>.json.
+var projectStateFileRE = regexp.MustCompile(`^taskline-(.+)\.json$`)
+
+// ScanStateDir finds every taskline-*.json file directly inside dir and
+// loads each into a Queue, returning a map of project name to its restored
+// Queue (FR-2.4). Used at server startup to repopulate the Registry from a
+// previous run's persisted state. A dir that does not exist yet is treated
+// as containing no projects, not an error (the normal case on first run). A
+// project whose state file fails to load is logged and skipped rather than
+// aborting the scan for every other project.
+func ScanStateDir(dir string, names *NameGenerator) (map[string]*Queue, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]*Queue{}, nil
+		}
+		return nil, fmt.Errorf("read state dir: %w", err)
+	}
+
+	queues := make(map[string]*Queue)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		match := projectStateFileRE.FindStringSubmatch(entry.Name())
+		if match == nil {
+			continue
+		}
+		project := match[1]
+
+		queue, err := LoadState(filepath.Join(dir, entry.Name()), names)
+		if err != nil {
+			if errors.Is(err, ErrCorruptedState) {
+				logWarn("project %s: state file %s is corrupted; renamed with .corrupted suffix, starting with an empty queue", project, entry.Name())
+			} else {
+				logError("project %s: failed to load state file %s: %v", project, entry.Name(), err)
+				continue
+			}
+		}
+		queues[project] = queue
+	}
+	return queues, nil
 }

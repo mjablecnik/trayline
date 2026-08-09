@@ -9,7 +9,7 @@ import (
 )
 
 var appEnvVars = []string{
-	"APP_PORT", "STATE_FILE", "NOTIFY_EMAIL",
+	"APP_PORT", "STATE_DIR", "LOG_DIR", "NOTIFY_EMAIL",
 	"SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM",
 }
 
@@ -48,15 +48,44 @@ func TestLoadConfig_DefaultPort(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_DefaultStateFile(t *testing.T) {
+func TestLoadConfig_DefaultStateDir(t *testing.T) {
 	clearAppEnv(t)
 
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.StateFile != defaultStateFile {
-		t.Errorf("expected default state file %q, got %q", defaultStateFile, cfg.StateFile)
+	if cfg.StateDir != defaultStateDir {
+		t.Errorf("expected default state dir %q, got %q", defaultStateDir, cfg.StateDir)
+	}
+}
+
+func TestLoadConfig_DefaultLogDir(t *testing.T) {
+	clearAppEnv(t)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.LogDir != defaultLogDir {
+		t.Errorf("expected default log dir %q, got %q", defaultLogDir, cfg.LogDir)
+	}
+}
+
+func TestLoadConfig_StateDirAndLogDirFromEnv(t *testing.T) {
+	clearAppEnv(t)
+	withEnv(t, "STATE_DIR", "/tmp/custom-state/")
+	withEnv(t, "LOG_DIR", "/tmp/custom-logs/")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.StateDir != "/tmp/custom-state/" {
+		t.Errorf("expected state dir %q, got %q", "/tmp/custom-state/", cfg.StateDir)
+	}
+	if cfg.LogDir != "/tmp/custom-logs/" {
+		t.Errorf("expected log dir %q, got %q", "/tmp/custom-logs/", cfg.LogDir)
 	}
 }
 

@@ -305,3 +305,98 @@ func TestLoadState_RestoredIdentifiersAreNotReused(t *testing.T) {
 		t.Fatalf("expected restored task name %q to be marked used", task.Name)
 	}
 }
+
+func TestScanStateDir_MissingDirReturnsEmptyMap(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "does-not-exist")
+
+	queues, err := ScanStateDir(dir, NewNameGenerator())
+	if err != nil {
+		t.Fatalf("expected no error for a missing state dir, got %v", err)
+	}
+	if len(queues) != 0 {
+		t.Fatalf("expected no projects, got %d", len(queues))
+	}
+}
+
+func TestScanStateDir_RestoresMatchingProjectFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	dashboard := &Queue{State: QueueIdle, Tasks: []*Task{}, names: NewNameGenerator()}
+	if _, err := dashboard.AddTask("echo dashboard", "", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if err := SaveState(dashboard, filepath.Join(dir, "taskline-dashboard.json")); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	backend := &Queue{State: QueueIdle, Tasks: []*Task{}, names: NewNameGenerator()}
+	if _, err := backend.AddTask("echo backend", "", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if err := SaveState(backend, filepath.Join(dir, "taskline-backend.json")); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	queues, err := ScanStateDir(dir, NewNameGenerator())
+	if err != nil {
+		t.Fatalf("ScanStateDir: %v", err)
+	}
+	if len(queues) != 2 {
+		t.Fatalf("expected 2 restored projects, got %d: %+v", len(queues), queues)
+	}
+	if q, ok := queues["dashboard"]; !ok || len(q.Tasks) != 1 || q.Tasks[0].Command != "echo dashboard" {
+		t.Fatalf("expected dashboard project restored with its task, got %+v", queues["dashboard"])
+	}
+	if q, ok := queues["backend"]; !ok || len(q.Tasks) != 1 || q.Tasks[0].Command != "echo backend" {
+		t.Fatalf("expected backend project restored with its task, got %+v", queues["backend"])
+	}
+}
+
+func TestScanStateDir_IgnoresNonMatchingFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "not-a-state-file.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "taskline.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "taskline-subdir.json"), 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+
+	queues, err := ScanStateDir(dir, NewNameGenerator())
+	if err != nil {
+		t.Fatalf("ScanStateDir: %v", err)
+	}
+	if len(queues) != 0 {
+		t.Fatalf("expected no matching projects, got %+v", queues)
+	}
+}
+
+func TestScanStateDir_CorruptedFileIsSkippedNotFatal(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "taskline-broken.json"), []byte("{not valid json"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	good := &Queue{State: QueueIdle, Tasks: []*Task{}, names: NewNameGenerator()}
+	if _, err := good.AddTask("echo hi", "", "", nil); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if err := SaveState(good, filepath.Join(dir, "taskline-good.json")); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	queues, err := ScanStateDir(dir, NewNameGenerator())
+	if err != nil {
+		t.Fatalf("ScanStateDir: %v", err)
+	}
+	if _, ok := queues["broken"]; !ok {
+		t.Fatalf("expected the corrupted project to still be present with an empty queue, got %+v", queues)
+	}
+	if len(queues["broken"].Tasks) != 0 {
+		t.Fatalf("expected the corrupted project's queue to be empty, got %+v", queues["broken"])
+	}
+	if q, ok := queues["good"]; !ok || len(q.Tasks) != 1 {
+		t.Fatalf("expected the good project to still load despite the corrupted one, got %+v", queues["good"])
+	}
+}

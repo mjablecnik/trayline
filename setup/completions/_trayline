@@ -251,11 +251,13 @@ _trayline_schedule() {
     # First argument after "schedule": sub-action or pipeline name
     local -a actions
     actions=(
-      'list:List all workflows for the project'
-      'show:Show details of a specific workflow'
-      'cancel:Cancel a queued or running workflow'
-      'delete:Delete a queued workflow'
-      'logs:Stream logs for a workflow'
+      'list:List queued/running tasks for the project'
+      'status:Show queue status for the project'
+      'logs:Stream logs for the project in real time'
+      'retry:Retry the failed task'
+      'stop:Stop the running task'
+      'cancel:Cancel a task (stop if running, else delete)'
+      'delete:Delete a queued task'
     )
     _describe 'action or pipeline' actions
     _trayline_pipelines
@@ -265,25 +267,18 @@ _trayline_schedule() {
   # Determine which sub-action was chosen
   local sub="${words[2]}"
   case "$sub" in
-    list)
+    list|status|logs|retry|stop)
       _arguments \
         '--project[Project name]:NAME:' \
         '--help[Show help]' \
         '-h[Show help]'
       ;;
-    show|cancel|delete)
+    cancel|delete)
       _arguments \
         '--project[Project name]:NAME:' \
         '--help[Show help]' \
         '-h[Show help]' \
-        '1:workflow ID:'
-      ;;
-    logs)
-      _arguments \
-        '--project[Project name]:NAME:' \
-        '--help[Show help]' \
-        '-h[Show help]' \
-        '1:workflow ID (optional):'
+        '1:task ID:'
       ;;
     *)
       # Scheduling a pipeline — complete --var and --project flags
@@ -308,7 +303,7 @@ _trayline() {
     'sync:Sync project with remote server'
     'run:Run a single pipeline (orchestrator)'
     'flow:Run multiple pipelines sequentially'
-    'schedule:Schedule pipelines on the remote server'
+    'schedule:Schedule pipelines via the local taskline queue'
     'stop:Signal running pipeline to stop gracefully after current step'
     'install:Re-run installation'
     'version:Print version info'

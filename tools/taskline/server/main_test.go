@@ -2,7 +2,6 @@ package main
 
 import (
 	"testing"
-	"time"
 )
 
 func TestRecoverRunningTask_RunningTaskMarkedFailedAndHalted(t *testing.T) {
@@ -97,35 +96,6 @@ func TestRecoverRunningTask_EmptyStateFileDoesNotWriteOrPanic(t *testing.T) {
 	}
 	if notifier.callCount() != 1 {
 		t.Errorf("expected 1 notification, got %d", notifier.callCount())
-	}
-}
-
-func TestWaitForIdle_ReturnsTrueImmediatelyWhenNoTaskRunning(t *testing.T) {
-	q := newTestQueue()
-	if _, err := q.AddTask("echo hi", "", "", nil); err != nil {
-		t.Fatalf("AddTask: %v", err)
-	}
-
-	start := time.Now()
-	if !waitForIdle(q, time.Second) {
-		t.Fatal("expected waitForIdle to return true when no task is running")
-	}
-	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
-		t.Errorf("expected waitForIdle to return promptly, took %s", elapsed)
-	}
-}
-
-func TestWaitForIdle_ReturnsFalseAfterTimeoutWhileTaskStillRunning(t *testing.T) {
-	q := newTestQueue()
-	if _, err := q.AddTask("sleep 100", "", "", nil); err != nil {
-		t.Fatalf("AddTask: %v", err)
-	}
-	if running := q.StartNext(); running == nil {
-		t.Fatal("expected StartNext to start the task")
-	}
-
-	if waitForIdle(q, 50*time.Millisecond) {
-		t.Fatal("expected waitForIdle to return false while the task is still running")
 	}
 }
 

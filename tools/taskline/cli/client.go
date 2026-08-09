@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -96,21 +97,43 @@ func (e *APIError) Error() string {
 	return e.Message
 }
 
-// Client is an HTTP client for the Taskline server API.
-type Client struct {
-	baseURL string
-	http    *http.Client
+// ProjectListItem is one entry of the GET /projects response array.
+type ProjectListItem struct {
+	Name         string `json:"name"`
+	State        string `json:"state"`
+	PendingCount int    `json:"pendingCount"`
 }
 
-// NewClient returns a Client targeting baseURL with a 10-second timeout.
-func NewClient(baseURL string) *Client {
+// Client is an HTTP client for the Taskline server API, scoped to a single
+// project (FR-5.3): every task/queue/log method is sent to
+// /projects/{project}/...
+type Client struct {
+	baseURL string
+	project string
+	http    *http.Client
+	// streamHTTP has no timeout, since GetLogs streaming reads run for as
+	// long as the caller keeps the connection open.
+	streamHTTP *http.Client
+}
+
+// NewClient returns a Client targeting baseURL, scoped to project, with a
+// 10-second timeout on non-streaming requests.
+func NewClient(baseURL, project string) *Client {
 	return &Client{
-		baseURL: strings.TrimSuffix(baseURL, "/"),
-		http:    &http.Client{Timeout: requestTimeout},
+		baseURL:    strings.TrimSuffix(baseURL, "/"),
+		project:    project,
+		http:       &http.Client{Timeout: requestTimeout},
+		streamHTTP: &http.Client{},
 	}
 }
 
-// CreateTask sends POST /tasks.
+// projectPath returns "/projects/{project}" + suffix, with the project name
+// escaped for use in a URL path.
+func (c *Client) projectPath(suffix string) string {
+	return "/projects/" + url.PathEscape(c.project) + suffix
+}
+
+// CreateTask sends POST /projects/{project}/tasks.
 func (c *Client) CreateTask(command, name, cwd string, position *int) (*CreateTaskResponse, error) {
 	body := struct {
 		Command  string `json:"command"`
@@ -120,31 +143,31 @@ func (c *Client) CreateTask(command, name, cwd string, position *int) (*CreateTa
 	}{Command: command, Name: name, Cwd: cwd, Position: position}
 
 	var resp CreateTaskResponse
-	if err := c.do(http.MethodPost, "/tasks", body, &resp); err != nil {
+	if err := c.do(http.MethodPost, c.projectPath("/tasks"), body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// ListTasks sends GET /tasks.
+// ListTasks sends GET /projects/{project}/tasks.
 func (c *Client) ListTasks() ([]TaskListItem, error) {
 	var resp []TaskListItem
-	if err := c.do(http.MethodGet, "/tasks", nil, &resp); err != nil {
+	if err := c.do(http.MethodGet, c.projectPath("/tasks"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-// DeleteTask sends DELETE /tasks/{identifier}.
+// DeleteTask sends DELETE /projects/{project}/tasks/{identifier}.
 func (c *Client) DeleteTask(identifier string) (*Task, error) {
 	var resp Task
-	if err := c.do(http.MethodDelete, "/tasks/"+url.PathEscape(identifier), nil, &resp); err != nil {
+	if err := c.do(http.MethodDelete, c.projectPath("/tasks/"+url.PathEscape(identifier)), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// UpdateTask sends PATCH /tasks/{identifier}.
+// UpdateTask sends PATCH /projects/{project}/tasks/{identifier}.
 func (c *Client) UpdateTask(identifier, command, name string) (*Task, error) {
 	body := struct {
 		Command string `json:"command,omitempty"`
@@ -152,55 +175,123 @@ func (c *Client) UpdateTask(identifier, command, name string) (*Task, error) {
 	}{Command: command, Name: name}
 
 	var resp Task
-	if err := c.do(http.MethodPatch, "/tasks/"+url.PathEscape(identifier), body, &resp); err != nil {
+	if err := c.do(http.MethodPatch, c.projectPath("/tasks/"+url.PathEscape(identifier)), body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// Retry sends POST /tasks/retry.
+// Retry sends POST /projects/{project}/tasks/retry.
 func (c *Client) Retry() (*Task, error) {
 	var resp Task
-	if err := c.do(http.MethodPost, "/tasks/retry", nil, &resp); err != nil {
+	if err := c.do(http.MethodPost, c.projectPath("/tasks/retry"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// Skip sends POST /tasks/skip.
+// Skip sends POST /projects/{project}/tasks/skip.
 func (c *Client) Skip() (*IDNameResult, error) {
 	var resp IDNameResult
-	if err := c.do(http.MethodPost, "/tasks/skip", nil, &resp); err != nil {
+	if err := c.do(http.MethodPost, c.projectPath("/tasks/skip"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// Stop sends POST /tasks/stop.
+// Stop sends POST /projects/{project}/tasks/stop.
 func (c *Client) Stop() (*Task, error) {
 	var resp Task
-	if err := c.do(http.MethodPost, "/tasks/stop", nil, &resp); err != nil {
+	if err := c.do(http.MethodPost, c.projectPath("/tasks/stop"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// Resume sends POST /queue/resume.
+// Resume sends POST /projects/{project}/queue/resume.
 func (c *Client) Resume() (*QueueActionResult, error) {
 	var resp QueueActionResult
-	if err := c.do(http.MethodPost, "/queue/resume", nil, &resp); err != nil {
+	if err := c.do(http.MethodPost, c.projectPath("/queue/resume"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// Status sends GET /queue/status.
+// Status sends GET /projects/{project}/queue/status.
 func (c *Client) Status() (*QueueStatusResult, error) {
 	var resp QueueStatusResult
-	if err := c.do(http.MethodGet, "/queue/status", nil, &resp); err != nil {
+	if err := c.do(http.MethodGet, c.projectPath("/queue/status"), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// ListProjects sends GET /projects (not project-scoped — lists every
+// project known to the server).
+func (c *Client) ListProjects() ([]ProjectListItem, error) {
+	var resp []ProjectListItem
+	if err := c.do(http.MethodGet, "/projects", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetLogs sends GET /projects/{project}/logs?tail=N and returns the raw log
+// text. tail <= 0 omits the query parameter, returning the full log.
+func (c *Client) GetLogs(tail int) (string, error) {
+	path := c.projectPath("/logs")
+	if tail > 0 {
+		path += "?tail=" + strconv.Itoa(tail)
+	}
+	resp, err := c.rawRequest(http.MethodGet, c.http, path)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response from %s: %w", c.baseURL, err)
+	}
+	return string(data), nil
+}
+
+// StreamLogs sends GET /projects/{project}/logs/stream and returns the raw,
+// still-open response body for the caller to read as a stream of
+// "data: <line>\n\n" Server-Sent Events. The caller must Close it.
+func (c *Client) StreamLogs() (io.ReadCloser, error) {
+	resp, err := c.rawRequest(http.MethodGet, c.streamHTTP, c.projectPath("/logs/stream"))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// rawRequest sends a bodyless request to path via httpClient and returns the
+// raw response on success (status < 400) for a caller that needs to read a
+// non-JSON body itself. The caller must close the returned response's Body.
+// On a non-2xx response, the body is fully read, the connection closed, and
+// an *APIError is returned instead.
+func (c *Client) rawRequest(method string, httpClient *http.Client, path string) (*http.Response, error) {
+	req, err := http.NewRequest(method, c.baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to %s: %w", c.baseURL, err)
+	}
+
+	if resp.StatusCode >= 400 {
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		var apiErr apiErrorBody
+		if err := json.Unmarshal(data, &apiErr); err != nil || apiErr.Message == "" {
+			return nil, &APIError{Code: "UNKNOWN", Message: strings.TrimSpace(string(data))}
+		}
+		return nil, &APIError{Code: apiErr.Error, Message: apiErr.Message}
+	}
+	return resp, nil
 }
 
 // do sends an HTTP request to path, JSON-encoding body (if non-nil) as the

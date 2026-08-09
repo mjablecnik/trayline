@@ -14,6 +14,8 @@ _taskline() {
     'stop:Stop the running task'
     'resume:Resume queue execution'
     'status:Show queue status'
+    'projects:List all known projects'
+    'logs:Show project logs'
   )
 
   local curcontext="$curcontext" state line
@@ -22,6 +24,7 @@ _taskline() {
   _arguments -C \
     '(- *)'{-h,--help}'[Show help message]' \
     '(- *)'{-v,--version}'[Show version information]' \
+    '--project=[Project namespace]:name:' \
     '1: :->subcommand' \
     '*::arg:->args'
 
@@ -35,18 +38,32 @@ _taskline() {
           _arguments \
             '--name=[Task name]:name:' \
             '--position=[Queue position]:position:' \
+            '--project=[Project namespace]:name:' \
             '1:command:'
           ;;
         list|retry|skip|stop|resume|status)
+          _arguments \
+            '--project=[Project namespace]:name:'
+          ;;
+        projects)
           ;;
         delete)
-          _arguments '1:identifier:'
+          _arguments \
+            '--project=[Project namespace]:name:' \
+            '1:identifier:'
           ;;
         update)
           _arguments \
             '--command=[New command]:command:' \
             '--name=[New name]:name:' \
+            '--project=[Project namespace]:name:' \
             '1:identifier:'
+          ;;
+        logs)
+          _arguments \
+            '--project=[Project namespace]:name:' \
+            '--follow[Stream logs in real time]' \
+            '--tail=[Show last N lines]:count:'
           ;;
       esac
       ;;

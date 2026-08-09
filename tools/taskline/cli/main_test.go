@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -65,6 +67,69 @@ func TestRun_InvalidTasklineURLReturnsExit2(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Error:") {
 		t.Errorf("expected error message on stderr, got %q", stderr.String())
+	}
+}
+
+func TestExtractProjectFlag_NoFlagReturnsArgsUnchanged(t *testing.T) {
+	project, rest, err := extractProjectFlag([]string{"list"})
+	if err != nil {
+		t.Fatalf("extractProjectFlag: %v", err)
+	}
+	if project != "" {
+		t.Errorf("expected empty project, got %q", project)
+	}
+	if len(rest) != 1 || rest[0] != "list" {
+		t.Errorf("expected rest unchanged, got %+v", rest)
+	}
+}
+
+func TestExtractProjectFlag_SeparateValueIsRemovedFromRest(t *testing.T) {
+	project, rest, err := extractProjectFlag([]string{"add", "echo hi", "--project", "backend"})
+	if err != nil {
+		t.Fatalf("extractProjectFlag: %v", err)
+	}
+	if project != "backend" {
+		t.Errorf("expected project backend, got %q", project)
+	}
+	if len(rest) != 2 || rest[0] != "add" || rest[1] != "echo hi" {
+		t.Errorf("expected --project pair stripped, got %+v", rest)
+	}
+}
+
+func TestExtractProjectFlag_EqualsFormIsRemovedFromRest(t *testing.T) {
+	project, rest, err := extractProjectFlag([]string{"--project=backend", "status"})
+	if err != nil {
+		t.Fatalf("extractProjectFlag: %v", err)
+	}
+	if project != "backend" {
+		t.Errorf("expected project backend, got %q", project)
+	}
+	if len(rest) != 1 || rest[0] != "status" {
+		t.Errorf("expected --project=... stripped, got %+v", rest)
+	}
+}
+
+func TestExtractProjectFlag_MissingValueReturnsError(t *testing.T) {
+	_, _, err := extractProjectFlag([]string{"status", "--project"})
+	if err == nil {
+		t.Fatal("expected error for --project missing a value")
+	}
+}
+
+func TestResolveProject_PrefersExplicitFlag(t *testing.T) {
+	if got := resolveProject("backend"); got != "backend" {
+		t.Errorf("expected explicit project to win, got %q", got)
+	}
+}
+
+func TestResolveProject_DefaultsToCwdBasename(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd: %v", err)
+	}
+	want := filepath.Base(wd)
+	if got := resolveProject(""); got != want {
+		t.Errorf("expected cwd basename %q, got %q", want, got)
 	}
 }
 

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,15 +15,66 @@ import (
 	"pgregory.net/rapid"
 )
 
+// testProject is the project name used by every test in this file that
+// doesn't care about multi-project behavior specifically (that's covered by
+// registry_test.go and the project-scoped tests below).
+const testProject = "testproject"
+
+// projectPath prefixes suffix with /projects/{testProject}, mirroring how
+// the real API scopes every task/queue/logs route to a project (FR-4.1,
+// FR-4.2).
+func projectPath(suffix string) string {
+	return "/projects/" + testProject + suffix
+}
+
+// setInstance registers inst directly in r's project map, bypassing
+// GetOrCreate's directory creation, state loading, and automatic
+// Worker.Run goroutine start, so tests can drive a ProjectInstance's Queue
+// and Worker directly (same pattern the pre-multi-project tests used).
+func setInstance(r *Registry, name string, inst *ProjectInstance) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.projects[name] = inst
+}
+
+// newTestRegistryAndInstance builds a Registry backed by throwaway temp
+// directories plus a single ProjectInstance registered under testProject,
+// wrapping queue and worker (whose Run loop is NOT started automatically).
+// It has no *testing.T dependency so it can also be called from inside a
+// rapid.Check callback, which only has a *rapid.T in scope.
+func newTestRegistryAndInstance(queue *Queue, worker *Worker, stateFile string) *Registry {
+	stateDir, err := os.MkdirTemp("", "taskline-test-state-*")
+	if err != nil {
+		panic(err)
+	}
+	logDir, err := os.MkdirTemp("", "taskline-test-log-*")
+	if err != nil {
+		panic(err)
+	}
+	r := NewRegistry(stateDir, logDir, NewNameGenerator(), &fakeNotifier{})
+
+	logWriter, err := NewProjectLog(r.LogPath(testProject))
+	if err != nil {
+		panic(err)
+	}
+	setInstance(r, testProject, &ProjectInstance{
+		Name: testProject, Queue: queue, Worker: worker, LogWriter: logWriter, StateFile: stateFile,
+	})
+	return r
+}
+
 // newTestHandler returns a Handler wired to a fresh in-memory Queue and a
-// Worker backed by a fakeRunner, along with the ServeMux it registered on.
-// stateFile is left empty so no test writes to disk.
+// Worker backed by a fakeRunner, registered under testProject, along with
+// the ServeMux it registered on. No state file is configured, so no test
+// writes queue state to disk.
 func newTestHandler() (*Handler, *Queue, *Worker, *fakeRunner, *http.ServeMux) {
 	q := newTestQueue()
 	runner := newFakeRunner()
 	notifier := &fakeNotifier{}
 	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
-	h := NewHandler(q, w, "")
+
+	r := newTestRegistryAndInstance(q, w, "")
+	h := NewHandler(r)
 
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -76,7 +130,7 @@ func TestProperty_CommandValidationRejectsEmptyAndWhitespace(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal request: %v", err)
 		}
-		rec := doRequest(mux, http.MethodPost, "/tasks", string(body))
+		rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), string(body))
 
 		if strings.TrimSpace(command) == "" {
 			if rec.Code != http.StatusBadRequest {
@@ -140,7 +194,7 @@ func TestProperty_QueueStatusResponseStructure(t *testing.T) {
 			// leave the queue empty
 		}
 
-		rec := doRequest(mux, http.MethodGet, "/queue/status", "")
+		rec := doRequest(mux, http.MethodGet, projectPath("/queue/status"), "")
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 		}
@@ -183,7 +237,7 @@ func TestProperty_QueueStatusResponseStructure(t *testing.T) {
 
 func TestHandleCreateTask_MalformedJSON(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/tasks", "{not json")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), "{not json")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
@@ -199,12 +253,12 @@ func TestHandleCreateTask_MalformedJSON(t *testing.T) {
 func TestHandleCreateTask_DuplicateNameConflict(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
 	body := `{"command":"echo hi","name":"brave-tiger"}`
-	rec := doRequest(mux, http.MethodPost, "/tasks", body)
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), body)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doRequest(mux, http.MethodPost, "/tasks", body)
+	rec = doRequest(mux, http.MethodPost, projectPath("/tasks"), body)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -212,7 +266,7 @@ func TestHandleCreateTask_DuplicateNameConflict(t *testing.T) {
 
 func TestHandleListTasks_EmptyQueueReturnsEmptyArray(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodGet, "/tasks", "")
+	rec := doRequest(mux, http.MethodGet, projectPath("/tasks"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -223,7 +277,7 @@ func TestHandleListTasks_EmptyQueueReturnsEmptyArray(t *testing.T) {
 
 func TestHandleDeleteTask_NotFound(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodDelete, "/tasks/does-not-exist", "")
+	rec := doRequest(mux, http.MethodDelete, projectPath("/tasks/does-not-exist"), "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
 	}
@@ -244,7 +298,7 @@ func TestHandleDeleteTask_RunningTaskConflict(t *testing.T) {
 		return err == nil && got.Status == TaskRunning
 	})
 
-	rec := doRequest(mux, http.MethodDelete, "/tasks/"+task.ID, "")
+	rec := doRequest(mux, http.MethodDelete, projectPath("/tasks/"+task.ID), "")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -257,7 +311,7 @@ func TestHandleUpdateTask_NoFieldsRejected(t *testing.T) {
 		t.Fatalf("AddTask: %v", err)
 	}
 
-	rec := doRequest(mux, http.MethodPatch, "/tasks/"+task.ID, `{}`)
+	rec := doRequest(mux, http.MethodPatch, projectPath("/tasks/"+task.ID), `{}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -270,7 +324,7 @@ func TestHandleUpdateTask_AppliesFields(t *testing.T) {
 		t.Fatalf("AddTask: %v", err)
 	}
 
-	rec := doRequest(mux, http.MethodPatch, "/tasks/"+task.ID, `{"command":"echo bye"}`)
+	rec := doRequest(mux, http.MethodPatch, projectPath("/tasks/"+task.ID), `{"command":"echo bye"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -288,7 +342,7 @@ func TestHandleUpdateTask_AppliesFields(t *testing.T) {
 
 func TestHandleRetry_NoFailedTaskConflict(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/tasks/retry", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/retry"), "")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -296,7 +350,7 @@ func TestHandleRetry_NoFailedTaskConflict(t *testing.T) {
 
 func TestHandleSkip_NoFailedTaskConflict(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/tasks/skip", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/skip"), "")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -304,7 +358,7 @@ func TestHandleSkip_NoFailedTaskConflict(t *testing.T) {
 
 func TestHandleResume_EmptyQueueReturnsIdle(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/queue/resume", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/queue/resume"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -320,12 +374,12 @@ func TestHandleResume_EmptyQueueReturnsIdle(t *testing.T) {
 func TestHandleResume_AlreadyRunningConflict(t *testing.T) {
 	_, _, _, runner, mux := newTestHandler()
 	runner.enqueue("sleep 100", newFakeProcess(0))
-	rec := doRequest(mux, http.MethodPost, "/tasks", `{"command":"sleep 100"}`)
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), `{"command":"sleep 100"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doRequest(mux, http.MethodPost, "/queue/resume", "")
+	rec = doRequest(mux, http.MethodPost, projectPath("/queue/resume"), "")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -347,7 +401,7 @@ func TestHandleStop_Success(t *testing.T) {
 		return err == nil && got.Status == TaskRunning
 	})
 
-	rec := doRequest(mux, http.MethodPost, "/tasks/stop", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/stop"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -368,7 +422,7 @@ func TestHandleStop_Success(t *testing.T) {
 
 func TestHandleStop_NoRunningTaskConflict(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/tasks/stop", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/stop"), "")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -380,11 +434,12 @@ func TestHandlerPersist_WritesStateFileAfterCreate(t *testing.T) {
 	notifier := &fakeNotifier{}
 	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
 	statePath := t.TempDir() + "/state.json"
-	h := NewHandler(q, w, statePath)
+	r := newTestRegistryAndInstance(q, w, statePath)
+	h := NewHandler(r)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	rec := doRequest(mux, http.MethodPost, "/tasks", `{"command":"echo hi"}`)
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), `{"command":"echo hi"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -422,7 +477,7 @@ func TestHandleRetry_Success(t *testing.T) {
 	// mutation of that same Task's Status/ExitCode fields under `-race`. See
 	// MEMORY.md "handleRetry/handleSkip read Task pointers unsynchronized
 	// with the Worker".
-	rec := doRequest(mux, http.MethodPost, "/tasks/retry", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/retry"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -463,7 +518,7 @@ func TestHandleSkip_Success(t *testing.T) {
 		t.Fatalf("MarkFailed: %v", err)
 	}
 
-	rec := doRequest(mux, http.MethodPost, "/tasks/skip", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks/skip"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -481,7 +536,7 @@ func TestHandleSkip_Success(t *testing.T) {
 
 func TestHandleCreateTask_NegativePositionRejected(t *testing.T) {
 	_, _, _, _, mux := newTestHandler()
-	rec := doRequest(mux, http.MethodPost, "/tasks", `{"command":"echo hi","position":-1}`)
+	rec := doRequest(mux, http.MethodPost, projectPath("/tasks"), `{"command":"echo hi","position":-1}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -501,7 +556,7 @@ func TestHandleUpdateTask_MalformedJSON(t *testing.T) {
 		t.Fatalf("AddTask: %v", err)
 	}
 
-	rec := doRequest(mux, http.MethodPatch, "/tasks/"+task.ID, "{not json")
+	rec := doRequest(mux, http.MethodPatch, projectPath("/tasks/"+task.ID), "{not json")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -523,11 +578,12 @@ func TestHandleResume_RunningWhenPendingTasksRemain(t *testing.T) {
 	runner := newFakeRunner()
 	notifier := &fakeNotifier{}
 	w := NewWorker(q, runner, notifier, "", &bytes.Buffer{})
-	h := NewHandler(q, w, "")
+	r := newTestRegistryAndInstance(q, w, "")
+	h := NewHandler(r)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	rec := doRequest(mux, http.MethodPost, "/queue/resume", "")
+	rec := doRequest(mux, http.MethodPost, projectPath("/queue/resume"), "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -545,7 +601,11 @@ func TestHandleResume_RunningWhenPendingTasksRemain(t *testing.T) {
 
 func TestTaskPosition_UnknownIdentifierReturnsNegativeOne(t *testing.T) {
 	h, _, _, _, _ := newTestHandler()
-	if pos := h.taskPosition("does-not-exist"); pos != -1 {
+	inst, err := h.registry.GetOrCreate(testProject)
+	if err != nil {
+		t.Fatalf("GetOrCreate: %v", err)
+	}
+	if pos := h.taskPosition(inst, "does-not-exist"); pos != -1 {
 		t.Fatalf("expected -1 for an unknown identifier, got %d", pos)
 	}
 }
@@ -558,5 +618,149 @@ func TestHandleHealth(t *testing.T) {
 	}
 	if strings.TrimSpace(rec.Body.String()) != `{"status":"ok"}` {
 		t.Fatalf("expected status ok body, got %q", rec.Body.String())
+	}
+}
+
+func TestHandleListProjects_ReturnsAllKnownProjects(t *testing.T) {
+	h, _, _, _, mux := newTestHandler()
+	otherInst, err := h.registry.GetOrCreate("otherproject")
+	if err != nil {
+		t.Fatalf("GetOrCreate: %v", err)
+	}
+	t.Cleanup(otherInst.Worker.Shutdown)
+
+	rec := doRequest(mux, http.MethodGet, "/projects", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var items []projectListItem
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	names := make(map[string]bool)
+	for _, it := range items {
+		names[it.Name] = true
+	}
+	if !names[testProject] || !names["otherproject"] {
+		t.Fatalf("expected both %q and %q listed, got %+v", testProject, "otherproject", items)
+	}
+}
+
+func TestHandleCreateTask_InvalidProjectNameRejected(t *testing.T) {
+	_, _, _, _, mux := newTestHandler()
+	rec := doRequest(mux, http.MethodPost, "/projects/Not-Valid-UPPER/tasks", `{"command":"echo hi"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	if resp.Error != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %q", resp.Error)
+	}
+}
+
+func TestHandleGetLogs_ReturnsTailLines(t *testing.T) {
+	h, _, _, _, mux := newTestHandler()
+	inst, err := h.registry.GetOrCreate(testProject)
+	if err != nil {
+		t.Fatalf("GetOrCreate: %v", err)
+	}
+	inst.LogWriter.SetCurrentTask("t")
+	for _, line := range []string{"one", "two", "three"} {
+		if _, err := inst.LogWriter.Write([]byte(line + "\n")); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+
+	rec := doRequest(mux, http.MethodGet, projectPath("/logs?tail=2"), "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "one") {
+		t.Errorf("expected tail=2 to exclude the first line, got %q", body)
+	}
+	if !strings.Contains(body, "two") || !strings.Contains(body, "three") {
+		t.Errorf("expected tail=2 to include the last two lines, got %q", body)
+	}
+}
+
+func TestHandleGetLogs_InvalidTailRejected(t *testing.T) {
+	_, _, _, _, mux := newTestHandler()
+	rec := doRequest(mux, http.MethodGet, projectPath("/logs?tail=notanumber"), "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestHandleStreamLogs_StreamsNewLines drives the SSE endpoint through a real
+// httptest.Server and streaming HTTP client rather than httptest.Recorder:
+// the handler and the test goroutine would otherwise race on the same
+// bytes.Buffer, since ResponseRecorder is not safe for concurrent
+// write-while-read.
+func TestHandleStreamLogs_StreamsNewLines(t *testing.T) {
+	h, _, _, _, mux := newTestHandler()
+	inst, err := h.registry.GetOrCreate(testProject)
+	if err != nil {
+		t.Fatalf("GetOrCreate: %v", err)
+	}
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+projectPath("/logs/stream"), nil)
+	if err != nil {
+		t.Fatalf("NewRequestWithContext: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	defer resp.Body.Close()
+
+	lines := make(chan string, 8)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+	}()
+
+	if !pollUntil(time.Second, func() bool {
+		inst.LogWriter.mu.Lock()
+		n := len(inst.LogWriter.subs)
+		inst.LogWriter.mu.Unlock()
+		return n > 0
+	}) {
+		t.Fatal("expected a subscriber to be registered before the write")
+	}
+
+	inst.LogWriter.SetCurrentTask("t")
+	if _, err := inst.LogWriter.Write([]byte("hello stream\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	select {
+	case line := <-lines:
+		if !strings.Contains(line, "hello stream") {
+			t.Fatalf("expected streamed line to contain %q, got %q", "hello stream", line)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected a streamed line, got none")
+	}
+
+	cancel()
+	_ = resp.Body.Close()
+	if !pollUntil(time.Second, func() bool {
+		inst.LogWriter.mu.Lock()
+		n := len(inst.LogWriter.subs)
+		inst.LogWriter.mu.Unlock()
+		return n == 0
+	}) {
+		t.Fatal("expected the subscriber to be unregistered after the client disconnects")
 	}
 }

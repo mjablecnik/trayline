@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,7 +101,7 @@ func TestServerError_PrintsAndReturnsExit1(t *testing.T) {
 
 func TestExecute_UnknownSubcommandReturnsUsageError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := Execute("bogus", nil, NewClient("http://unused"), &stdout, &stderr)
+	code := Execute("bogus", nil, NewClient("http://unused", "proj"), &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -121,7 +122,7 @@ func jsonHandler(t *testing.T, status int, body interface{}) (*httptest.Server, 
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return srv, NewClient(srv.URL)
+	return srv, NewClient(srv.URL, "proj")
 }
 
 func errorHandler(t *testing.T, status int, code, message string) (*httptest.Server, *Client) {
@@ -131,7 +132,7 @@ func errorHandler(t *testing.T, status int, code, message string) (*httptest.Ser
 
 func TestCmdAdd_NoCommandArgReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdAdd(NewClient("http://unused"), nil, &stdout, &stderr)
+	code := cmdAdd(NewClient("http://unused", "proj"), nil, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -139,7 +140,7 @@ func TestCmdAdd_NoCommandArgReturnsExit2(t *testing.T) {
 
 func TestCmdAdd_MultiplePositionalsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdAdd(NewClient("http://unused"), []string{"echo", "hi"}, &stdout, &stderr)
+	code := cmdAdd(NewClient("http://unused", "proj"), []string{"echo", "hi"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -147,7 +148,7 @@ func TestCmdAdd_MultiplePositionalsReturnsExit2(t *testing.T) {
 
 func TestCmdAdd_NonIntegerPositionReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdAdd(NewClient("http://unused"), []string{"echo hi", "--position", "abc"}, &stdout, &stderr)
+	code := cmdAdd(NewClient("http://unused", "proj"), []string{"echo hi", "--position", "abc"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -185,7 +186,7 @@ func TestCmdAdd_ServerErrorReturnsExit1(t *testing.T) {
 
 func TestCmdList_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdList(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdList(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -207,7 +208,7 @@ func TestCmdList_SuccessPrintsTable(t *testing.T) {
 
 func TestCmdDelete_WrongArgCountReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdDelete(NewClient("http://unused"), nil, &stdout, &stderr)
+	code := cmdDelete(NewClient("http://unused", "proj"), nil, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -228,7 +229,7 @@ func TestCmdDelete_SuccessPrintsLine(t *testing.T) {
 
 func TestCmdUpdate_WrongArgCountReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdUpdate(NewClient("http://unused"), nil, &stdout, &stderr)
+	code := cmdUpdate(NewClient("http://unused", "proj"), nil, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -236,7 +237,7 @@ func TestCmdUpdate_WrongArgCountReturnsExit2(t *testing.T) {
 
 func TestCmdUpdate_NeitherCommandNorNameReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdUpdate(NewClient("http://unused"), []string{"abc"}, &stdout, &stderr)
+	code := cmdUpdate(NewClient("http://unused", "proj"), []string{"abc"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -260,7 +261,7 @@ func TestCmdUpdate_SuccessPrintsLine(t *testing.T) {
 
 func TestCmdRetry_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdRetry(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdRetry(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -281,7 +282,7 @@ func TestCmdRetry_SuccessPrintsLine(t *testing.T) {
 
 func TestCmdSkip_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdSkip(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdSkip(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -302,7 +303,7 @@ func TestCmdSkip_SuccessPrintsLine(t *testing.T) {
 
 func TestCmdStop_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdStop(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdStop(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -323,7 +324,7 @@ func TestCmdStop_SuccessPrintsLine(t *testing.T) {
 
 func TestCmdResume_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdResume(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdResume(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -357,7 +358,7 @@ func TestCmdResume_WithoutMessage(t *testing.T) {
 
 func TestCmdStatus_ExtraArgsReturnsExit2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := cmdStatus(NewClient("http://unused"), []string{"extra"}, &stdout, &stderr)
+	code := cmdStatus(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("expected exit code 2, got %d", code)
 	}
@@ -397,5 +398,130 @@ func TestCmdStatus_OmitsCurrentAndFailedTaskLinesWhenNil(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "Current task:") || strings.Contains(stdout.String(), "Failed task:") {
 		t.Errorf("expected no task lines, got %q", stdout.String())
+	}
+}
+
+func TestCmdProjects_ExtraArgsReturnsExit2(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := cmdProjects(NewClient("http://unused", "proj"), []string{"extra"}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("expected exit code 2, got %d", code)
+	}
+}
+
+func TestCmdProjects_SuccessPrintsTable(t *testing.T) {
+	_, c := jsonHandler(t, http.StatusOK, []ProjectListItem{
+		{Name: "dashboard", State: "running", PendingCount: 3},
+		{Name: "backend", State: "idle", PendingCount: 0},
+	})
+	var stdout, stderr bytes.Buffer
+	code := cmdProjects(c, nil, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "dashboard") || !strings.Contains(out, "running") || !strings.Contains(out, "backend") {
+		t.Errorf("expected table containing projects, got %q", out)
+	}
+}
+
+func TestCmdProjects_EmptyPrintsMessage(t *testing.T) {
+	_, c := jsonHandler(t, http.StatusOK, []ProjectListItem{})
+	var stdout, stderr bytes.Buffer
+	code := cmdProjects(c, nil, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "No projects") {
+		t.Errorf("expected empty-state message, got %q", stdout.String())
+	}
+}
+
+func TestCmdLogs_UnknownFlagReturnsExit2(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := cmdLogs(NewClient("http://unused", "proj"), []string{"--bogus"}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("expected exit code 2, got %d", code)
+	}
+}
+
+func TestCmdLogs_NonIntegerTailReturnsExit2(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := cmdLogs(NewClient("http://unused", "proj"), []string{"--tail", "abc"}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("expected exit code 2, got %d", code)
+	}
+}
+
+func TestCmdLogs_TailWithoutFollowPrintsContentAndExitsWithoutStreaming(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/proj/logs" {
+			t.Errorf("expected only the tail endpoint to be hit, got %s", r.URL.Path)
+		}
+		if r.URL.RawQuery != "tail=2" {
+			t.Errorf("expected tail=2 query, got %q", r.URL.RawQuery)
+		}
+		fmt.Fprint(w, "line1\nline2\n")
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient(srv.URL, "proj")
+
+	var stdout, stderr bytes.Buffer
+	code := cmdLogs(c, []string{"--tail", "2"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	if stdout.String() != "line1\nline2\n" {
+		t.Errorf("unexpected output: %q", stdout.String())
+	}
+}
+
+func TestCmdLogs_NoFlagsFollowsStreamByDefault(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/proj/logs/stream" {
+			t.Errorf("expected the stream endpoint to be hit, got %s", r.URL.Path)
+		}
+		fmt.Fprint(w, "data: hello world\n\n")
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient(srv.URL, "proj")
+
+	var stdout, stderr bytes.Buffer
+	code := cmdLogs(c, nil, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "hello world") {
+		t.Errorf("expected streamed line, got %q", stdout.String())
+	}
+}
+
+func TestCmdLogs_TailThenFollowHitsBothEndpoints(t *testing.T) {
+	var hitTail, hitStream bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/proj/logs":
+			hitTail = true
+			fmt.Fprint(w, "old line\n")
+		case "/projects/proj/logs/stream":
+			hitStream = true
+			fmt.Fprint(w, "data: new line\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient(srv.URL, "proj")
+
+	var stdout, stderr bytes.Buffer
+	code := cmdLogs(c, []string{"--follow", "--tail", "10"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	if !hitTail || !hitStream {
+		t.Errorf("expected both endpoints to be hit, tail=%v stream=%v", hitTail, hitStream)
+	}
+	if !strings.Contains(stdout.String(), "old line") || !strings.Contains(stdout.String(), "new line") {
+		t.Errorf("expected both tail and streamed content, got %q", stdout.String())
 	}
 }
