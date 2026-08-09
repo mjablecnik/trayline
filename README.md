@@ -15,9 +15,9 @@ kiro-cli login
 npm install -g @anthropic-ai/claude-code
 claude login
 
-# Cline
+# Cline (uses ClinePass provider — $9.99/month subscription for open coding models)
 npm install -g cline
-cline auth
+cline auth clinepass
 ```
 
 ### 2. Run the installer

@@ -215,3 +215,4 @@ trayline flow processes/8-code-review --var path=. --then processes/10-security-
 - The `log` field on steps triggers automatic AI log updates after completion.
 - The `model` field on agent steps overrides the default LLM model.
 - The `effort` field on agent steps sets the thinking/reasoning level (low, medium, high, xhigh, max). Optional — if omitted, each agent uses its own default.
+- Cline agent uses the **ClinePass** provider with `cline-pass/*` model IDs (e.g. `cline-pass/deepseek-v4-pro`, `cline-pass/qwen3.7-max`).
