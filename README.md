@@ -218,6 +218,7 @@ trayline/
 | `processes/10-security-audit` | Audits the codebase for security vulnerabilities, fixes issues by severity. |
 | `processes/11-seo-audit` | Audits technical SEO/web optimization, fixes issues by severity. |
 | `processes/12-create-spec` | Generates a Kiro spec (requirements/design/tasks) from a brief. |
+| `processes/13-verify-workflow` | Runs the app locally, verifies user workflows via Playwright, fixes broken code until all pass. |
 
 ### Workflows
 
