@@ -6,26 +6,30 @@ PROXY_NAME="trayline-proxy"
 NETWORK_NAME="trayline-net"
 usage() {
   cat <<EOF
-Usage: trayline-agent <kiro|claude> [-p project-dir] [-m model] [-i] [prompt]
+Usage: trayline-agent <kiro|claude|cline> [-p project-dir] [-m model] [-t thinking] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
 Commands:
   kiro     Run Kiro CLI agent
   claude   Run Claude Code agent
+  cline    Run Cline CLI agent
 
 Options:
-  -p DIR   Path to project directory (default: current directory)
-  -m MODEL Model to use (e.g. claude-sonnet-4-20250514, default: agent's default)
-  -i       Start in interactive mode (no prompt required)
-  -h       Show this help
+  -p DIR       Path to project directory (default: current directory)
+  -m MODEL     Model to use (e.g. claude-sonnet-4-20250514, default: agent's default)
+  -t LEVEL     Thinking/effort level (low, medium, high, xhigh, max)
+  -i           Start in interactive mode (no prompt required)
+  -h           Show this help
 
 Examples:
   trayline-agent kiro "Show me running containers"       # one-shot
   trayline-agent kiro -p ~/my-project "Add /health"      # one-shot with project
   trayline-agent claude -m claude-sonnet-4-20250514 -p ~/project "Fix tests"
+  trayline-agent cline -t high "Refactor auth module"    # cline with high thinking
   trayline-agent kiro -i                                  # interactive
   trayline-agent claude -p ~/my-project -i                # claude, interactive
+  trayline-agent cline -i                                 # cline, interactive
 EOF
   exit 0
 }
@@ -34,17 +38,19 @@ EOF
 
 AGENT="${1}"; shift
 if [[ "$AGENT" == "-h" || "$AGENT" == "--help" ]]; then usage; fi
-if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" ]]; then
-  echo "Error: first argument must be 'kiro' or 'claude'" >&2; exit 1
+if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" && "$AGENT" != "cline" ]]; then
+  echo "Error: first argument must be 'kiro', 'claude', or 'cline'" >&2; exit 1
 fi
 
 INTERACTIVE=false
 PROJECT_DIR="$(pwd)"
 MODEL=""
+THINKING=""
 while [[ "${1:-}" == -* ]]; do
   case "$1" in
     -p) PROJECT_DIR="$(cd "$2" && pwd)"; shift 2 ;;
     -m) MODEL="$2"; shift 2 ;;
+    -t) THINKING="$2"; shift 2 ;;
     -i) INTERACTIVE=true; shift ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -109,10 +115,13 @@ if [[ "$AGENT" == "kiro" ]]; then
   if [[ -n "$MODEL" ]]; then
     CMD+=(--model "$MODEL")
   fi
+  if [[ -n "$THINKING" ]]; then
+    CMD+=(--effort "$THINKING")
+  fi
   if ! $INTERACTIVE; then
     CMD+=(--no-interactive "$PROMPT")
   fi
-else
+elif [[ "$AGENT" == "claude" ]]; then
   VOLUMES+=(
     -v "${HOME}/.claude":"${AGENT_HOME}/.claude"
     -v "${HOME}/.claude.json":"${AGENT_HOME}/.claude.json"
@@ -121,10 +130,29 @@ else
   if [[ -n "$MODEL" ]]; then
     CMD+=(--model "$MODEL")
   fi
+  if [[ -n "$THINKING" ]]; then
+    CMD+=(--effort "$THINKING")
+  fi
   if $INTERACTIVE; then
     CMD+=(--dangerously-skip-permissions)
   else
     CMD+=(--dangerously-skip-permissions -p "$PROMPT")
+  fi
+elif [[ "$AGENT" == "cline" ]]; then
+  VOLUMES+=(
+    -v "${HOME}/.cline":"${AGENT_HOME}/.cline"
+  )
+  CMD=(cline)
+  if [[ -n "$MODEL" ]]; then
+    CMD+=(-m "$MODEL")
+  fi
+  if [[ -n "$THINKING" ]]; then
+    CMD+=(--thinking "$THINKING")
+  fi
+  if $INTERACTIVE; then
+    CMD+=(-i --auto-approve true)
+  else
+    CMD+=(--yolo "$PROMPT")
   fi
 fi
 

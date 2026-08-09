@@ -1,4 +1,4 @@
-# Sandboxed dev container with Go, Node, Bun, Flutter, Kiro CLI & Claude Code
+# Sandboxed dev container with Go, Node, Bun, Flutter, Kiro CLI, Claude Code & Cline CLI
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -53,6 +53,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf \
 # Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
+# Cline CLI
+RUN npm install -g cline
+
 # Docker CLI (for controlling host Docker)
 # Clean stale lists/keys from prior layers to avoid GPG signature errors
 RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
@@ -86,7 +89,7 @@ RUN npx playwright install-deps chromium 2>/dev/null || true
 
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
 RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
-RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/go   
+RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/go   
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
     && chmod -R a+w /opt/flutter/bin/cache \

@@ -1,6 +1,6 @@
 # Trayline
 
-Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
+Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and [Cline CLI](https://docs.cline.bot) agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
 
 ## Installation
 
@@ -14,6 +14,10 @@ kiro-cli login
 # Claude Code
 npm install -g @anthropic-ai/claude-code
 claude login
+
+# Cline
+npm install -g cline
+cline auth
 ```
 
 ### 2. Run the installer
@@ -52,10 +56,14 @@ trayline agent kiro -p ~/my-project "Add a /health endpoint"
 trayline agent kiro -i
 trayline agent claude -p ~/my-project -i
 trayline agent claude -p ~/my-project "Fix the tests"
+trayline agent cline -t high "Refactor auth module"
+trayline agent cline -p ~/my-project -i
 ```
 
 Options:
 - `-p DIR` — path to project directory (default: current directory)
+- `-m MODEL` — model to use (overrides agent's default)
+- `-t LEVEL` — thinking/effort level: low, medium, high, xhigh, max (optional)
 - `-i` — interactive mode (opens a chat session)
 
 ### run
@@ -140,7 +148,7 @@ npm run test            # vitest
 ## How it works
 
 ```
-trayline agent  →  Sandbox container (Kiro CLI / Claude Code + tools)
+trayline agent  →  Sandbox container (Kiro CLI / Claude Code / Cline CLI + tools)
                       ↓ TCP :2375
                   docker-socket-proxy (filters Docker API)
                       ↓ socket

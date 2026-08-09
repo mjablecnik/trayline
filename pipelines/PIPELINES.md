@@ -214,3 +214,4 @@ trayline flow processes/8-code-review --var path=. --then processes/10-security-
 - The `skip` field on steps accepts "true"/"false" for conditional execution.
 - The `log` field on steps triggers automatic AI log updates after completion.
 - The `model` field on agent steps overrides the default LLM model.
+- The `effort` field on agent steps sets the thinking/reasoning level (low, medium, high, xhigh, max). Optional — if omitted, each agent uses its own default.

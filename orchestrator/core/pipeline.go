@@ -57,6 +57,7 @@ type Step struct {
 	Name       string     `yaml:"name"`
 	Agent      string     `yaml:"agent"`
 	Model      string     `yaml:"model"`
+	Effort     string     `yaml:"effort"`
 	Prompt     string     `yaml:"prompt"`
 	Command    string     `yaml:"command"`
 	ProjectDir string     `yaml:"project_dir"`
@@ -196,8 +197,8 @@ func validateStep(s *Step, topLevelNames []string) error {
 	}
 
 	if isAgentStep {
-		if s.Agent != "kiro" && s.Agent != "claude" {
-			return fmt.Errorf("step %q: invalid agent type %q, must be \"kiro\" or \"claude\"", s.Name, s.Agent)
+		if s.Agent != "kiro" && s.Agent != "claude" && s.Agent != "cline" {
+			return fmt.Errorf("step %q: invalid agent type %q, must be \"kiro\", \"claude\", or \"cline\"", s.Name, s.Agent)
 		}
 		if s.Prompt == "" {
 			return fmt.Errorf("step %q: missing required field \"prompt\"", s.Name)

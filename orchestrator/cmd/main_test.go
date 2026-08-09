@@ -30,7 +30,7 @@ type mockRunner struct {
 	calls []string
 }
 
-func (m *mockRunner) RunAgent(agent, prompt, model, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
+func (m *mockRunner) RunAgent(agent, prompt, model, effort, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
 	m.calls = append(m.calls, "agent:"+agent)
 	return "", 0, nil
 }

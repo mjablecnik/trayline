@@ -34,7 +34,7 @@ type runResponse struct {
 	err      error
 }
 
-func (m *mockRunner) RunAgent(agent, prompt, model, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
+func (m *mockRunner) RunAgent(agent, prompt, model, effort, projectDir string, env []string, verbose bool, stdout, stderr io.Writer) (string, int, error) {
 	m.calls = append(m.calls, runCall{kind: "agent", agent: agent, prompt: prompt, projectDir: projectDir, verbose: verbose})
 	return m.nextResponse()
 }

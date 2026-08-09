@@ -47,7 +47,7 @@ func indent() string {
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
 	// RunAgent executes a trayline-agent command.
-	RunAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
+	RunAgent(agent string, prompt string, model string, effort string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
 	// RunCommand executes a shell command via sh -c.
 	RunCommand(command string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (output string, exitCode int, err error)
 }
@@ -55,16 +55,19 @@ type CommandRunner interface {
 // OSCommandRunner is the real CommandRunner using os/exec.
 type OSCommandRunner struct{}
 
-func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, effort string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
 	// In workflow containers (TRAYLINE_DIRECT_AGENT=1), invoke the agent CLI
 	// directly instead of going through trayline-agent (which tries docker-in-docker).
 	if os.Getenv("TRAYLINE_DIRECT_AGENT") == "1" {
-		return r.runDirectAgent(agent, prompt, model, projectDir, env, verbose, stdout, stderr)
+		return r.runDirectAgent(agent, prompt, model, effort, projectDir, env, verbose, stdout, stderr)
 	}
 	agentBin := resolveAgentBinary()
 	args := []string{agent, "-p", projectDir}
 	if model != "" {
 		args = append(args, "-m", model)
+	}
+	if effort != "" {
+		args = append(args, "-t", effort)
 	}
 	args = append(args, prompt)
 	return runSubprocess(agentBin, args, projectDir, env, verbose, stdout, stderr)
@@ -72,7 +75,7 @@ func (r *OSCommandRunner) RunAgent(agent string, prompt string, model string, pr
 
 // runDirectAgent invokes the agent CLI binary directly (no Docker wrapper).
 // Used inside workflow containers where the CLI is already installed.
-func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
+func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model string, effort string, projectDir string, env []string, verbose bool, stdout io.Writer, stderr io.Writer) (string, int, error) {
 	var bin string
 	var args []string
 
@@ -83,12 +86,28 @@ func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model stri
 		if model != "" {
 			args = append(args, "--model", model)
 		}
+		if effort != "" {
+			args = append(args, "--effort", effort)
+		}
 		args = append(args, "-p", prompt)
 	case "kiro":
 		bin = "kiro-cli"
 		args = []string{"chat", "--trust-all-tools", "--no-interactive"}
 		if model != "" {
 			args = append(args, "--model", model)
+		}
+		if effort != "" {
+			args = append(args, "--effort", effort)
+		}
+		args = append(args, prompt)
+	case "cline":
+		bin = "cline"
+		args = []string{"--auto-approve", "true"}
+		if model != "" {
+			args = append(args, "-m", model)
+		}
+		if effort != "" {
+			args = append(args, "--thinking", effort)
 		}
 		args = append(args, prompt)
 	default:
@@ -449,6 +468,9 @@ func (e *Executor) executeStep(step *core.Step, stepNum int, totalSteps int) (st
 			model = e.Config.OpenRouterModel
 		}
 		stepType += ", model:" + model
+		if step.Effort != "" {
+			stepType += ", effort:" + step.Effort
+		}
 	}
 	start := time.Now()
 	ind := indent()
@@ -470,7 +492,7 @@ func (e *Executor) executeStep(step *core.Step, stepNum int, totalSteps int) (st
 	var err error
 
 	if step.Agent != "" {
-		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, verbose, os.Stdout, os.Stderr)
+		output, exitCode, err = e.Runner.RunAgent(step.Agent, step.Prompt, step.Model, step.Effort, projectDir, env, verbose, os.Stdout, os.Stderr)
 	} else {
 		output, exitCode, err = e.Runner.RunCommand(step.Command, projectDir, env, verbose, os.Stdout, os.Stderr)
 	}

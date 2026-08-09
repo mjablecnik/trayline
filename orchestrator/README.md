@@ -96,10 +96,19 @@ Runs `trayline-agent` with the specified agent type and prompt:
 ```yaml
 steps:
   - name: "create-code"
-    agent: "claude"          # "claude" or "kiro"
+    agent: "claude"          # "claude", "kiro", or "cline"
+    model: "sonnet"          # optional, overrides default model
+    effort: "high"           # optional, thinking/effort level (low, medium, high, xhigh, max)
     prompt: "Read the spec and create the code"
     project_dir: "/path/to/project"  # optional, defaults to cwd
 ```
+
+The `effort` field controls how much reasoning the model applies. Maps to:
+- Kiro CLI: `--effort <level>`
+- Claude Code: `--effort <level>`
+- Cline CLI: `--thinking <level>`
+
+If omitted, each agent uses its own default (Kiro: persistent preference, Claude: adaptive, Cline: medium).
 
 ### Command Step
 
@@ -206,7 +215,7 @@ The orchestrator validates the pipeline at parse time and fails fast on:
 - Missing or invalid YAML
 - Steps missing `name`
 - Steps with both `agent` and `command`, or neither
-- Invalid agent type (must be `kiro` or `claude`)
+- Invalid agent type (must be `kiro`, `claude`, or `cline`)
 - Duplicate step names (across entire pipeline including loops)
 - Condition missing `prompt`
 - `goto` referencing a non-existent top-level step

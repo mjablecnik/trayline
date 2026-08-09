@@ -484,7 +484,7 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *core.Config, lifecyclePa
 		var stepOutput string
 		var exitCode int
 		if step.Agent != "" {
-			stepOutput, exitCode, err = runner.RunAgent(step.Agent, step.Prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, exitCode, err = runner.RunAgent(step.Agent, step.Prompt, step.Model, step.Effort, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		} else if step.Command != "" {
 			stepOutput, exitCode, err = runner.RunCommand(step.Command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		}
@@ -499,7 +499,7 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *core.Config, lifecyclePa
 					fbDir = cwd
 				}
 				fbVerbose := verbose || fallback.Verbose
-				_, fbExit, fbErr := runner.RunAgent(fallback.Agent, fallback.Prompt, fallback.Model, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
+				_, fbExit, fbErr := runner.RunAgent(fallback.Agent, fallback.Prompt, fallback.Model, fallback.Effort, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
 				if fbErr != nil || fbExit != 0 {
 					fmt.Fprintf(os.Stderr, "%s✗ Lifecycle fallback %q also failed%s\n", colorRed, fallback.Name, colorReset)
 					return 1
@@ -553,7 +553,7 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *core.Config, lifecyclePa
 		var stepExitCode int
 		var stepErr error
 		if step.Agent != "" {
-			stepOutput, stepExitCode, stepErr = runner.RunAgent(step.Agent, prompt, step.Model, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
+			stepOutput, stepExitCode, stepErr = runner.RunAgent(step.Agent, prompt, step.Model, step.Effort, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		} else if command != "" {
 			stepOutput, stepExitCode, stepErr = runner.RunCommand(command, projectDir, env, stepVerbose, os.Stdout, os.Stderr)
 		}
@@ -569,7 +569,7 @@ func runFlowWithLifecycle(segments []*FlowSegment, cfg *core.Config, lifecyclePa
 					fbDir = cwd
 				}
 				fbVerbose := verbose || fallback.Verbose
-				runner.RunAgent(fallback.Agent, fbPrompt, fallback.Model, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
+				runner.RunAgent(fallback.Agent, fbPrompt, fallback.Model, fallback.Effort, fbDir, env, fbVerbose, os.Stdout, os.Stderr)
 			} else {
 				fmt.Fprintf(os.Stderr, "  %s⚠ Lifecycle after step %q failed (exit code %d)%s\n", colorYellow, step.Name, stepExitCode, colorReset)
 				if stepErr != nil {

@@ -12,7 +12,7 @@ Usage:
   trayline <command> [options]
 
 Commands:
-  agent <kiro|claude> [opts] [prompt]   Run an AI agent in Docker sandbox
+  agent <kiro|claude|cline> [opts] [prompt]   Run an AI agent in Docker sandbox
   sync <push|pull> [--verbose]          Sync project with remote server
   run <pipeline> [opts]                 Run a single pipeline (orchestrator)
   flow <pipeline> [--then <pipeline>]   Run multiple pipelines sequentially
@@ -39,6 +39,7 @@ by the current directory's basename, override with --project):
 Examples:
   trayline agent claude "Fix the bug"
   trayline agent kiro -i
+  trayline agent cline -t high "Refactor auth"
   trayline sync push --verbose
   trayline run processes/8-code-review --var path=. --verbose
   trayline run ./local.yaml --dry-run

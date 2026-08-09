@@ -6,7 +6,7 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 
 | Directory | Purpose |
 |-----------|---------|
-| `runtime/` | CLI wrapper, agent runner, sync script, sandbox Dockerfile |
+| `runtime/` | CLI wrapper, agent runner (kiro/claude/cline), sync script, sandbox Dockerfile |
 | `orchestrator/` | Go module `orchestrator` — pipeline orchestrator (`trayline-run`) |
 | `remote/` | Go module `remote` — merged agent API server + CLI client (`cmd/server`, `cmd/client`) |
 | `tools/taskline/server/` | Go module `server` — task queue server |
