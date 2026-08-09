@@ -55,9 +55,15 @@ func (f *fakeQueueContainerClient) ContainerCreate(_ context.Context, cfg *conta
 	defer f.mu.Unlock()
 	f.nextID++
 	id := fmt.Sprintf("fake-container-%d", f.nextID)
+	// StartWorkflowContainer wraps the real ["trayline", "run", pipeline, ...]
+	// command with a Claude credential seed script, so the pipeline ref is
+	// the argument immediately following "run", not a fixed index.
 	pipeline := ""
-	if len(cfg.Cmd) >= 3 {
-		pipeline = cfg.Cmd[2]
+	for i, arg := range cfg.Cmd {
+		if arg == "run" && i+1 < len(cfg.Cmd) {
+			pipeline = cfg.Cmd[i+1]
+			break
+		}
 	}
 	f.containers[id] = pipeline
 	f.created = append(f.created, pipeline)

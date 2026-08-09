@@ -191,8 +191,10 @@ func TestHandleList(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if len(resp) != 2 || resp[0].ID != "w2" || resp[1].ID != "w1" {
-		t.Fatalf("expected [w2 w1] (desc by created_at), got %+v", resp)
+	// Both workflows are queued (non-terminal), so ListByProjectSnapshot orders
+	// them oldest first (execution order), not by created_at descending.
+	if len(resp) != 2 || resp[0].ID != "w1" || resp[1].ID != "w2" {
+		t.Fatalf("expected [w1 w2] (queued, oldest first), got %+v", resp)
 	}
 }
 

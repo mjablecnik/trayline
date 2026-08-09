@@ -14,6 +14,8 @@ import (
 
 	"pgregory.net/rapid"
 
+	dockertypes "github.com/docker/docker/api/types"
+
 	"remote/core"
 )
 
