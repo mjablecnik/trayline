@@ -48,7 +48,7 @@ func TestRun_VersionFlagPrintsVersionAndReturnsExit0(t *testing.T) {
 			if code != 0 {
 				t.Errorf("expected exit code 0, got %d", code)
 			}
-			want := "taskline 1.1.0\n"
+			want := "taskline 2.0.0\n"
 			if stdout.String() != want {
 				t.Errorf("expected %q, got %q", want, stdout.String())
 			}

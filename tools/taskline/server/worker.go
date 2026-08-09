@@ -221,7 +221,17 @@ func (w *Worker) ForceKill() (*Task, error) {
 	return task, nil
 }
 
+// taskLabeler is implemented by output writers (e.g. *ProjectLog) that
+// prefix each written line with the currently executing task's name.
+type taskLabeler interface {
+	SetCurrentTask(name string)
+}
+
 func (w *Worker) executeTask(task *Task) {
+	if tl, ok := w.output.(taskLabeler); ok {
+		tl.SetCurrentTask(task.Name)
+	}
+
 	proc, err := w.runner.Start(task.Command, task.Cwd, w.output)
 	if err != nil {
 		logError("task %s (%s): failed to spawn command: %v", task.ID, task.Name, err)

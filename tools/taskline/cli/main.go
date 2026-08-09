@@ -9,7 +9,7 @@ import (
 )
 
 // version is the CLI's semver version string (Requirement 13.5).
-const version = "1.1.0"
+const version = "2.0.0"
 
 const usageText = `Usage: taskline <subcommand> [arguments]
 

@@ -110,6 +110,9 @@ case "$COMMAND" in
     done
     set -- "${ARGS[@]}"
 
+    # Normalize: lowercase, replace spaces/invalid chars with hyphens, trim to 64 chars
+    PROJECT="$(echo "$PROJECT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9_-]/-/g' | cut -c1-64)"
+
     if [[ $# -eq 0 ]]; then
       echo "error: schedule requires a sub-action or pipeline name" >&2
       exit 1
@@ -125,7 +128,7 @@ case "$COMMAND" in
         exec taskline status --project "$PROJECT"
         ;;
       logs)
-        exec taskline logs --project "$PROJECT" --follow
+        exec taskline logs --project "$PROJECT" --follow "$@"
         ;;
       retry)
         exec taskline retry --project "$PROJECT"
@@ -142,6 +145,7 @@ case "$COMMAND" in
         # it deletes the (pending) task (FR-6.4).
         [[ $# -ge 1 ]] || { echo "error: schedule cancel requires an id argument" >&2; exit 1; }
         ID="$1"
+        # TODO: use machine-readable output (e.g. --json) when available
         CURRENT_ID=$(taskline status --project "$PROJECT" 2>/dev/null | sed -n 's/^Current task: [^(]*(\([^)]*\)).*/\1/p')
         if [[ -n "$CURRENT_ID" && "$CURRENT_ID" == "$ID" ]]; then
           exec taskline stop --project "$PROJECT"
