@@ -72,7 +72,8 @@ test('main/assistant agent: attach image via 📎 icon and get OCR text back', a
 
 	const replyText = (await lastAgentBubble.textContent()) ?? '';
 	expect(replyText).toContain('7492');
-	expect(/trayline\s*ocr/i.test(replyText), `expected reply to mention TRAYLINE OCR, got: ${replyText}`).toBe(
-		true
-	);
+	expect(
+		/trayline\s*ocr/i.test(replyText),
+		`expected reply to mention TRAYLINE OCR, got: ${replyText}`
+	).toBe(true);
 });

@@ -336,8 +336,7 @@ export function buildWorkflowLogWsUrl(projectName: string, workflowId: string): 
 export const api = {
 	getProjects: () => request<Project[]>('GET', '/projects'),
 
-	pinProject: (name: string) =>
-		request<void>('PUT', `/projects/${encodeURIComponent(name)}/pin`),
+	pinProject: (name: string) => request<void>('PUT', `/projects/${encodeURIComponent(name)}/pin`),
 
 	unpinProject: (name: string) =>
 		request<void>('DELETE', `/projects/${encodeURIComponent(name)}/pin`),

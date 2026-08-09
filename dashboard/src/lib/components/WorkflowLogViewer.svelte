@@ -190,6 +190,7 @@
 		{#if phase === 'waiting' && !logText}
 			{$t('workflows.logs.waiting')}
 		{:else}
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- ansiToHtml HTML-escapes all text content, only emitting fixed inline color styles -->
 			{@html ansiToHtml(logText)}
 		{/if}
 	</div>

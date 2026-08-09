@@ -5,11 +5,10 @@
 	import { t, type TranslationKey } from '$lib/i18n';
 	import { locale } from '$lib/stores/locale';
 	import { formatRelativeDate, formatTimeCzech } from '$lib/utils/date';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	type LoadState =
-		| { status: 'loading' }
-		| { status: 'error' }
-		| { status: 'loaded'; workflows: GlobalWorkflow[] };
+		{ status: 'loading' } | { status: 'error' } | { status: 'loaded'; workflows: GlobalWorkflow[] };
 
 	let loadState = $state<LoadState>({ status: 'loading' });
 	let expandedId = $state<string | null>(null);
@@ -30,14 +29,12 @@
 		load();
 	});
 
-	const groups = $derived(
-		loadState.status === 'loaded' ? groupByProject(loadState.workflows) : []
-	);
+	const groups = $derived(loadState.status === 'loaded' ? groupByProject(loadState.workflows) : []);
 
 	function groupByProject(
 		workflows: GlobalWorkflow[]
 	): { project: string; workflows: GlobalWorkflow[] }[] {
-		const map = new Map<string, GlobalWorkflow[]>();
+		const map = new SvelteMap<string, GlobalWorkflow[]>();
 		for (const wf of workflows) {
 			const existing = map.get(wf.project);
 			if (existing) {
@@ -173,9 +170,7 @@
 								{group.project}
 							</a>
 						</h2>
-						<span class="text-xs text-slate-500 dark:text-slate-400"
-							>{group.workflows.length}</span
-						>
+						<span class="text-xs text-slate-500 dark:text-slate-400">{group.workflows.length}</span>
 					</div>
 
 					<ul
@@ -214,7 +209,9 @@
 
 									{#if workflow.started_at}
 										<span class="shrink-0 text-xs text-slate-400 dark:text-slate-500">
-											{formatTimeCzech(workflow.started_at)}{#if workflow.completed_at}–{formatTimeCzech(workflow.completed_at)}{/if}
+											{formatTimeCzech(
+												workflow.started_at
+											)}{#if workflow.completed_at}–{formatTimeCzech(workflow.completed_at)}{/if}
 										</span>
 									{/if}
 

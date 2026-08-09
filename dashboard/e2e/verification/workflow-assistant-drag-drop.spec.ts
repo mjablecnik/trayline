@@ -41,7 +41,9 @@ async function dataTransferForFile(page, filePath: string, mimeType: string) {
 	);
 }
 
-test('main/assistant agent: attach image via drag-and-drop and get a description back', async ({ page }) => {
+test('main/assistant agent: attach image via drag-and-drop and get a description back', async ({
+	page
+}) => {
 	test.setTimeout(180_000);
 
 	await login(page);

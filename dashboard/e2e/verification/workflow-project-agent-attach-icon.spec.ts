@@ -5,7 +5,6 @@
 // with a description that recognizes the image's known subject
 // (a fox/jackal-like canine, per .agents/tmp/VERIFICATION_SETUP.md).
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
 
 const API_TOKEN = '66b8eb77f5f183cd0078aa5b229d1234c48290338bd3c28d10eb2b9e8d9feb2a';
 const PHOTO_PATH = '/workspace/.agents/tmp/photo-test.jpg';

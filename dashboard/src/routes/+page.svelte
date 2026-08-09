@@ -6,28 +6,26 @@
 	import { isAuthenticated } from '$lib/stores/auth';
 
 	type State =
-		| { status: 'loading' }
-		| { status: 'error' }
-		| { status: 'loaded'; projects: Project[] };
+		{ status: 'loading' } | { status: 'error' } | { status: 'loaded'; projects: Project[] };
 
-	let state = $state<State>({ status: 'loading' });
+	let pageState = $state<State>({ status: 'loading' });
 	let showOthers = $state(false);
 
 	const pinnedProjects = $derived(
-		state.status === 'loaded' ? state.projects.filter((p) => p.pinned) : []
+		pageState.status === 'loaded' ? pageState.projects.filter((p) => p.pinned) : []
 	);
 	const otherProjects = $derived(
-		state.status === 'loaded' ? state.projects.filter((p) => !p.pinned) : []
+		pageState.status === 'loaded' ? pageState.projects.filter((p) => !p.pinned) : []
 	);
 	const hasBothSections = $derived(pinnedProjects.length > 0 && otherProjects.length > 0);
 
 	async function loadProjects() {
-		state = { status: 'loading' };
+		pageState = { status: 'loading' };
 		try {
 			const projects = await api.getProjects();
-			state = { status: 'loaded', projects };
+			pageState = { status: 'loaded', projects };
 		} catch {
-			state = { status: 'error' };
+			pageState = { status: 'error' };
 		}
 	}
 
@@ -47,13 +45,13 @@
 	<TokenEntry />
 {:else}
 	<div class="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">
-		{#if state.status === 'loading'}
+		{#if pageState.status === 'loading'}
 			<div class={gridClass}>
 				{#each skeletonKeys as key (key)}
 					<div class="h-32 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800"></div>
 				{/each}
 			</div>
-		{:else if state.status === 'error'}
+		{:else if pageState.status === 'error'}
 			<div class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
 				<p class="max-w-sm text-sm text-slate-500 dark:text-slate-400">{$t('projects.error')}</p>
 				<button
@@ -64,7 +62,7 @@
 					{$t('common.retry')}
 				</button>
 			</div>
-		{:else if state.projects.length === 0}
+		{:else if pageState.projects.length === 0}
 			<div class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
 				<svg
 					viewBox="0 0 24 24"
@@ -89,7 +87,12 @@
 					<h2
 						class="mb-3 flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400"
 					>
-						<svg viewBox="0 0 24 24" fill="currentColor" class="size-3.5 text-sky-500" aria-hidden="true">
+						<svg
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							class="size-3.5 text-sky-500"
+							aria-hidden="true"
+						>
 							<path
 								d="M16 2a1 1 0 0 1 .8.4l3 4a1 1 0 0 1-.1 1.3l-2.4 2.4.7 4.2a1 1 0 0 1-.5 1l-3.2 1.8-1.3 5.5a1 1 0 0 1-1.9.1L10 17.5l-4.3 4.3a1 1 0 0 1-1.4-1.4L8.5 16l-5.2-2.1a1 1 0 0 1 .1-1.9l5.5-1.3 1.8-3.2a1 1 0 0 1 1-.5l4.2.7 2.4-2.4a1 1 0 0 1 .5-.3H16Z"
 							/>

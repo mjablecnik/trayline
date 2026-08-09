@@ -43,6 +43,8 @@ test('mobile (375px): token entry screen renders, login reveals projects view wi
 	await expect(page.getByRole('link', { name: 'Trayline' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
 	// Inline nav links are hidden below the tablet (768px) breakpoint.
-	await expect(page.getByRole('navigation').getByRole('link', { name: 'Sessions' })).not.toBeVisible();
+	await expect(
+		page.getByRole('navigation').getByRole('link', { name: 'Sessions' })
+	).not.toBeVisible();
 	await expect(await hasNoHorizontalOverflow(page)).toBe(true);
 });

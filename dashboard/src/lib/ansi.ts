@@ -10,6 +10,7 @@
  * Does NOT support 256-color or truecolor (24-bit) sequences — they are stripped.
  */
 
+// eslint-disable-next-line no-control-regex -- \x1b (ESC) is the ANSI SGR sequence prefix we're parsing
 const ANSI_REGEX = /\x1b\[([0-9;]*)m/g;
 
 const FG_COLORS: Record<number, string> = {

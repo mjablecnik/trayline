@@ -97,7 +97,9 @@
 
 				{#if workflow.started_at}
 					<span class="shrink-0 text-xs text-slate-400 dark:text-slate-500">
-						{formatTimeCzech(workflow.started_at)}{#if workflow.completed_at}–{formatTimeCzech(workflow.completed_at)}{/if}
+						{formatTimeCzech(workflow.started_at)}{#if workflow.completed_at}–{formatTimeCzech(
+								workflow.completed_at
+							)}{/if}
 					</span>
 				{/if}
 
