@@ -7,7 +7,7 @@ variables:
 steps:
   - name: "create-verification-plan"
     agent: "claude"
-    model: "opus"
+    model: "claude-opus-4-8"
     prompt: |
       IMPORTANT — FILE PATH RULES:
       Your current working directory (cwd) is the PROJECT ROOT.
@@ -233,8 +233,9 @@ steps:
         contains: "- [ ]"
       steps:
         - name: "verify-workflow-step"
-          agent: "claude"
-          model: "sonnet"
+          agent: "cline"
+          model: "cline-pass/glm-5.2"
+          effort: "high"
           verbose: true
           prompt: |
             IMPORTANT — FILE PATH RULES:
