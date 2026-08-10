@@ -139,6 +139,26 @@ Models also accept date-pinned variants like `claude-sonnet-4-5-20250929`, `clau
 
 Default when no model specified: `sonnet` (Claude Sonnet 5).
 
+### ClinePass Models
+
+ClinePass provides curated open-weight coding models at a flat $9.99/month subscription. Model IDs use the `cline-pass/` prefix:
+
+| Model | ID | Best for |
+|-------|-----|----------|
+| GLM-5.2 | `cline-pass/glm-5.2` | Strong all-round coding |
+| Kimi K3 | `cline-pass/kimi-k3` | Complex reasoning, 1M context |
+| Kimi K2.7 Code | `cline-pass/kimi-k2.7-code` | Code-specialized, fast |
+| Kimi K2.6 | `cline-pass/kimi-k2.6` | General coding |
+| DeepSeek V4 Pro | `cline-pass/deepseek-v4-pro` | Deep reasoning, complex tasks |
+| DeepSeek V4 Flash | `cline-pass/deepseek-v4-flash` | Fast + cheap, high throughput |
+| MiMo-V2.5 | `cline-pass/mimo-v2.5` | Fast + cheap |
+| MiMo-V2.5-Pro | `cline-pass/mimo-v2.5-pro` | Balanced speed + quality |
+| MiniMax M3 | `cline-pass/minimax-m3` | Multilingual, UI generation |
+| Qwen3.7 Max | `cline-pass/qwen3.7-max` | Strong reasoning, supports thinking |
+| Qwen3.7 Plus | `cline-pass/qwen3.7-plus` | Cost-effective, supports thinking |
+
+Default when no model specified: whatever is set in `cline config` (last used model).
+
 ### Effort / Thinking Levels
 
 The `effort` field in pipeline YAML (or `-t` flag in `trayline-agent`) controls how much reasoning the model applies. Higher levels produce better results but cost more tokens and take longer.
