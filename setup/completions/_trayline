@@ -160,6 +160,7 @@ _trayline_agent() {
   agents=(
     'kiro:Run Kiro CLI agent'
     'claude:Run Claude Code agent'
+    'cline:Run Cline CLI agent'
   )
 
   case $CURRENT in
@@ -170,6 +171,7 @@ _trayline_agent() {
       _arguments \
         '-p[Project directory]:directory:_directories' \
         '-m[Model to use]:model:' \
+        '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
         '-i[Interactive mode]' \
         '-h[Show help]' \
         '*:prompt:'
