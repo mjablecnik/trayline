@@ -234,8 +234,7 @@ steps:
       steps:
         - name: "verify-workflow-step"
           agent: "cline"
-          model: "cline-pass/glm-5.2"
-          effort: "high"
+          model: "sonnet"
           verbose: true
           prompt: |
             IMPORTANT — FILE PATH RULES:
