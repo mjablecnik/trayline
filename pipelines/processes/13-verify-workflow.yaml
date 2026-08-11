@@ -233,7 +233,7 @@ steps:
         contains: "- [ ]"
       steps:
         - name: "verify-workflow-step"
-          agent: "cline"
+          agent: "claude"
           model: "sonnet"
           verbose: true
           prompt: |
