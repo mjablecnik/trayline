@@ -44,6 +44,22 @@ func indent() string {
 	return strings.Repeat("    ", getDepth())
 }
 
+// isTerminal reports whether w is backed by a terminal (TTY). It checks if
+// the underlying writer is an *os.File pointing to a character device. When
+// stdout is a pipe (e.g. under taskline), this returns false, signaling that
+// subprocess output should always be propagated for logging purposes.
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) != 0
+}
+
 // CommandRunner abstracts subprocess execution for testability.
 type CommandRunner interface {
 	// RunAgent executes a trayline-agent command.
@@ -154,7 +170,12 @@ func runSubprocess(name string, args []string, dir string, env []string, verbose
 	cmd.Env = childEnv
 
 	var buf bytes.Buffer
-	if verbose {
+	// When stdout is not a terminal (e.g. running under taskline where stdout
+	// is a pipe to ProjectLog), always propagate subprocess output so that
+	// project logs capture it. When stdout IS a terminal, respect the verbose
+	// flag to avoid flooding the user's screen during interactive runs.
+	shouldStream := verbose || !isTerminal(stdoutW)
+	if shouldStream {
 		cmd.Stdout = io.MultiWriter(stdoutW, &buf)
 		cmd.Stderr = io.MultiWriter(stderrW, &buf)
 	} else {
