@@ -17,6 +17,13 @@ import (
 // validOpenAIRoles are the message roles accepted in the messages array.
 var validOpenAIRoles = map[string]bool{"system": true, "user": true, "assistant": true}
 
+// Request size limits from Req 1.2. They also bound the work a single
+// unauthenticated-by-mistake request can create.
+const (
+	maxModelNameLen       = 256
+	maxMessagesPerRequest = 128
+)
+
 // OpenAIHandler handles all /v1/ endpoints.
 type OpenAIHandler struct {
 	registry    *ModelRegistry
@@ -35,7 +42,10 @@ func NewOpenAIHandler(registry *ModelRegistry, cm ContainerRunner, logger *core.
 func (h *OpenAIHandler) HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	var req OpenAIChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "request body is not valid JSON: "+err.Error(), nil, nil)
+		// Covers both malformed JSON and semantically rejected content (an
+		// unsupported content part type, say), so the wording stays accurate
+		// for either.
+		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "invalid request body: "+err.Error(), nil, nil)
 		return
 	}
 
@@ -48,6 +58,12 @@ func (h *OpenAIHandler) HandleChatCompletions(w http.ResponseWriter, r *http.Req
 	if !ok {
 		code := "model_not_found"
 		writeOpenAIError(w, http.StatusNotFound, "invalid_request_error", fmt.Sprintf("model %q not found", req.Model), nil, &code)
+		return
+	}
+
+	if !h.hasFreeSlot() {
+		w.Header().Set("Retry-After", "30")
+		writeOpenAIError(w, http.StatusTooManyRequests, "server_error", "server is at capacity, please retry shortly", nil, nil)
 		return
 	}
 
@@ -66,6 +82,14 @@ func (h *OpenAIHandler) HandleChatCompletions(w http.ResponseWriter, r *http.Req
 	result, err := h.cm.RunOneShot(ctx, entry.Agent, prompt, entry.Model, system, time.Now(), nil)
 	if err != nil {
 		h.handleRunError(w, r, err, ctx)
+		return
+	}
+
+	if result == nil {
+		// A runner returning neither a result nor an error violates its
+		// contract, but dereferencing nil here would panic mid-request.
+		h.logger.Error(r.Context(), "openai: agent returned no result and no error")
+		writeOpenAIError(w, http.StatusInternalServerError, "server_error", "agent execution failed", nil, nil)
 		return
 	}
 
@@ -110,6 +134,30 @@ func (h *OpenAIHandler) HandleChatCompletions(w http.ResponseWriter, r *http.Req
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// slotReporter is implemented by container runners that can report free
+// one-shot task capacity without blocking. *docker.ContainerManager satisfies
+// it; test doubles need not.
+type slotReporter interface {
+	AvailableSlots() int
+}
+
+// hasFreeSlot reports whether a task slot is available right now.
+//
+// Req 7.2 requires an immediate 429 at capacity, but the container manager's
+// slot acquisition queues instead of failing fast — without this check a
+// saturated server leaves the client hanging for the whole task timeout (ten
+// minutes by default) before answering. The check is inherently racy: two
+// requests can both observe the last free slot, in which case the loser simply
+// falls back to the queuing behaviour and waits. That is the pre-existing
+// worst case, not a regression.
+func (h *OpenAIHandler) hasFreeSlot() bool {
+	reporter, ok := h.cm.(slotReporter)
+	if !ok {
+		return true
+	}
+	return reporter.AvailableSlots() > 0
 }
 
 // HandleListModels handles GET /v1/models, returning every entry in the
@@ -219,6 +267,14 @@ func scanLines(r io.Reader) (lines <-chan string, errCh <-chan error) {
 	errc := make(chan error, 1)
 	go func() {
 		defer close(lineCh)
+		// This runs outside the HTTP handler's stack, so a panic here would
+		// take down the whole server process rather than a single request.
+		// Turn it into a stream error the caller can terminate cleanly on.
+		defer func() {
+			if rec := recover(); rec != nil {
+				errc <- fmt.Errorf("panic while reading agent output: %v", rec)
+			}
+		}()
 		scanner := bufio.NewScanner(r)
 		scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 		for scanner.Scan() {
@@ -305,9 +361,17 @@ func validateOpenAIChatRequest(req OpenAIChatRequest) (msg string, param *string
 		p := "model"
 		return "model is required", &p
 	}
+	if len(req.Model) > maxModelNameLen {
+		p := "model"
+		return fmt.Sprintf("model name must be at most %d characters", maxModelNameLen), &p
+	}
 	if len(req.Messages) == 0 {
 		p := "messages"
 		return "at least one message is required", &p
+	}
+	if len(req.Messages) > maxMessagesPerRequest {
+		p := "messages"
+		return fmt.Sprintf("at most %d messages are supported per request", maxMessagesPerRequest), &p
 	}
 	for i, m := range req.Messages {
 		if m.Role == "" {

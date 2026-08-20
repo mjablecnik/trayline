@@ -712,9 +712,23 @@ Runs a one-shot agent task and returns the result in OpenAI's chat completion fo
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `model` | string | Yes | Must resolve via the `OPENAI_MODELS` registry |
-| `messages` | array | Yes | At least one message; each needs `role` (`system`, `user`, or `assistant`) and non-empty `content` |
+| `model` | string | Yes | Must resolve via the `OPENAI_MODELS` registry. Max 256 characters |
+| `messages` | array | Yes | 1–128 messages; each needs `role` (`system`, `developer`, `user`, or `assistant`) and non-empty `content` |
 | `stream` | boolean | No | Default `false`. See streaming below |
+
+**Message content** may be either a plain string or the structured array form
+that the OpenAI SDKs and most third-party clients send:
+
+```json
+{"role": "user", "content": "Explain the auth flow"}
+{"role": "user", "content": [{"type": "text", "text": "Explain the auth flow"}]}
+```
+
+Multiple text parts are joined with newlines. Non-text parts (`image_url`,
+`input_audio`, `file`) are rejected with HTTP 400 — the CLI agents cannot read
+attachments, and answering as if they had would be worse than a clear error.
+
+The `developer` role (OpenAI's newer name for `system`) is treated as `system`.
 | `temperature`, `top_p`, `max_tokens`, `stop`, `n`, `presence_penalty`, `frequency_penalty`, `logit_bias`, `user` | — | No | Accepted for SDK compatibility but ignored — the underlying CLI agents do not expose these sampling controls |
 
 Message composition (how `messages` becomes a single agent prompt):

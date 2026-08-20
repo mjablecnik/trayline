@@ -409,6 +409,16 @@ func (m *ContainerManager) RunOneShotStreaming(ctx context.Context, agent, promp
 		return nil, fmt.Errorf("failed to attach to container: %w", err)
 	}
 
+	if hijacked.Reader == nil {
+		// A hijacked response without a reader would hand the caller a stream
+		// that panics on first read — inside its own goroutine, where no HTTP
+		// recovery middleware can catch it. Fail the request instead.
+		hijacked.Close()
+		_ = m.client.ContainerRemove(context.Background(), containerID, dockertypes.ContainerRemoveOptions{Force: true})
+		m.releaseSlot()
+		return nil, fmt.Errorf("attached container %s returned no output stream", containerID)
+	}
+
 	if err := m.client.ContainerStart(timeoutCtx, containerID, dockertypes.ContainerStartOptions{}); err != nil {
 		hijacked.Close()
 		_ = m.client.ContainerRemove(context.Background(), containerID, dockertypes.ContainerRemoveOptions{Force: true})
@@ -438,7 +448,14 @@ func (m *ContainerManager) RunOneShotStreaming(ctx context.Context, agent, promp
 
 // Wait blocks until the stream's container has exited and returns its exit code.
 // Call this after the Reader has returned EOF.
+//
+// A stream not produced by RunOneShotStreaming (no manager — e.g. one built by
+// a test double to exercise a caller's read loop) has no container to wait for,
+// so Wait reports a zero exit code immediately.
 func (s *OneShotStream) Wait(ctx context.Context) (exitCode int, err error) {
+	if s.manager == nil {
+		return 0, nil
+	}
 	waitCh, errCh := s.manager.client.ContainerWait(ctx, s.ContainerID, container.WaitConditionNotRunning)
 	select {
 	case resp := <-waitCh:
@@ -458,6 +475,11 @@ func (s *OneShotStream) Close(ctx context.Context) {
 	s.closeOnce.Do(func() {
 		if s.Closer != nil {
 			_ = s.Closer.Close()
+		}
+		if s.manager == nil {
+			// Stream not produced by RunOneShotStreaming (see Wait): there is no
+			// container to remove and no slot was acquired to release.
+			return
 		}
 		// Use a background context for cleanup so a caller whose ctx already
 		// expired (e.g. the task timeout that triggered this Close) doesn't

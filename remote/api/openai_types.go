@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -11,25 +14,117 @@ import (
 // --- Request types ---
 
 // OpenAIChatRequest is the request body for POST /v1/chat/completions.
+//
+// Every field the server ignores is typed as json.RawMessage rather than its
+// nominal OpenAI type. Req 10.4 requires that an ignored parameter sent with
+// the wrong type (a string where a number belongs, say) still be accepted —
+// and json.Decode rejects the *whole* body on the first type mismatch, so a
+// nominally-typed unused field would turn a harmless client quirk into a 400.
 type OpenAIChatRequest struct {
 	Model            string          `json:"model"`
 	Messages         []OpenAIMessage `json:"messages"`
 	Stream           bool            `json:"stream,omitempty"`
-	Temperature      *float64        `json:"temperature,omitempty"`
-	TopP             *float64        `json:"top_p,omitempty"`
-	MaxTokens        *int            `json:"max_tokens,omitempty"`
+	Temperature      json.RawMessage `json:"temperature,omitempty"`
+	TopP             json.RawMessage `json:"top_p,omitempty"`
+	MaxTokens        json.RawMessage `json:"max_tokens,omitempty"`
 	Stop             json.RawMessage `json:"stop,omitempty"`
-	N                *int            `json:"n,omitempty"`
-	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
+	N                json.RawMessage `json:"n,omitempty"`
+	PresencePenalty  json.RawMessage `json:"presence_penalty,omitempty"`
+	FrequencyPenalty json.RawMessage `json:"frequency_penalty,omitempty"`
 	LogitBias        json.RawMessage `json:"logit_bias,omitempty"`
-	User             string          `json:"user,omitempty"`
+	User             json.RawMessage `json:"user,omitempty"`
 }
 
 // OpenAIMessage is a single message in the messages array.
+//
+// Content is always a plain string internally, but the wire format accepts both
+// the string form and the structured "content parts" array — see
+// UnmarshalJSON.
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+// contentPart is one element of a structured content array.
+type contentPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// UnmarshalJSON accepts both shapes of an OpenAI message that real clients send.
+//
+//	{"role": "user", "content": "Hello"}
+//	{"role": "user", "content": [{"type": "text", "text": "Hello"}]}
+//
+// The second form is what the OpenAI SDKs emit through their multimodal
+// helpers and what Cline, Continue, LangChain and LibreChat send by default.
+// Text parts are joined with newlines; a message whose parts are all text is
+// therefore indistinguishable downstream from the plain string form.
+//
+// The role "developer" — OpenAI's newer name for "system" — is normalised to
+// "system" so those messages reach the agent as a system prompt instead of
+// being rejected as an unknown role.
+//
+// Parts the CLI agents cannot render (images, audio, files) are rejected rather
+// than silently dropped: answering as if an attachment had been read would be
+// worse than a clear error.
+func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	m.Role = raw.Role
+	if m.Role == "developer" {
+		m.Role = "system"
+	}
+
+	content, err := decodeMessageContent(raw.Content)
+	if err != nil {
+		return err
+	}
+	m.Content = content
+	return nil
+}
+
+// decodeMessageContent renders a message's content field as plain text.
+func decodeMessageContent(raw json.RawMessage) (string, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		// Absent or null content — an assistant turn carrying only tool calls
+		// looks like this. Treated as empty and rejected by validation, which
+		// reports the missing field properly.
+		return "", nil
+	}
+
+	switch trimmed[0] {
+	case '"':
+		var s string
+		if err := json.Unmarshal(trimmed, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+
+	case '[':
+		var parts []contentPart
+		if err := json.Unmarshal(trimmed, &parts); err != nil {
+			return "", fmt.Errorf("content array is malformed: %w", err)
+		}
+		texts := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if p.Type != "" && p.Type != "text" {
+				return "", fmt.Errorf("unsupported content part type %q: only text is supported", p.Type)
+			}
+			texts = append(texts, p.Text)
+		}
+		return strings.Join(texts, "\n"), nil
+
+	default:
+		return "", fmt.Errorf("content must be a string or an array of content parts")
+	}
 }
 
 // --- Response types (non-streaming) ---
@@ -133,7 +228,9 @@ func generateCompletionID() string {
 }
 
 // estimateTokens approximates token count as character_count / 4, rounded to the nearest integer.
+// Counts runes rather than bytes so multi-byte text (accented Latin, CJK,
+// emoji) is not over-counted by a factor of 2–4.
 func estimateTokens(text string) int {
-	n := len(text)
+	n := utf8.RuneCountInString(text)
 	return (n + 2) / 4
 }

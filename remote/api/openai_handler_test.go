@@ -157,9 +157,12 @@ func TestHandleChatCompletions_EmptyMessages(t *testing.T) {
 
 func TestHandleChatCompletions_InvalidRole(t *testing.T) {
 	h := newTestOpenAIHandler(&fakeRunner{})
+	// Note: "developer" is *not* used here — it is a supported alias for
+	// "system" (see TestIntegration_DeveloperRole), so it would not fail
+	// validation.
 	rec := doChatCompletionsRequest(h, map[string]any{
 		"model":    "kiro",
-		"messages": []map[string]string{{"role": "developer", "content": "hi"}},
+		"messages": []map[string]string{{"role": "wizard", "content": "hi"}},
 	})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
