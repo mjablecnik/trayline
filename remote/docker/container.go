@@ -356,6 +356,119 @@ func (m *ContainerManager) RunOneShot(ctx context.Context, agent, prompt, model,
 	return result, nil
 }
 
+// OneShotStream holds the resources for streaming a one-shot container's output
+// incrementally, instead of blocking until the container exits (as RunOneShot does).
+// The caller must read Reader to EOF, then call Wait to reap the exit code, and
+// always call Close (e.g. via defer) to release the container and the task slot.
+type OneShotStream struct {
+	ContainerID string
+	Reader      io.Reader // demuxed stdout for non-TTY agents, raw combined output for TTY agents
+	Closer      io.Closer // the underlying attached connection
+
+	manager   *ContainerManager
+	closeOnce sync.Once
+}
+
+// RunOneShotStreaming acquires a slot and starts a one-shot agent container,
+// returning a stream the caller can read incrementally (e.g. to forward chunks
+// over SSE) instead of blocking until the container exits like RunOneShot does.
+// The caller is responsible for calling Wait after the reader reaches EOF, and
+// Close (regardless of outcome) to release the container and its task slot.
+func (m *ContainerManager) RunOneShotStreaming(ctx context.Context, agent, prompt, model, system string, createdAt time.Time) (*OneShotStream, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, m.config.TaskTimeout)
+	defer cancel()
+
+	if err := m.acquireSlot(timeoutCtx, createdAt); err != nil {
+		return nil, fmt.Errorf("task timed out waiting for a free slot: %w", err)
+	}
+
+	cmd := buildOneShotCmd(agent, prompt, model, system)
+	if agent == "claude" {
+		// Request NDJSON stream-json output so the caller can read incremental
+		// text deltas instead of RunOneShot's buffered-until-exit plain text.
+		// claude requires --verbose alongside --output-format=stream-json.
+		cmd = append(cmd, "--output-format", "stream-json", "--verbose")
+	}
+	// Claude uses NDJSON stream-json mode (no TTY needed, demuxed via stdcopy).
+	// Kiro uses interactive plain-text mode (needs TTY for output flushing, raw reader).
+	useTTY := agent != "claude"
+	containerID, err := m.createContainer(timeoutCtx, agent, cmd, false, useTTY)
+	if err != nil {
+		m.releaseSlot()
+		return nil, err
+	}
+
+	hijacked, err := m.client.ContainerAttach(timeoutCtx, containerID, dockertypes.ContainerAttachOptions{
+		Stream: true,
+		Stdout: true,
+		Stderr: true,
+	})
+	if err != nil {
+		_ = m.client.ContainerRemove(context.Background(), containerID, dockertypes.ContainerRemoveOptions{Force: true})
+		m.releaseSlot()
+		return nil, fmt.Errorf("failed to attach to container: %w", err)
+	}
+
+	if err := m.client.ContainerStart(timeoutCtx, containerID, dockertypes.ContainerStartOptions{}); err != nil {
+		hijacked.Close()
+		_ = m.client.ContainerRemove(context.Background(), containerID, dockertypes.ContainerRemoveOptions{Force: true})
+		m.releaseSlot()
+		return nil, fmt.Errorf("failed to start container: %w", err)
+	}
+
+	reader := io.Reader(hijacked.Reader)
+	if !useTTY {
+		// Non-TTY attachments multiplex stdout/stderr per the Docker stream
+		// protocol; demux into a single stdout-only stream for the caller.
+		pr, pw := io.Pipe()
+		go func() {
+			_, copyErr := stdcopy.StdCopy(pw, io.Discard, hijacked.Reader)
+			_ = pw.CloseWithError(copyErr)
+		}()
+		reader = pr
+	}
+
+	return &OneShotStream{
+		ContainerID: containerID,
+		Reader:      reader,
+		Closer:      hijacked.Conn,
+		manager:     m,
+	}, nil
+}
+
+// Wait blocks until the stream's container has exited and returns its exit code.
+// Call this after the Reader has returned EOF.
+func (s *OneShotStream) Wait(ctx context.Context) (exitCode int, err error) {
+	waitCh, errCh := s.manager.client.ContainerWait(ctx, s.ContainerID, container.WaitConditionNotRunning)
+	select {
+	case resp := <-waitCh:
+		return int(resp.StatusCode), nil
+	case werr := <-errCh:
+		return 0, fmt.Errorf("error waiting for container: %w", werr)
+	case <-ctx.Done():
+		return 0, fmt.Errorf("task timed out: %w", ctx.Err())
+	}
+}
+
+// Close releases all resources held by the stream: the attached connection,
+// the container itself (stopped and removed), and the task slot acquired by
+// RunOneShotStreaming. Safe to call multiple times and safe to call without
+// having called Wait first (e.g. on early client disconnect).
+func (s *OneShotStream) Close(ctx context.Context) {
+	s.closeOnce.Do(func() {
+		if s.Closer != nil {
+			_ = s.Closer.Close()
+		}
+		// Use a background context for cleanup so a caller whose ctx already
+		// expired (e.g. the task timeout that triggered this Close) doesn't
+		// prevent the container from actually being stopped and removed.
+		if err := s.manager.StopAndRemoveContainer(context.Background(), s.ContainerID); err != nil && s.manager.logger != nil {
+			s.manager.logger.Warn(context.Background(), fmt.Sprintf("failed to clean up one-shot stream container %s: %v", s.ContainerID, err))
+		}
+		s.manager.releaseSlot()
+	})
+}
+
 // StartChatContainer creates a persistent interactive container but does NOT start it.
 // The caller must attach (via AttachChatContainer) before starting (via StartContainer).
 // The caller must have pre-acquired a slot via TryAcquireSlot before calling this.

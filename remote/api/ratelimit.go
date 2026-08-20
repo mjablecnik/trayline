@@ -87,6 +87,10 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 				retryAfter = 1
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+			if strings.HasPrefix(r.URL.Path, "/v1/") {
+				writeOpenAIError(w, http.StatusTooManyRequests, "server_error", "too many requests, retry after "+strconv.Itoa(retryAfter)+" seconds", nil, nil)
+				return
+			}
 			writeJSON(w, http.StatusTooManyRequests, core.ErrorResponse{
 				Error:   "RATE_LIMITED",
 				Message: "too many requests, retry after " + strconv.Itoa(retryAfter) + " seconds",

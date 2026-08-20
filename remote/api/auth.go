@@ -26,8 +26,14 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 			return
 		}
 
+		isOpenAIPath := strings.HasPrefix(r.URL.Path, "/v1/")
+
 		authHeader := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
+			if isOpenAIPath {
+				writeOpenAIError(w, http.StatusUnauthorized, "invalid_request_error", "missing or invalid Authorization header", nil, nil)
+				return
+			}
 			writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 				Error:   "UNAUTHORIZED",
 				Message: "missing or invalid Authorization header",
@@ -37,6 +43,11 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 
 		provided := strings.TrimPrefix(authHeader, "Bearer ")
 		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+			if isOpenAIPath {
+				code := "invalid_api_key"
+				writeOpenAIError(w, http.StatusUnauthorized, "invalid_request_error", "Invalid API key provided", nil, &code)
+				return
+			}
 			writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 				Error:   "UNAUTHORIZED",
 				Message: "invalid token",

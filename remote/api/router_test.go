@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,6 +60,10 @@ func (noopRunner) RunOneShot(context.Context, string, string, string, string, ti
 	return &docker.ContainerResult{}, nil
 }
 
+func (noopRunner) RunOneShotStreaming(context.Context, string, string, string, string, time.Time) (*docker.OneShotStream, error) {
+	return nil, fmt.Errorf("noopRunner: RunOneShotStreaming not implemented")
+}
+
 func (noopRunner) StopAndRemoveContainer(context.Context, string) error { return nil }
 
 const testAuthToken = "test-router-token"
@@ -95,7 +100,10 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 	}
 	assistantH := NewAssistantHandler(sessionStore, cm, logger, cfg, nil, assistantFolderMgr)
 
-	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, testAuthToken, rl, logger, dashboardOrigin)
+	openaiRegistry := NewModelRegistry("")
+	openaiH := NewOpenAIHandler(openaiRegistry, noopRunner{}, logger, time.Minute)
+
+	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, testAuthToken, rl, logger, dashboardOrigin)
 	return router, projectsDir
 }
 

@@ -29,6 +29,7 @@ type StateSaver interface {
 // ContainerRunner is the minimal interface TaskHandler needs to execute agent containers.
 type ContainerRunner interface {
 	RunOneShot(ctx context.Context, agent, prompt, model, system string, createdAt time.Time, onStart func(containerID string)) (*docker.ContainerResult, error)
+	RunOneShotStreaming(ctx context.Context, agent, prompt, model, system string, createdAt time.Time) (*docker.OneShotStream, error)
 	StopAndRemoveContainer(ctx context.Context, containerID string) error
 }
 

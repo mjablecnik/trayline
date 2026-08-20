@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,10 @@ func (f *fakeRunner) RunOneShot(_ context.Context, _, _, _, _ string, _ time.Tim
 		panic(f.panic)
 	}
 	return f.result, f.err
+}
+
+func (f *fakeRunner) RunOneShotStreaming(_ context.Context, _, _, _, _ string, _ time.Time) (*docker.OneShotStream, error) {
+	return nil, errors.New("fakeRunner: RunOneShotStreaming not implemented")
 }
 
 func (f *fakeRunner) StopAndRemoveContainer(_ context.Context, containerID string) error {

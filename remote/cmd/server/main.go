@@ -103,8 +103,11 @@ func main() {
 	}
 	assistantH := api.NewAssistantHandler(sessionStore, cm, logger, cfg, stateMgr, assistantFolderMgr)
 
+	openaiRegistry := api.NewModelRegistry(os.Getenv("OPENAI_MODELS"))
+	openaiH := api.NewOpenAIHandler(openaiRegistry, cm, logger, cfg.TaskTimeout)
+
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

@@ -24,6 +24,7 @@ func NewRouter(
 	specH *SpecHandler,
 	workflowH *WorkflowHandler,
 	assistantH *AssistantHandler,
+	openaiH *OpenAIHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
@@ -106,6 +107,11 @@ func NewRouter(
 	mux.HandleFunc("GET /assistant/files/status", assistantH.HandleFileStatus)
 	mux.HandleFunc("GET /assistant/files", assistantH.HandleFiles)
 	mux.HandleFunc("GET /assistant/files/{path...}", assistantH.HandleFiles)
+
+	// OpenAI-compatible endpoints.
+	mux.HandleFunc("POST /v1/chat/completions", openaiH.HandleChatCompletions)
+	mux.HandleFunc("GET /v1/models", openaiH.HandleListModels)
+	mux.HandleFunc("GET /v1/models/{model_id}", openaiH.HandleGetModel)
 
 	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
 	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))
