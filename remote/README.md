@@ -1,6 +1,6 @@
 # Agent API Server
 
-HTTP server exposing REST and WebSocket APIs for programmatic interaction with AI agents (Kiro CLI and Claude Code). Manages agent containers via the Docker API, supports one-shot task execution with long polling, and WebSocket-based chat sessions with streaming output.
+HTTP server exposing REST and WebSocket APIs for programmatic interaction with AI agents (Kiro CLI and Claude Code). Manages agent containers via the Docker API, supports one-shot task execution with long polling, and WebSocket-based chat sessions with streaming output. Also exposes an OpenAI-compatible `/v1/chat/completions` + `/v1/models` surface so existing OpenAI SDKs can talk to the same agents — see [API.md](API.md#openai-compatible-api).
 
 ## Prerequisites
 
@@ -33,6 +33,7 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `KIRO_CREDS_HOST_DIR` | — | No | Host path to `~/.local/share/kiro-cli` (auth token) |
 | `CLAUDE_HOST_DIR` | — | No | Host path to `~/.claude` (session data) |
 | `CLAUDE_CONFIG_HOST_FILE` | — | No | Host path to `~/.claude.json` (global config / token) |
+| `OPENAI_MODELS` | `kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet` | No | Comma-separated `public_name:agent:model_variant` entries exposed via the OpenAI-compatible `/v1/models` and `/v1/chat/completions` endpoints |
 
 Copy `.env.example` to `.env` and fill in the required values before running.
 

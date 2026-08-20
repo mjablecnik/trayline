@@ -638,3 +638,218 @@ function uploadFile(filename, arrayBuffer) {
 // To end the session:
 ws.send(JSON.stringify({ type: "terminate" }));
 ```
+
+---
+
+## OpenAI-Compatible API
+
+Trayline Server also exposes an OpenAI-compatible surface under `/v1/`, so existing OpenAI SDKs and tools (`openai` Python/JS, LangChain, etc.) can talk to Kiro and Claude Code agents by pointing their `base_url` at this server. Each `/v1/` request maps to a one-shot agent run under the hood — there is no persistent conversation state on the server between calls, so the full message history must be sent with every request (standard OpenAI chat semantics).
+
+### Model Name Mapping
+
+The `model` field in requests is resolved against a server-side registry rather than passed straight to an LLM provider. The registry maps a public model name to an internal `agent` + `model variant` pair, configured via the `OPENAI_MODELS` environment variable:
+
+```
+OPENAI_MODELS=kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet
+```
+
+Format: comma-separated `public_name:agent:model_variant` entries. `agent` is `kiro` or `claude`; `model_variant` is optional and agent-specific (e.g. `sonnet`, `opus`) — omit it to use the agent's default model. Lookups are case-insensitive. If `OPENAI_MODELS` is unset or empty, the default is:
+
+| Public name | Agent | Model variant |
+|-------------|-------|----------------|
+| `kiro` | `kiro` | (default) |
+| `claude` | `claude` | (default) |
+| `claude-sonnet` | `claude` | `sonnet` |
+
+Only names present in this registry are accepted by `/v1/chat/completions` and returned by `/v1/models` — arbitrary OpenAI model names (e.g. `gpt-4o`) are not recognized unless added to `OPENAI_MODELS`.
+
+### Authentication and Errors on `/v1/`
+
+`/v1/` endpoints use the same Bearer token (`Authorization: Bearer <API_TOKEN>`) and per-IP rate limiter as the rest of the server, but error bodies follow the OpenAI error schema instead of Trayline's native `{"error": "...", "message": "..."}` envelope:
+
+```json
+{
+  "error": {
+    "message": "Human-readable description",
+    "type": "invalid_request_error",
+    "param": "model",
+    "code": null
+  }
+}
+```
+
+| Situation | HTTP Status | `type` | `code` |
+|-----------|-------------|--------|--------|
+| Missing/malformed `Authorization` header | 401 | `invalid_request_error` | — |
+| Invalid bearer token | 401 | `invalid_request_error` | `invalid_api_key` |
+| Malformed JSON body | 400 | `invalid_request_error` | — |
+| Missing/empty `model` | 400 | `invalid_request_error` (`param: "model"`) | — |
+| Missing/empty `messages` | 400 | `invalid_request_error` (`param: "messages"`) | — |
+| Invalid message shape (missing `role`/`content`, unsupported role) | 400 | `invalid_request_error` (`param: "messages[i]"` or `"messages[i].role"`) | — |
+| Unknown `model` name | 404 | `invalid_request_error` | `model_not_found` |
+| Rate limited | 429 | `server_error` (`Retry-After` header set) | — |
+| Server at capacity (no free agent slot) | 429 | `server_error` (`Retry-After: 30`) | — |
+| Agent execution failed / non-zero exit | 500 | `server_error` | — |
+| Request exceeded `TASK_TIMEOUT` | 500 | `server_error` | — |
+| Streaming not supported by the response writer | 500 | `server_error` | — |
+
+### POST /v1/chat/completions
+
+Runs a one-shot agent task and returns the result in OpenAI's chat completion format. Supports both a single JSON response and Server-Sent Events streaming.
+
+**Request:**
+
+```json
+{
+  "model": "claude-sonnet",
+  "messages": [
+    {"role": "system", "content": "You are a senior Go developer"},
+    {"role": "user", "content": "Explain the auth flow in this repo"}
+  ],
+  "stream": false
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `model` | string | Yes | Must resolve via the `OPENAI_MODELS` registry |
+| `messages` | array | Yes | At least one message; each needs `role` (`system`, `user`, or `assistant`) and non-empty `content` |
+| `stream` | boolean | No | Default `false`. See streaming below |
+| `temperature`, `top_p`, `max_tokens`, `stop`, `n`, `presence_penalty`, `frequency_penalty`, `logit_bias`, `user` | — | No | Accepted for SDK compatibility but ignored — the underlying CLI agents do not expose these sampling controls |
+
+Message composition (how `messages` becomes a single agent prompt):
+
+- All `system` messages are concatenated (newline-separated) and passed as the agent's system prompt.
+- A single `user` message is passed through as the prompt directly.
+- Multiple `user`/`assistant` messages are flattened into a transcript with `User:` / `Assistant:` role labels, preserving order (including adjacent same-role messages).
+
+#### Response 200 (non-streaming)
+
+```json
+{
+  "id": "chatcmpl-a1b2c3d4e5f6a1b2c3d4e5f6",
+  "object": "chat.completion",
+  "created": 1731000000,
+  "model": "claude-sonnet",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The auth flow works as follows..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 42,
+    "completion_tokens": 128,
+    "total_tokens": 170
+  }
+}
+```
+
+`usage` token counts are estimates (`character_count / 4`, rounded), not exact tokenizer counts — the underlying agent CLIs don't report real usage.
+
+#### Streaming (`"stream": true`)
+
+Response is `Content-Type: text/event-stream`. Each event is a chunk in the OpenAI streaming format:
+
+```
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1731000000,"model":"claude-sonnet","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1731000000,"model":"claude-sonnet","choices":[{"index":0,"delta":{"content":"The auth"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1731000000,"model":"claude-sonnet","choices":[{"index":0,"delta":{"content":" flow works..."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1731000000,"model":"claude-sonnet","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+The first chunk carries `delta.role: "assistant"`; subsequent chunks carry `delta.content` only; the final chunk carries an empty `delta` with `finish_reason: "stop"`, followed by the `[DONE]` sentinel. If the underlying agent errors mid-stream, the connection is terminated the same way (final chunk + `[DONE]`) rather than left hanging, since an SSE stream can't switch to a JSON error body after headers are sent. If the client disconnects, the server stops forwarding output without writing further data.
+
+### GET /v1/models
+
+Lists every model configured in `OPENAI_MODELS`.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {"id": "kiro", "object": "model", "created": 1731000000, "owned_by": "trayline"},
+    {"id": "claude", "object": "model", "created": 1731000000, "owned_by": "trayline"},
+    {"id": "claude-sonnet", "object": "model", "created": 1731000000, "owned_by": "trayline"}
+  ]
+}
+```
+
+`created` is the server's process start time (Unix seconds), fixed for all entries — not a per-model creation date.
+
+### GET /v1/models/{model_id}
+
+Returns a single model object, or 404 `invalid_request_error` if `model_id` isn't in the registry.
+
+```json
+{"id": "claude-sonnet", "object": "model", "created": 1731000000, "owned_by": "trayline"}
+```
+
+### SDK Usage Examples
+
+**Python (`openai` SDK):**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://trayline-relay.fly.dev/v1",
+    api_key="your-token",  # sent as Bearer <api_key>
+)
+
+# Non-streaming
+resp = client.chat.completions.create(
+    model="claude-sonnet",
+    messages=[{"role": "user", "content": "List all TODO comments in the codebase"}],
+)
+print(resp.choices[0].message.content)
+
+# Streaming
+stream = client.chat.completions.create(
+    model="claude-sonnet",
+    messages=[{"role": "user", "content": "Explain the auth flow"}],
+    stream=True,
+)
+for chunk in stream:
+    delta = chunk.choices[0].delta.content
+    if delta:
+        print(delta, end="", flush=True)
+```
+
+**JavaScript (`openai` SDK):**
+
+```javascript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://trayline-relay.fly.dev/v1",
+  apiKey: "your-token",
+});
+
+// Non-streaming
+const resp = await client.chat.completions.create({
+  model: "claude-sonnet",
+  messages: [{ role: "user", content: "List all TODO comments in the codebase" }],
+});
+console.log(resp.choices[0].message.content);
+
+// Streaming
+const stream = await client.chat.completions.create({
+  model: "claude-sonnet",
+  messages: [{ role: "user", content: "Explain the auth flow" }],
+  stream: true,
+});
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) process.stdout.write(delta);
+}
+```
