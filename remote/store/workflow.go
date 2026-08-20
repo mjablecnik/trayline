@@ -43,16 +43,16 @@ const maxWorkflowsPerProject = 20
 
 // Workflow represents a scheduled trayline pipeline execution.
 type Workflow struct {
-	ID          string             `json:"id"`
-	Project     string             `json:"project"`
-	Pipeline    string             `json:"pipeline"`
-	Variables   map[string]string  `json:"variables"`
-	Status      WorkflowStatus     `json:"status"`
-	CreatedAt   time.Time          `json:"created_at"`
-	StartedAt   *time.Time         `json:"started_at,omitempty"`
-	CompletedAt *time.Time         `json:"completed_at,omitempty"`
-	Error       string             `json:"error,omitempty"`
-	ExitCode    *int               `json:"exit_code,omitempty"`
+	ID          string            `json:"id"`
+	Project     string            `json:"project"`
+	Pipeline    string            `json:"pipeline"`
+	Variables   map[string]string `json:"variables"`
+	Status      WorkflowStatus    `json:"status"`
+	CreatedAt   time.Time         `json:"created_at"`
+	StartedAt   *time.Time        `json:"started_at,omitempty"`
+	CompletedAt *time.Time        `json:"completed_at,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	ExitCode    *int              `json:"exit_code,omitempty"`
 	// NotBefore delays execution — NextQueued skips this workflow until
 	// time.Now() is past this timestamp. Used for rate-limit backoff.
 	NotBefore   *time.Time         `json:"not_before,omitempty"`
