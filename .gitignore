@@ -2,6 +2,10 @@
 *.exe
 orchestrator/bin/
 remote/bin/
+remote/.fake-openai-server
+remote/testing/openai-conformance/.venv/
+remote/testing/openai-conformance/.pytest_cache/
+remote/testing/openai-conformance/**/__pycache__/
 tools/taskline/server/bin/
 tools/taskline/cli/bin/
 tools/taskline/server/server

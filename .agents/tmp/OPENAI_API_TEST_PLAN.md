@@ -363,3 +363,70 @@ cd testing/openai-conformance && ./run.sh
 - [ ] Risks A–H each resolved, or documented as a known limitation with an `xfail` test
 - [ ] `remote/API.md` accurate about what the implementation actually does (task 12 may have
       documented intent rather than reality — verify)
+
+---
+
+# Outcome — executed 2026-08-20
+
+Gate opened at commit `8537b55` (12/12 tasks, clean tree). All layers built and run.
+
+## Delivered
+
+| Layer | Location | Result |
+|---|---|---|
+| L1 unit | `remote/api/openai_{composer,registry,sse,types}_test.go` | green |
+| L2 integration | `remote/api/openai_integration_test.go` | green |
+| L2 capacity | `remote/api/openai_capacity_test.go` (real `ContainerManager`) | green |
+| Fuzz | `remote/api/openai_fuzz_test.go` | green, 52k execs, no crashes |
+| L3b fake server | `remote/cmd/fake-openai-server/`, `remote/internal/faketest/` | working |
+| L3 SDK conformance | `remote/testing/openai-conformance/` (openai 3.3.1) | 83 passed, 4 xfail, 7 live skipped |
+| L5 smoke | `remote/testing/openai-smoke.sh` | 23/23 |
+| Traceability | `remote/testing/openai-conformance/TRACEABILITY.md` | complete |
+
+`go build ./... && go vet ./... && go test ./...` green, including all pre-existing tests.
+`-race` could not run — no gcc in this sandbox; `-count=2` used instead.
+
+## Bugs found and fixed
+
+1. **Capacity request queued instead of rejecting** (Req 7.2) — at capacity a client waited
+   the full task timeout (10 min in production) and then got a 500, not a 429. Added a
+   non-blocking `slotReporter` capacity check in the handler.
+2. **Panic in a goroutine crashed the whole server** — a nil attach reader made the SSE
+   read loop panic outside the HTTP stack, where recovery middleware cannot catch it.
+   Guarded in `RunOneShotStreaming` and added a recover in `scanLines`.
+3. **Ignored params with the wrong type returned 400** (Req 10.4) — Go's decoder aborts the
+   whole body on the first mismatch. All ignored fields are now `json.RawMessage`.
+4. **Token estimate counted bytes, not characters** (Req 8.2) — Czech text inflated ~1.4x,
+   emoji 4x. Now `utf8.RuneCountInString`.
+5. **Req 1.2 size limits unenforced** — 128-message and 256-character caps added.
+6. **`OneShotStream.Wait/Close` panicked without a manager** — blocked all streaming test
+   doubles. Nil-guarded.
+
+## Follow-up round — client compatibility (same day, at the user's request)
+
+Two of the open decisions were taken up and implemented:
+
+7. **Structured content parts** — `content` now accepts both the plain string and the
+   `[{"type": "text", "text": "..."}]` array the OpenAI SDKs and Cline/Continue/LangChain/
+   LibreChat emit. Text parts are newline-joined; non-text parts (`image_url`, `input_audio`,
+   `file`) are rejected with a message naming the type rather than silently dropped.
+8. **The `developer` role** — OpenAI's newer name for `system` is normalised to `system`, so
+   those messages become the agent's system prompt instead of a 400.
+
+Both are implemented in `OpenAIMessage.UnmarshalJSON`, so every call site (validation,
+composition, streaming) sees a plain string and needed no changes.
+
+A third bug surfaced while doing it: the handler dereferenced a nil `*ContainerResult` when a
+runner returned `(nil, nil)`. Guarded.
+
+Final state: Go suite green (`go build`, `go vet`, `go test ./...`), conformance suite
+**93 passed / 2 xfail / 7 live-skipped**, smoke 23/23.
+
+## Remaining open decisions — accepted as-is
+
+See TRACEABILITY.md "Open items":
+
+1. Unrouted `/v1/` paths (`/v1/embeddings`) return Go's plain-text mux 404 rather than an
+   OpenAI error body. The SDK still raises `NotFoundError`; only the message is unhelpful.
+2. `stream_options.include_usage` is accepted but emits no usage chunk.
+3. CORS is limited to the dashboard origin, so browser-side SDK use is blocked.
