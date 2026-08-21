@@ -150,7 +150,7 @@ elif [[ "$AGENT" == "claude" ]]; then
   if $REMOTE_CONTROL; then
     # Remote-control server mode — Claude registers with Anthropic API and
     # waits for connections from claude.ai/code or the Claude mobile app.
-    CMD=(claude remote-control --dangerously-skip-permissions)
+    CMD=(claude remote-control)
     if [[ -n "$SESSION_NAME" ]]; then
       CMD+=(--name "$SESSION_NAME")
     else
