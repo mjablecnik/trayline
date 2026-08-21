@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl wget unzip git ca-certificates gnupg xz-utils \
     clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev \
     ffmpeg libimage-exiftool-perl jq \
+    lld libsqlite3-dev sqlite3 xdg-user-dirs tmux sudo \
+    xvfb xdotool scrot \
     && rm -rf /var/lib/apt/lists/*
 
 # Go
@@ -56,6 +58,9 @@ RUN npm install -g @anthropic-ai/claude-code
 # Cline CLI
 RUN npm install -g cline
 
+# Playwright npm package (browser binary already installed above)
+RUN npm install -g playwright
+
 # Docker CLI (for controlling host Docker)
 # Clean stale lists/keys from prior layers to avoid GPG signature errors
 RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
@@ -88,7 +93,10 @@ RUN CHROMIUM_BIN=$(find /opt/playwright-browsers -name "chrome" -path "*/chrome-
 RUN npx playwright install-deps chromium 2>/dev/null || true
 
 # Non-root user (Claude Code refuses --dangerously-skip-permissions as root)
-RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent 
+RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
+# Allow agent to install packages via sudo (apt-get only)
+RUN echo "agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg" > /etc/sudoers.d/agent \
+    && chmod 0440 /etc/sudoers.d/agent
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/go   
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
@@ -101,8 +109,12 @@ RUN chmod -R a+rX /opt/flutter \
     && cp -r /root/.rustup /home/agent/.rustup \
     && chown -R agent:agent /home/agent
 
-# Ensure ld.lld is available where Flutter expects it (next to clang++ binary)
-RUN ln -sf /usr/bin/ld /usr/lib/llvm-*/bin/ld.lld 2>/dev/null || true
+# Ensure lld and llvm-ar are available where Dart/Flutter native assets expect them
+RUN LLVM_DIR=$(ls -d /usr/lib/llvm-* 2>/dev/null | head -1) \
+    && if [ -n "$LLVM_DIR" ]; then \
+         ln -sf /usr/bin/ld.lld "$LLVM_DIR/bin/ld.lld" 2>/dev/null || true; \
+         ln -sf /usr/bin/llvm-ar "$LLVM_DIR/bin/llvm-ar" 2>/dev/null || true; \
+       fi
 
 ENV PATH="/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
