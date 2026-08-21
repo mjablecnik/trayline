@@ -39,7 +39,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Flutter
-ARG FLUTTER_VERSION=3.46.6
+ARG FLUTTER_VERSION=3.47.1
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 RUN flutter precache && flutter config --no-analytics && dart --disable-analytics
