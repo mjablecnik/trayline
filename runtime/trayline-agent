@@ -6,7 +6,7 @@ PROXY_NAME="trayline-proxy"
 NETWORK_NAME="trayline-net"
 usage() {
   cat <<EOF
-Usage: trayline-agent <kiro|claude|cline> [-p project-dir] [-m model] [-t thinking] [-i] [prompt]
+Usage: trayline-agent <kiro|claude|cline> [remote] [-p project-dir] [-m model] [-t thinking] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
@@ -15,11 +15,15 @@ Commands:
   claude   Run Claude Code agent
   cline    Run Cline CLI agent
 
+Modes:
+  remote   Start Claude in remote-control mode (claude only, accessible from claude.ai/code)
+
 Options:
   -p DIR       Path to project directory (default: current directory)
   -m MODEL     Model to use (e.g. claude-sonnet-4-20250514, default: agent's default)
   -t LEVEL     Thinking/effort level (low, medium, high, xhigh, max)
   -i           Start in interactive mode (no prompt required)
+  -n NAME      Session name for remote-control mode (default: directory basename)
   -h           Show this help
 
 Examples:
@@ -30,6 +34,8 @@ Examples:
   trayline-agent kiro -i                                  # interactive
   trayline-agent claude -p ~/my-project -i                # claude, interactive
   trayline-agent cline -i                                 # cline, interactive
+  trayline-agent claude remote                            # remote-control (foreground)
+  trayline-agent claude remote -p ~/my-project -n "My Proj"  # remote-control with name
 EOF
   exit 0
 }
@@ -43,15 +49,25 @@ if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" && "$AGENT" != "cline" ]]; then
 fi
 
 INTERACTIVE=false
+REMOTE_CONTROL=false
 PROJECT_DIR="$(pwd)"
 MODEL=""
 THINKING=""
+SESSION_NAME=""
+
+# Check if the next argument is "remote" (positional mode selector)
+if [[ "${1:-}" == "remote" ]]; then
+  REMOTE_CONTROL=true
+  shift
+fi
+
 while [[ "${1:-}" == -* ]]; do
   case "$1" in
     -p) PROJECT_DIR="$(cd "$2" && pwd)"; shift 2 ;;
     -m) MODEL="$2"; shift 2 ;;
     -t) THINKING="$2"; shift 2 ;;
     -i) INTERACTIVE=true; shift ;;
+    -n) SESSION_NAME="$2"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -59,7 +75,12 @@ done
 
 PROMPT="$*"
 
-if ! $INTERACTIVE && [[ -z "$PROMPT" ]]; then
+if $REMOTE_CONTROL; then
+  if [[ "$AGENT" != "claude" ]]; then
+    echo "Error: remote-control mode is only supported for claude agent" >&2
+    exit 1
+  fi
+elif ! $INTERACTIVE && [[ -z "$PROMPT" ]]; then
   usage
 fi
 
@@ -126,17 +147,31 @@ elif [[ "$AGENT" == "claude" ]]; then
     -v "${HOME}/.claude":"${AGENT_HOME}/.claude"
     -v "${HOME}/.claude.json":"${AGENT_HOME}/.claude.json"
   )
-  CMD=(claude)
-  if [[ -n "$MODEL" ]]; then
-    CMD+=(--model "$MODEL")
-  fi
-  if [[ -n "$THINKING" ]]; then
-    CMD+=(--effort "$THINKING")
-  fi
-  if $INTERACTIVE; then
-    CMD+=(--dangerously-skip-permissions)
+  if $REMOTE_CONTROL; then
+    # Remote-control server mode — Claude registers with Anthropic API and
+    # waits for connections from claude.ai/code or the Claude mobile app.
+    CMD=(claude remote-control --dangerously-skip-permissions)
+    if [[ -n "$SESSION_NAME" ]]; then
+      CMD+=(--name "$SESSION_NAME")
+    else
+      CMD+=(--name "trayline: $(basename "$PROJECT_DIR")")
+    fi
+    if [[ -n "$MODEL" ]]; then
+      CMD+=(--model "$MODEL")
+    fi
   else
-    CMD+=(--dangerously-skip-permissions -p "$PROMPT")
+    CMD=(claude)
+    if [[ -n "$MODEL" ]]; then
+      CMD+=(--model "$MODEL")
+    fi
+    if [[ -n "$THINKING" ]]; then
+      CMD+=(--effort "$THINKING")
+    fi
+    if $INTERACTIVE; then
+      CMD+=(--dangerously-skip-permissions)
+    else
+      CMD+=(--dangerously-skip-permissions -p "$PROMPT")
+    fi
   fi
 elif [[ "$AGENT" == "cline" ]]; then
   VOLUMES+=(

@@ -167,14 +167,65 @@ _trayline_agent() {
     2)
       _describe 'agent' agents
       ;;
+    3)
+      # After agent name, could be "remote" mode or options/prompt
+      local agent="${words[2]}"
+      if [[ "$agent" == "claude" ]]; then
+        local -a modes
+        modes=(
+          'remote:Start in remote-control mode (accessible from claude.ai/code)'
+        )
+        _describe 'mode' modes
+        _arguments \
+          '-p[Project directory]:directory:_directories' \
+          '-m[Model to use]:model:' \
+          '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
+          '-i[Interactive mode]' \
+          '-n[Session name for remote-control]:name:' \
+          '-h[Show help]' \
+          '*:prompt:'
+      else
+        _arguments \
+          '-p[Project directory]:directory:_directories' \
+          '-m[Model to use]:model:' \
+          '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
+          '-i[Interactive mode]' \
+          '-h[Show help]' \
+          '*:prompt:'
+      fi
+      ;;
     *)
-      _arguments \
-        '-p[Project directory]:directory:_directories' \
-        '-m[Model to use]:model:' \
-        '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
-        '-i[Interactive mode]' \
-        '-h[Show help]' \
-        '*:prompt:'
+      local agent="${words[2]}"
+      local has_remote=false
+      if [[ "${words[3]}" == "remote" ]]; then
+        has_remote=true
+      fi
+
+      if [[ "$agent" == "claude" && "$has_remote" == true ]]; then
+        _arguments \
+          '-p[Project directory]:directory:_directories' \
+          '-m[Model to use]:model:' \
+          '-n[Session name for remote-control]:name:' \
+          '-h[Show help]' \
+          '*:prompt:'
+      elif [[ "$agent" == "claude" ]]; then
+        _arguments \
+          '-p[Project directory]:directory:_directories' \
+          '-m[Model to use]:model:' \
+          '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
+          '-i[Interactive mode]' \
+          '-n[Session name for remote-control]:name:' \
+          '-h[Show help]' \
+          '*:prompt:'
+      else
+        _arguments \
+          '-p[Project directory]:directory:_directories' \
+          '-m[Model to use]:model:' \
+          '-t[Thinking/effort level]:level:(low medium high xhigh max)' \
+          '-i[Interactive mode]' \
+          '-h[Show help]' \
+          '*:prompt:'
+      fi
       ;;
   esac
 }

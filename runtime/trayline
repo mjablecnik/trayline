@@ -40,6 +40,8 @@ Examples:
   trayline agent claude "Fix the bug"
   trayline agent kiro -i
   trayline agent cline -t high "Refactor auth"
+  trayline agent claude remote                    # remote-control mode
+  trayline agent claude remote -p ~/project -n "Proj"
   trayline sync push --verbose
   trayline run processes/8-code-review --var path=. --verbose
   trayline run ./local.yaml --dry-run
