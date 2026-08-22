@@ -50,9 +50,9 @@ Environment variables:
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | Yes (if pipeline uses conditions) | — | API key for OpenRouter LLM requests |
-| `OPENROUTER_MODEL` | No | `openai/gpt-4.1-nano` | LLM model for condition evaluation |
+| `OPENROUTER_MODEL` | No | `openai/gpt-4.1-mini` | LLM model for condition evaluation |
 
-The orchestrator loads `.env` from the current working directory automatically. If the file doesn't exist, it continues with existing environment variables.
+The orchestrator tries `.env` in the current working directory first (development override), then falls back to `~/.trayline/env/orchestrator.env` (the file installed by `setup/install.sh`). If neither exists, it continues with existing environment variables.
 
 ## Pipeline YAML Format
 
@@ -121,6 +121,18 @@ steps:
     project_dir: "/path/to/project"  # optional, defaults to cwd
 ```
 
+### Common Step Fields
+
+Both agent and command steps also accept:
+
+```yaml
+steps:
+  - name: "optional-step"
+    command: "echo hi"
+    skip: "true"       # optional, "true"/"false" (or a {{variable}}) — skips this step when true
+    log: true           # optional, runs the lifecycle log-task (default tasks/update-ai-log) after this step succeeds
+```
+
 ### Step with Condition (gate)
 
 When no `goto` is specified, `true` means continue to the next step, `false` stops the pipeline:
@@ -149,9 +161,29 @@ steps:
       goto: "fix-code"             # jump target (must be a top-level step name)
 ```
 
+### Condition Modes
+
+A `condition` must specify exactly one of `prompt` (LLM-evaluated, shown above), `contains`, `not_contains`, `matches`, or `not_matches`. The latter four are plain string/regex checks against the step output (or `file`, if given) — no LLM call:
+
+```yaml
+steps:
+  - name: "run-tests"
+    command: "go test ./... > test-results.txt 2>&1 || true"
+    condition:
+      not_contains: "FAIL"      # true if the output does NOT contain "FAIL"
+      file: "test-results.txt"  # optional, reads file instead of step output
+```
+
+Same gate/goto semantics as the LLM-based condition above: without `goto`, `true` continues and `false` stops the pipeline; with `goto`, `true` jumps to the target step.
+
+- `contains: "text"` — true if the input contains the substring
+- `not_contains: "text"` — true if the input does not contain the substring
+- `matches: "regex"` — true if the input matches the regex (at least one occurrence)
+- `not_matches: "regex"` — true if the input does not match the regex
+
 ### Loop
 
-Repeats a group of steps with an LLM-based exit condition. The loop runs until the LLM returns `false` or `max_iterations` is reached:
+Repeats a group of steps with an exit condition (LLM prompt or string/regex match, see above). The loop runs until the condition returns `false` or `max_iterations` is reached:
 
 ```yaml
 steps:
@@ -217,11 +249,13 @@ The orchestrator validates the pipeline at parse time and fails fast on:
 - Steps with both `agent` and `command`, or neither
 - Invalid agent type (must be `kiro`, `claude`, or `cline`)
 - Duplicate step names (across entire pipeline including loops)
-- Condition missing `prompt`
+- Condition not specifying exactly one of `prompt`, `contains`, `not_contains`, `matches`, or `not_matches`
+- Invalid regex in `matches`/`not_matches`
 - `goto` referencing a non-existent top-level step
-- Loop missing `max_iterations`, `steps`, or `condition`
+- `goto` inside a loop step's condition (not supported — loop step conditions are gate-only)
+- Loop missing `max_iterations` or `steps`
+- Loop missing a loop-level `condition`, unless at least one step inside it already has its own `condition`
 - `max_iterations` ≤ 0
-- Conditions inside loop steps (not supported)
 
 ## Testing
 
