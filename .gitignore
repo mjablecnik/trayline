@@ -3,6 +3,8 @@
 orchestrator/bin/
 remote/bin/
 remote/.fake-openai-server
+remote/cmd/client/client
+remote/cmd/client/trayline-client
 remote/testing/openai-conformance/.venv/
 remote/testing/openai-conformance/.pytest_cache/
 remote/testing/openai-conformance/**/__pycache__/
@@ -19,7 +21,7 @@ tools/tunnel/**/.env-prod
 
 # Test data
 testdata/
-.agents/tmp/data/
+.agents/tmp/
 
 # Local Playwright browser install (dashboard E2E, sandbox-provisioned)
 .playwright-browsers/
