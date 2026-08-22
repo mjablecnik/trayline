@@ -59,6 +59,15 @@ type Config struct {
 	// remotes by project working copies. Mounted into workflow containers at
 	// the same path so `git pull agent main` works. Empty disables the mount.
 	ReposDir string
+
+	// CookieSecure controls the Secure flag on the session cookie set by
+	// POST /auth/login. True (the default whenever APP_ENV is unset or
+	// anything other than "development") unless explicitly relaxed, per this
+	// project's Core Principle: production is strict, and only a named,
+	// server-side environment setting may relax it — never client input.
+	// Secure cookies cannot be sent over plain http://, which is why local
+	// development needs this escape hatch.
+	CookieSecure bool
 }
 
 // LoadConfig reads environment variables, applies defaults, validates all values,
@@ -234,6 +243,10 @@ func LoadConfig() (*Config, error) {
 
 	// DASHBOARD_ORIGIN (optional; empty disables CORS)
 	cfg.DashboardOrigin = os.Getenv("DASHBOARD_ORIGIN")
+
+	// APP_ENV (optional; only "development" relaxes the session cookie's
+	// Secure flag — unset or any other value stays strict)
+	cfg.CookieSecure = os.Getenv("APP_ENV") != "development"
 
 	// REPOS_DIR (optional; host path to bare git repos mounted into workflow containers)
 	cfg.ReposDir = os.Getenv("REPOS_DIR")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -203,5 +204,40 @@ func TestHandleTerminateProjectSession_RemovesSessionAndReleasesSlotImmediately(
 	}
 	if !cm.TryAcquireSlot() {
 		t.Error("expected the chat slot to be released immediately, but the pool is still exhausted")
+	}
+}
+
+// Security regression: a WebSocket upgrade request carrying a present but
+// WRONG Authorization header used to be treated as "has a header, so skip
+// the post-connect auth challenge" without ever checking the header's
+// value — a full authentication bypass for any client able to set a custom
+// header on the upgrade request. It must now be rejected with 401 before
+// the connection is ever upgraded.
+func TestHandleProjectChat_RejectsInvalidBearerTokenBeforeUpgrade(t *testing.T) {
+	projectsDir := t.TempDir()
+	repoDir := projectsDir + "/myproject"
+	if err := os.MkdirAll(repoDir+"/.git", 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	logger := core.NewLogger("test-token")
+	cfg := &core.Config{APIToken: "correct-token", ProjectsDir: projectsDir}
+	cm := docker.NewContainerManager(noopContainerClient{}, cfg, logger)
+	h := NewProjectAgentHandler(store.NewSessionStore(), cm, logger, cfg, nil)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /projects/{name}/chat", h.HandleProjectChat)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/projects/myproject/chat?agent=claude", nil)
+	req.Header.Set("Authorization", "Bearer wrong-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for invalid bearer token, got %d", resp.StatusCode)
 	}
 }

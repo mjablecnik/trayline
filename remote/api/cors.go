@@ -15,6 +15,12 @@ func CORSMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			// Required for the dashboard's session cookie (see auth.go) to be
+			// sent/received on cross-origin requests. Safe here because
+			// allowedOrigin is always a single, explicitly configured origin
+			// (see core.Config.DashboardOrigin) — never a wildcard or a
+			// reflected request Origin header.
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 
 			if r.Method == http.MethodOptions {

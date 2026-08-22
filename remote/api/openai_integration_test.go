@@ -254,8 +254,9 @@ func newOpenAITestServer(t *testing.T, opts openaiServerOpts) *httptest.Server {
 
 	openaiH := NewOpenAIHandler(NewModelRegistry(opts.modelConfig), opts.runner, logger, opts.taskTimeout)
 
+	authH := NewAuthHandler(testAuthToken, true)
 	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH,
-		pipelineH, specH, workflowH, assistantH, openaiH, testAuthToken, NewRateLimiter(opts.ratePerMin), logger, "")
+		pipelineH, specH, workflowH, assistantH, openaiH, authH, testAuthToken, NewRateLimiter(opts.ratePerMin), logger, "")
 
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)

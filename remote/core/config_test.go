@@ -364,4 +364,56 @@ func TestConfigValidationRejectsInvalidValues(t *testing.T) {
 			t.Fatalf("expected no error even though ASSISTANT_DATA_DIR does not exist on disk (creation deferred to AssistantFolderManager.Init), got: %v", err)
 		}
 	})
+
+	// Security regression: the session cookie's Secure flag must default to
+	// strict (true) whenever APP_ENV is unset or anything other than exactly
+	// "development" — per code-security.md's Core Principle, relaxation must
+	// be explicit and never assumed.
+	t.Run("CookieSecure defaults to true when APP_ENV is unset", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		os.Unsetenv("APP_ENV")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !cfg.CookieSecure {
+			t.Error("expected CookieSecure=true by default")
+		}
+	})
+
+	t.Run("CookieSecure is true for any APP_ENV value other than development", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("APP_ENV", "production")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !cfg.CookieSecure {
+			t.Error("expected CookieSecure=true for APP_ENV=production")
+		}
+	})
+
+	t.Run("CookieSecure is false only when APP_ENV=development", func(t *testing.T) {
+		t.Setenv("APP_PORT", "8080")
+		t.Setenv("API_TOKEN", "test-token")
+		t.Setenv("WORKSPACE_HOST_DIR", "/tmp/workspace")
+		t.Setenv("PROJECTS_DIR", "/tmp")
+		t.Setenv("APP_ENV", "development")
+
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.CookieSecure {
+			t.Error("expected CookieSecure=false for APP_ENV=development")
+		}
+	})
 }

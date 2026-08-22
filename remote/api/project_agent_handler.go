@@ -191,6 +191,19 @@ func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.R
 	model := r.URL.Query().Get("model")
 	system := r.URL.Query().Get("system")
 
+	// CLI clients set a real Authorization header on the upgrade request, so
+	// it can be validated (and rejected with a true HTTP 401) before
+	// upgrading. Browser clients cannot set custom WebSocket headers and
+	// instead authenticate via the post-upgrade handshake in wsAuth below.
+	provided, hasCred := providedToken(r)
+	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
+		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
+			Error:   "UNAUTHORIZED",
+			Message: "invalid token",
+		})
+		return
+	}
+
 	if !h.cm.TryAcquireSlot() {
 		writeJSON(w, http.StatusServiceUnavailable, core.ErrorResponse{
 			Error:   "SERVICE_UNAVAILABLE",
@@ -206,9 +219,9 @@ func (h *ProjectAgentHandler) HandleProjectChat(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Authenticate: first message must be {"type": "auth", "token": "..."}.
-	// CLI clients that send Bearer header in the upgrade request skip this step.
-	if r.Header.Get("Authorization") == "" {
+	// Authenticate: first message must be {"type": "auth", "token": "..."},
+	// for clients that didn't send an Authorization header above.
+	if !hasCred {
 		if !h.wsAuth(conn) {
 			h.cm.ReleaseChatSlot()
 			return
@@ -346,6 +359,19 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 	}
 	sess.ConnMu.Unlock()
 
+	// CLI clients set a real Authorization header on the upgrade request, so
+	// it can be validated (and rejected with a true HTTP 401) before
+	// upgrading. Browser clients cannot set custom WebSocket headers and
+	// instead authenticate via the post-upgrade handshake in wsAuth below.
+	provided, hasCred := providedToken(r)
+	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
+		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
+			Error:   "UNAUTHORIZED",
+			Message: "invalid token",
+		})
+		return
+	}
+
 	// Reconnecting re-acquires a chat slot: disconnecting released it, so a
 	// client coming back must compete for capacity like a new session would.
 	if !h.cm.TryAcquireSlot() {
@@ -376,9 +402,9 @@ func (h *ProjectAgentHandler) HandleProjectChatReconnect(w http.ResponseWriter, 
 		return
 	}
 
-	// Authenticate: first message must be {"type": "auth", "token": "..."}.
-	// CLI clients that send Bearer header in the upgrade request skip this step.
-	if r.Header.Get("Authorization") == "" {
+	// Authenticate: first message must be {"type": "auth", "token": "..."},
+	// for clients that didn't send an Authorization header above.
+	if !hasCred {
 		if !h.wsAuth(conn) {
 			sess.ConnMu.Unlock()
 			h.cm.ReleaseChatSlot()

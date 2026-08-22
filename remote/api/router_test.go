@@ -103,7 +103,8 @@ func newTestRouter(t *testing.T, dashboardOrigin string) (http.Handler, string) 
 	openaiRegistry := NewModelRegistry("")
 	openaiH := NewOpenAIHandler(openaiRegistry, noopRunner{}, logger, time.Minute)
 
-	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, testAuthToken, rl, logger, dashboardOrigin)
+	authH := NewAuthHandler(testAuthToken, true)
+	router := NewRouter(&HealthHandler{}, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, authH, testAuthToken, rl, logger, dashboardOrigin)
 	return router, projectsDir
 }
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -444,8 +443,8 @@ func (h *WorkflowHandler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	// upgrading (Requirement 7.8). Browser clients cannot set custom
 	// WebSocket headers and instead authenticate via the post-upgrade
 	// handshake in wsAuth below — same convention as HandleChat.
-	authHeader := r.Header.Get("Authorization")
-	if bearerTokenInvalid(authHeader, h.config.APIToken) {
+	provided, hasCred := providedToken(r)
+	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",
 			Message: "invalid token",
@@ -461,22 +460,11 @@ func (h *WorkflowHandler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if authHeader == "" && !h.wsAuth(conn) {
+	if !hasCred && !h.wsAuth(conn) {
 		return
 	}
 
 	h.streamLogs(conn, id)
-}
-
-// bearerTokenInvalid reports whether header is a present-but-invalid "Bearer
-// <token>" Authorization header. An absent header is not invalid here — it
-// defers to the post-upgrade auth handshake instead.
-func bearerTokenInvalid(header, expected string) bool {
-	if header == "" {
-		return false
-	}
-	token, ok := strings.CutPrefix(header, "Bearer ")
-	return !ok || !ValidateWSToken(token, expected)
 }
 
 // wsAuth reads the first WebSocket message and validates it as an auth

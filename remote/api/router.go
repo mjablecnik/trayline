@@ -25,6 +25,7 @@ func NewRouter(
 	workflowH *WorkflowHandler,
 	assistantH *AssistantHandler,
 	openaiH *OpenAIHandler,
+	authH *AuthHandler,
 	authToken string,
 	rl *RateLimiter,
 	logger *core.Logger,
@@ -34,6 +35,12 @@ func NewRouter(
 
 	// Health endpoint — no auth, no rate limiting.
 	mux.Handle("GET /health", health)
+
+	// Auth endpoints. Login/logout are exempt from AuthMiddleware (see
+	// auth.go) — a caller with no session yet must be able to reach login.
+	mux.HandleFunc("POST /auth/login", authH.HandleLogin)
+	mux.HandleFunc("POST /auth/logout", authH.HandleLogout)
+	mux.HandleFunc("GET /auth/session", authH.HandleSession)
 
 	// Task endpoints.
 	mux.HandleFunc("POST /run", taskH.HandlePostRun)
