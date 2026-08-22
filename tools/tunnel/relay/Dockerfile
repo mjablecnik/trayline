@@ -8,8 +8,8 @@ RUN apk add --no-cache bash curl \
 
 WORKDIR /app
 
-COPY entrypoint.sh health.sh ./
-RUN chmod +x entrypoint.sh health.sh
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8080
 

@@ -20,7 +20,6 @@ tunnel/
 ├── relay/                        # Fly.io container (chisel server)
 │   ├── Dockerfile
 │   ├── entrypoint.sh
-│   ├── health.sh
 │   ├── fly.toml
 │   ├── .env.example              # Copy to .env and fill in values
 │   ├── .env-prod                 # Production secrets (gitignored)
@@ -136,7 +135,7 @@ Both stop scripts exit cleanly if the container is not running.
 
 ### Check Health
 
-`relay/health.sh` is built into the image (checks whether the `chisel` process is running and prints a JSON status with the matching HTTP status line), but nothing in the image currently invokes it — `entrypoint.sh` never calls it, and `fly.toml`'s `[checks.health]` is a plain TCP probe against port 8080 (the port chisel itself binds), not an HTTP call to this script. It is present but currently unused; see `ISSUES.md`.
+`fly.toml`'s `[checks.health]` is a plain TCP probe against port 8080 (the port chisel itself binds) — there is no separate health-check script or HTTP endpoint.
 
 ## Fly.io Deployment
 
