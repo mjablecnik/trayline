@@ -136,19 +136,7 @@ Both stop scripts exit cleanly if the container is not running.
 
 ### Check Health
 
-The relay's `health.sh` serves a raw HTTP response on request (used by `fly.toml`'s TCP health check, not exposed as a routed HTTP endpoint by default):
-
-```json
-{"chisel": "running"}
-```
-
-or, if the chisel process has died:
-
-```json
-{"chisel": "stopped"}
-```
-
-with HTTP 503.
+`relay/health.sh` is built into the image (checks whether the `chisel` process is running and prints a JSON status with the matching HTTP status line), but nothing in the image currently invokes it — `entrypoint.sh` never calls it, and `fly.toml`'s `[checks.health]` is a plain TCP probe against port 8080 (the port chisel itself binds), not an HTTP call to this script. It is present but currently unused; see `ISSUES.md`.
 
 ## Fly.io Deployment
 
@@ -170,14 +158,11 @@ cd relay
 The deploy script:
 1. Parses the app name from `fly.toml` (`trayline-relay`)
 2. Creates the Fly.io app if it does not exist
-3. Sets secrets from `.env-prod` (skips keys already in `fly.toml [env]`)
-4. Runs `fly deploy`
+3. Resolves the env file — `~/.trayline/env/tunnel-relay.env` if present (installed by `setup/install.sh`), otherwise `relay/.env-prod`
+4. Sets every non-comment, non-blank `KEY=value` line from that file as a secret via `fly secrets import`
+5. Runs `fly deploy`
 
-### Custom Env File
-
-```bash
-DPLOY_ENV_FILE=/path/to/custom.env ./relay/scripts/deploy.sh
-```
+There is no environment variable to point the script at an arbitrary custom env file — the two paths above are the only ones it checks.
 
 ### Point the Home Agent at the Deployed Relay
 
@@ -201,9 +186,9 @@ Common causes:
 - `RELAY_URL` in `home-agent/.env` does not point at a reachable relay address
 - Relay not yet deployed/running
 
-### Health check returns 503 / `{"chisel": "stopped"}`
+### Fly.io health check failing
 
-The chisel process inside that container has exited. Check the container logs for the underlying error (usually an auth failure or the relay being unreachable from the home agent).
+`fly.toml`'s check is a plain TCP probe against port 8080 — it only confirms something is listening, not that chisel's auth succeeded. If it fails, chisel itself has likely exited (crashed or never started); check `fly logs --app trayline-relay` for the underlying error.
 
 ### Trayline traffic not reaching the server
 
