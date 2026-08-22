@@ -443,7 +443,7 @@ func (h *WorkflowHandler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	// upgrading (Requirement 7.8). Browser clients cannot set custom
 	// WebSocket headers and instead authenticate via the post-upgrade
 	// handshake in wsAuth below — same convention as HandleChat.
-	provided, hasCred := providedToken(r)
+	provided, hasCred, _ := providedToken(r)
 	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",

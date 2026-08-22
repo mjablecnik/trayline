@@ -117,11 +117,13 @@ func main() {
 
 	openaiH := api.NewOpenAIHandler(
 		api.NewModelRegistry(os.Getenv("OPENAI_MODELS")), runner, logger, cfg.TaskTimeout)
-	authH := api.NewAuthHandler(cfg.APIToken, cfg.CookieSecure)
+	csrf := api.NewCSRFStore()
+	authH := api.NewAuthHandler(cfg.APIToken, cfg.CookieSecure, csrf)
+	api.SetAllowedWSOrigin(cfg.DashboardOrigin)
 
 	router := api.NewRouter(&api.HealthHandler{}, taskH, sessionH, gitH, envH, projectH,
 		projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, authH,
-		cfg.APIToken, api.NewRateLimiter(cfg.RateLimit), logger, "")
+		cfg.APIToken, csrf, api.NewRateLimiter(cfg.RateLimit), logger, "")
 
 	fmt.Printf("fake-openai-server listening on http://%s (token %q, %d task slots)\n",
 		*addr, token, cfg.MaxConcurrentTasks)

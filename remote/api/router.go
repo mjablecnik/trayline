@@ -27,6 +27,7 @@ func NewRouter(
 	openaiH *OpenAIHandler,
 	authH *AuthHandler,
 	authToken string,
+	csrf *csrfStore,
 	rl *RateLimiter,
 	logger *core.Logger,
 	dashboardOrigin string,
@@ -121,7 +122,7 @@ func NewRouter(
 	mux.HandleFunc("GET /v1/models/{model_id}", openaiH.HandleGetModel)
 
 	// Apply middleware: recovery → CORS → rate limiter → auth → requestID → mux.
-	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, requestIDMiddleware(mux)))))
+	return recoveryMiddleware(logger, CORSMiddleware(dashboardOrigin)(rl.Middleware(AuthMiddleware(authToken, csrf, requestIDMiddleware(mux)))))
 }
 
 // requestIDMiddleware attaches a unique request ID to every request context.

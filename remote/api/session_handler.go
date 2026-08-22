@@ -22,7 +22,7 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: checkWSOrigin,
 }
 
 // SessionHandler handles WebSocket chat session endpoints.
@@ -137,7 +137,7 @@ func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	// it can be validated (and rejected with a true HTTP 401) before
 	// upgrading. Browser clients cannot set custom WebSocket headers and
 	// instead authenticate via the post-upgrade handshake in wsAuth below.
-	provided, hasCred := providedToken(r)
+	provided, hasCred, _ := providedToken(r)
 	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",
@@ -290,7 +290,7 @@ func (h *SessionHandler) HandleChatReconnect(w http.ResponseWriter, r *http.Requ
 	// it can be validated (and rejected with a true HTTP 401) before
 	// upgrading. Browser clients cannot set custom WebSocket headers and
 	// instead authenticate via the post-upgrade handshake in wsAuth below.
-	provided, hasCred := providedToken(r)
+	provided, hasCred, _ := providedToken(r)
 	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",

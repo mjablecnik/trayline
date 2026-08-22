@@ -165,7 +165,7 @@ func (h *AssistantHandler) HandleAssistantChat(w http.ResponseWriter, r *http.Re
 	// it can be validated (and rejected with a true HTTP 401) before
 	// upgrading. Browser clients cannot set custom WebSocket headers and
 	// instead authenticate via the post-upgrade handshake in wsAuth below.
-	provided, hasCred := providedToken(r)
+	provided, hasCred, _ := providedToken(r)
 	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",
@@ -300,7 +300,7 @@ func (h *AssistantHandler) HandleAssistantChatReconnect(w http.ResponseWriter, r
 	// it can be validated (and rejected with a true HTTP 401) before
 	// upgrading. Browser clients cannot set custom WebSocket headers and
 	// instead authenticate via the post-upgrade handshake in wsAuth below.
-	provided, hasCred := providedToken(r)
+	provided, hasCred, _ := providedToken(r)
 	if wsTokenInvalid(provided, hasCred, h.config.APIToken) {
 		writeJSON(w, http.StatusUnauthorized, core.ErrorResponse{
 			Error:   "UNAUTHORIZED",

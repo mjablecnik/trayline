@@ -105,10 +105,12 @@ func main() {
 
 	openaiRegistry := api.NewModelRegistry(os.Getenv("OPENAI_MODELS"))
 	openaiH := api.NewOpenAIHandler(openaiRegistry, cm, logger, cfg.TaskTimeout)
-	authH := api.NewAuthHandler(cfg.APIToken, cfg.CookieSecure)
+	csrf := api.NewCSRFStore()
+	authH := api.NewAuthHandler(cfg.APIToken, cfg.CookieSecure, csrf)
+	api.SetAllowedWSOrigin(cfg.DashboardOrigin)
 
 	rl := api.NewRateLimiter(cfg.RateLimit)
-	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, authH, cfg.APIToken, rl, logger, cfg.DashboardOrigin)
+	router := api.NewRouter(health, taskH, sessionH, gitH, envH, projectH, projectAgentH, pipelineH, specH, workflowH, assistantH, openaiH, authH, cfg.APIToken, csrf, rl, logger, cfg.DashboardOrigin)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

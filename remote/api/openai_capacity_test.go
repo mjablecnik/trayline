@@ -38,7 +38,7 @@ func newCapacityTestServer(t *testing.T, maxConcurrent int, taskTimeout time.Dur
 	// applied manually so the test does not have to construct every handler.
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", openaiH.HandleChatCompletions)
-	handler := AuthMiddleware(testAuthToken, mux)
+	handler := AuthMiddleware(testAuthToken, NewCSRFStore(), mux)
 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -150,7 +150,7 @@ func TestCapacity_SlotsAreReleased(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", openaiH.HandleChatCompletions)
-	srv := httptest.NewServer(AuthMiddleware(testAuthToken, mux))
+	srv := httptest.NewServer(AuthMiddleware(testAuthToken, NewCSRFStore(), mux))
 	t.Cleanup(srv.Close)
 
 	if got := cm.AvailableSlots(); got != 2 {
@@ -194,7 +194,7 @@ func TestCapacity_NoSelfDeadlock(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", openaiH.HandleChatCompletions)
-	srv := httptest.NewServer(AuthMiddleware(testAuthToken, mux))
+	srv := httptest.NewServer(AuthMiddleware(testAuthToken, NewCSRFStore(), mux))
 	t.Cleanup(srv.Close)
 
 	done := make(chan int, 1)

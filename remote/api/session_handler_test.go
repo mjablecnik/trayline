@@ -123,7 +123,10 @@ func TestWsTokenInvalid_ValidCookieOrHeaderIsNotInvalid(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/chat?agent=claude", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "correct-token"})
 
-	provided, hasCred := providedToken(req)
+	provided, hasCred, viaCookie := providedToken(req)
+	if !viaCookie {
+		t.Error("expected providedToken to report the credential came from the session cookie")
+	}
 	if !hasCred {
 		t.Fatal("expected providedToken to report a credential was supplied")
 	}
