@@ -14,6 +14,8 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `API_TOKEN` | — | Yes | Bearer token for API authentication |
 | `WORKSPACE_HOST_DIR` | — | Yes | Host filesystem path to workspace directory (used for Docker volume mounts) |
 | `PROJECTS_DIR` | — | Yes | Directory scanned for dashboard projects (must contain git repos as subdirectories) |
+| `REPOS_DIR` | `~/repos` (auto-detected if it exists) | No | Directory of bare git repos used as remotes by projects; mounted into workflow containers so lifecycle git pull/push works |
+| `ASSISTANT_DATA_DIR` | `{parent of PROJECTS_DIR}/.assistant` | No | Host directory mounted as `/workspace` in personal assistant containers |
 | `APP_PORT` | `8080` | No | Server port |
 | `MAX_CONCURRENT_TASKS` | `2` | No | Maximum concurrent one-shot task containers (1–32) |
 | `MAX_CHAT_SESSIONS` | `4` | No | Maximum concurrent interactive chat sessions (1–32) |

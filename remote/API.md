@@ -641,6 +641,57 @@ ws.send(JSON.stringify({ type: "terminate" }));
 
 ---
 
+## Dashboard-Internal Endpoints
+
+Everything above is the public agent API (task/session + OpenAI-compatible), meant for
+external programmatic use. The server also exposes a second surface used only by the
+`dashboard/` frontend to browse projects, git state, env files, pipelines, specs, and
+workflow runs, and to drive the personal-assistant agent. These use the same Bearer-token
+auth and error envelope as the rest of the API, but request/response bodies aren't
+documented here — see the corresponding handler in `remote/api/` for the exact shape.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/projects` | List known projects |
+| GET | `/projects/{name}` | Get project details |
+| PUT | `/projects/{name}/pin` | Pin a project |
+| DELETE | `/projects/{name}/pin` | Unpin a project |
+| GET | `/projects/{name}/tree/{ref}/{path...}` | Browse a git tree at a ref/path |
+| GET | `/projects/{name}/blob/{ref}/{path...}` | Read a file's content at a ref/path |
+| GET | `/projects/{name}/commits` | List commits |
+| GET | `/projects/{name}/commits/{hash}` | Get a commit's detail/diff |
+| GET | `/projects/{name}/status` | Get git working-tree status |
+| POST | `/projects/{name}/changes/discard` | Discard changes to one file |
+| POST | `/projects/{name}/changes/discard-all` | Discard all working-tree changes |
+| GET | `/projects/{name}/env` | Read the project's `.env` |
+| PUT | `/projects/{name}/env` | Write the project's `.env` |
+| GET | `/projects/{name}/chat` | WebSocket: start a project-scoped agent chat |
+| GET | `/projects/{name}/chat/{id}` | WebSocket: reconnect to a project-scoped chat session |
+| GET | `/projects/{name}/sessions` | List a project's active chat sessions |
+| POST | `/projects/{name}/sessions/{id}/terminate` | Terminate a project chat session |
+| GET | `/projects/{name}/pipelines` | List discoverable pipelines for a project |
+| GET | `/projects/{name}/pipelines/{type}/{pipeline}` | Get one pipeline's detail (YAML) |
+| GET | `/projects/{name}/specs` | List Kiro specs under `.kiro/specs/` |
+| GET | `/workflows` | List active workflow runs across all projects |
+| POST | `/projects/{name}/workflows` | Schedule a workflow run |
+| GET | `/projects/{name}/workflows` | List a project's workflow runs |
+| GET | `/projects/{name}/workflows/{id}` | Get a workflow run's detail |
+| PUT | `/projects/{name}/workflows/{id}` | Edit a scheduled/queued workflow run |
+| DELETE | `/projects/{name}/workflows/{id}` | Cancel a workflow run |
+| POST | `/projects/{name}/workflows/{id}/retry` | Retry a failed workflow run |
+| GET | `/projects/{name}/workflows/{id}/logs` | Stream/read a workflow run's logs |
+| GET | `/assistant/chat` | WebSocket: start a personal-assistant chat session |
+| GET | `/assistant/chat/{id}` | WebSocket: reconnect to an assistant chat session |
+| GET | `/assistant/sessions` | List active assistant sessions |
+| POST | `/assistant/sessions/{id}/terminate` | Terminate an assistant session |
+| GET | `/assistant/prompts` | List saved assistant prompts |
+| GET | `/assistant/prompts/{filename}` | Read a saved prompt |
+| PUT | `/assistant/prompts/{filename}` | Save/update a prompt |
+| DELETE | `/assistant/prompts/{filename}` | Delete a saved prompt |
+| GET | `/assistant/files` / `/assistant/files/{path...}` | Browse the assistant's scratch/data files |
+| GET | `/assistant/files/commits` | List commits in the assistant's data directory |
+| GET | `/assistant/files/status` | Get the assistant's data directory git status |
+
 ## OpenAI-Compatible API
 
 Trayline Server also exposes an OpenAI-compatible surface under `/v1/`, so existing OpenAI SDKs and tools (`openai` Python/JS, LangChain, etc.) can talk to Kiro and Claude Code agents by pointing their `base_url` at this server. Each `/v1/` request maps to a one-shot agent run under the hood — there is no persistent conversation state on the server between calls, so the full message history must be sent with every request (standard OpenAI chat semantics).
