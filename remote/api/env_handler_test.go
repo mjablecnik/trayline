@@ -130,6 +130,63 @@ func TestHandleGetEnv_RejectsPathTraversalName(t *testing.T) {
 	}
 }
 
+func TestHandleGetEnv_RejectsBareDotDotName(t *testing.T) {
+	// Regression test: "..", unlike "../myproject", contains no "/" so it
+	// alone satisfies projectNameRe (^[A-Za-z0-9._-]+$) and used to reach
+	// filepath.Join(projectsDir, "..") unchecked, disclosing .env files
+	// from the parent of projectsDir.
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{".env": "FOO=bar\n"})
+	secretPath := filepath.Join(filepath.Dir(projectsDir), ".env.secret")
+	if err := os.WriteFile(secretPath, []byte("SECRET=leaked\n"), 0o644); err != nil {
+		t.Fatalf("write secret: %v", err)
+	}
+	defer os.Remove(secretPath)
+
+	h := newTestEnvHandler(projectsDir)
+
+	req := httptest.NewRequest(http.MethodGet, "/projects/../env", nil)
+	req.SetPathValue("name", "..")
+	rec := httptest.NewRecorder()
+
+	h.HandleGetEnv(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for bare \"..\" name, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleGetEnv_RejectsBareDotName(t *testing.T) {
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{".env": "FOO=bar\n"})
+	h := newTestEnvHandler(projectsDir)
+
+	req := httptest.NewRequest(http.MethodGet, "/projects/./env", nil)
+	req.SetPathValue("name", ".")
+	rec := httptest.NewRecorder()
+
+	h.HandleGetEnv(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for bare \".\" name, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlePutEnv_RejectsBareDotDotName(t *testing.T) {
+	projectsDir := newTestEnvProject(t, "myproject", map[string]string{".env": "FOO=bar\n"})
+	h := newTestEnvHandler(projectsDir)
+
+	req := putEnvRequest(t, "..", `{"path":".env.pwned","variables":[{"key":"X","value":"y"}]}`)
+	rec := httptest.NewRecorder()
+
+	h.HandlePutEnv(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for bare \"..\" name, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(projectsDir), ".env.pwned")); !os.IsNotExist(err) {
+		t.Fatalf("expected no file written outside projectsDir, stat err = %v", err)
+	}
+}
+
 func putEnvRequest(t *testing.T, name, body string) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut, "/projects/"+name+"/env", bytes.NewBufferString(body))

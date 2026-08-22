@@ -35,7 +35,7 @@ func NewEnvHandler(projectsDir string, logger *core.Logger) *EnvHandler {
 // .agents/MEMORY.md), so each handler that needs project resolution keeps its
 // own minimal copy for now.
 func (h *EnvHandler) resolveProjectPath(name string) (string, error) {
-	if name == "" || !projectNameRe.MatchString(name) {
+	if name == "" || name == "." || name == ".." || !projectNameRe.MatchString(name) {
 		return "", os.ErrNotExist
 	}
 	projectPath := filepath.Join(h.projectsDir, name)
