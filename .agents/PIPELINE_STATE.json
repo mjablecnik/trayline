@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-08-22-0616",
+  "spec": null,
+  "note": "No PIPELINE_STATE.json existed before this run. This was not a formal spec-pipeline run; it was a direct, explicit documentation-review request following an earlier ad-hoc repo-hygiene cleanup session (4 local commits on top of ee6c401, not pushed). impl/build/cases/verify below are marked 'skipped' rather than 'done' because no such phases actually ran against a tracked spec in this repo's .agents/ — only docs ran. See .agents/runs/2026-08-22-0616/05-docs.md for full reasoning.",
+  "target": "trayline (repository root)",
+  "started_at": "2026-08-22T06:16:00Z",
+  "phases": {
+    "impl":   { "status": "skipped", "start_sha": null, "end_sha": null,
+                "issues_opened": 0, "finished_at": null },
+    "build":  { "status": "skipped", "start_sha": null, "end_sha": null,
+                "issues_opened": 0, "finished_at": null },
+    "cases":  { "status": "skipped", "start_sha": null, "end_sha": null,
+                "issues_opened": 0, "finished_at": null },
+    "verify": { "status": "skipped", "start_sha": null, "end_sha": null,
+                "issues_opened": 0, "finished_at": null },
+    "docs":   { "status": "done", "start_sha": "b1d71670af9996433be99b31de81bc3fcbac9e2c", "end_sha": "9c27506c4d6e4f301b36d1ae16364003cdf9f21a",
+                "issues_opened": 2, "finished_at": "2026-08-22T06:45:00Z" },
+    "report": { "status": "pending", "start_sha": null, "end_sha": null,
+                "issues_opened": 0, "finished_at": null }
+  }
+}
