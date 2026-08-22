@@ -2,7 +2,7 @@
 # Copy this file to ~/.trayline/config and fill in your values.
 
 # SSH connection to agent machine (user@host or user@ip)
-AGENT_HOST="martin@192.168.31.65"
+AGENT_HOST="user@your-agent-host"
 
 # Path to bare git repos on agent machine (used as git transport)
 AGENT_REPOS="/home/martin/repos"
