@@ -4,8 +4,8 @@
 	import { t } from '$lib/i18n';
 	import { auth } from '$lib/stores/auth';
 
-	function handleLogout() {
-		auth.logout();
+	async function handleLogout() {
+		await auth.logout();
 		goto(resolve('/'));
 	}
 </script>

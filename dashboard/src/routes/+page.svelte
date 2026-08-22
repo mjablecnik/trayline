@@ -3,7 +3,7 @@
 	import ProjectCard from '$lib/components/ProjectCard.svelte';
 	import TokenEntry from '$lib/components/TokenEntry.svelte';
 	import { t } from '$lib/i18n';
-	import { isAuthenticated } from '$lib/stores/auth';
+	import { isAuthenticated, isCheckingAuth } from '$lib/stores/auth';
 
 	type State =
 		{ status: 'loading' } | { status: 'error' } | { status: 'loaded'; projects: Project[] };
@@ -41,7 +41,14 @@
 	const skeletonKeys = [0, 1, 2, 3, 4, 5];
 </script>
 
-{#if !$isAuthenticated}
+{#if $isCheckingAuth}
+	<div class="flex flex-1 items-center justify-center">
+		<div
+			class="size-6 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500 dark:border-slate-700"
+			aria-hidden="true"
+		></div>
+	</div>
+{:else if !$isAuthenticated}
 	<TokenEntry />
 {:else}
 	<div class="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6">

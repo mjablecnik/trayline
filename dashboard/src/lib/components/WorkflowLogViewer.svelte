@@ -2,7 +2,6 @@
 	import { tick, untrack } from 'svelte';
 	import { buildWorkflowLogWsUrl, type WorkflowStatus } from '$lib/api';
 	import { ansiToHtml } from '$lib/ansi';
-	import { getToken } from '$lib/auth';
 	import { t, type TranslationKey } from '$lib/i18n';
 
 	let {
@@ -123,11 +122,6 @@
 		// new connection. This avoids a visible flash from clearing logText.
 		pendingReplace = true;
 		const socket = new WebSocket(buildWorkflowLogWsUrl(projectName, workflowId));
-
-		socket.onopen = () => {
-			const token = getToken();
-			if (token) socket.send(JSON.stringify({ type: 'auth', token }));
-		};
 
 		socket.onmessage = handleMessage;
 

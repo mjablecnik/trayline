@@ -5,7 +5,6 @@
 	import FileUploadButton from '$lib/components/FileUploadButton.svelte';
 	import StarterPrompts from '$lib/components/StarterPrompts.svelte';
 	import { api, buildAssistantWsUrl, type AssistantSession, type StarterPrompt } from '$lib/api';
-	import { getToken } from '$lib/auth';
 	import { locale, t } from '$lib/i18n';
 	import { assistantStore, type AssistantTab } from '$lib/stores/assistant';
 	import { canSubmitMessage } from '$lib/utils/chat';
@@ -138,11 +137,6 @@
 				? { kind: 'startError', message: $t('assistant.connectionError') }
 				: { kind: 'sessionLost' };
 		}, CONNECT_TIMEOUT_MS);
-
-		socket.onopen = () => {
-			const token = getToken();
-			if (token) socket.send(JSON.stringify({ type: 'auth', token }));
-		};
 
 		socket.onmessage = (event) => {
 			let msg: {

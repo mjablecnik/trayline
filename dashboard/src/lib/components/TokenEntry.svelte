@@ -3,12 +3,22 @@
 	import { auth } from '$lib/stores/auth';
 
 	let value = $state('');
+	let submitting = $state(false);
+	let error = $state(false);
 
-	function handleSubmit(event: SubmitEvent) {
+	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmed = value.trim();
-		if (!trimmed) return;
-		auth.login(trimmed);
+		if (!trimmed || submitting) return;
+		submitting = true;
+		error = false;
+		try {
+			await auth.login(trimmed);
+		} catch {
+			error = true;
+		} finally {
+			submitting = false;
+		}
 	}
 </script>
 
@@ -25,9 +35,13 @@
 			autocomplete="off"
 			class="w-full rounded-md border border-slate-300 px-3 py-2 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
 		/>
+		{#if error}
+			<p class="text-sm text-red-600 dark:text-red-400">{$t('auth.error')}</p>
+		{/if}
 		<button
 			type="submit"
-			class="w-full rounded-md bg-sky-500 px-4 py-2 font-medium text-white transition-colors hover:bg-sky-600"
+			disabled={submitting}
+			class="w-full rounded-md bg-sky-500 px-4 py-2 font-medium text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
 		>
 			{$t('auth.connect')}
 		</button>

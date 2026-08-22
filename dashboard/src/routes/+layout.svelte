@@ -1,9 +1,15 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
 	import ErrorFallback from '$lib/components/ErrorFallback.svelte';
 	import Header from '$lib/components/Header.svelte';
+	import { auth } from '$lib/stores/auth';
 
 	let { children } = $props();
+
+	onMount(() => {
+		auth.init();
+	});
 </script>
 
 <div class="flex h-dvh flex-col overflow-hidden">

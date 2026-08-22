@@ -1,8 +1,10 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
-import { getToken } from '$lib/auth';
+import { getCSRFToken } from '$lib/auth';
 import { auth } from '$lib/stores/auth';
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const BASE_URL = import.meta.env.PUBLIC_API_URL as string;
 
@@ -42,14 +44,15 @@ function encodePath(path: string): string {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-	const token = getToken();
+	const csrfToken = getCSRFToken();
 
 	let res: Response;
 	try {
 		res = await fetch(`${BASE_URL}${path}`, {
 			method,
+			credentials: 'include',
 			headers: {
-				...(token ? { Authorization: `Bearer ${token}` } : {}),
+				...(MUTATING_METHODS.has(method) && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
 				'Content-Type': 'application/json'
 			},
 			body: body !== undefined ? JSON.stringify(body) : undefined
@@ -59,7 +62,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	}
 
 	if (res.status === 401) {
-		auth.logout();
+		await auth.logout();
 		if (browser) await goto(resolve('/'));
 		throw new AuthError();
 	}
