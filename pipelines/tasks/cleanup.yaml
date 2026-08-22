@@ -4,7 +4,7 @@ variables:
 steps:
   - name: "cleanup"
     command: |
-      if [ "{{push}}" = "true" ]; then
+      if [ {{push}} = "true" ]; then
         echo "PUSH_MODE"
       else
         git checkout -- . && git clean -fd && echo "Working tree cleaned."
