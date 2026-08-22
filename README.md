@@ -261,3 +261,17 @@ trayline/
 | `workflows/write-tests` | UI tests → unit tests (6→7). |
 | `workflows/refactoring` | Code review → improvements → security audit → SEO audit (8→9→10→11). |
 | `workflows/maintenance` | Refactoring → write tests → check build → sync docs. |
+
+## Author
+
+Martin Jablečník, website: [www.jablecnik.com](https://www.jablecnik.com), GitHub: [@mjablecnik](https://github.com/mjablecnik)
+
+## Show your support
+
+Give a ⭐️ if this project helped you!
+
+## License
+
+Copyright (C) 2026 Martin Jablečník
+
+This program is licensed under the [GNU General Public License v3.0](LICENSE).
