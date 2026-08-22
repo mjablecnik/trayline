@@ -249,9 +249,6 @@ func ClearAllCheckpoints() {
 			os.Remove(filepath.Join(checkpointDir, e.Name()))
 		}
 	}
-	// Legacy: remove old checkpoint file from .agents/tmp/.
-	// TODO: Remove this after all active projects have migrated to .agents/checkpoints/ (v2.4+).
-	os.Remove(".agents/tmp/.checkpoint")
 }
 
 // SaveFlowCheckpoint writes the current flow state to disk.
@@ -375,15 +372,6 @@ func LoadAllCheckpoints() []*Checkpoint {
 			if err := json.Unmarshal(data, &cp); err != nil {
 				continue
 			}
-			checkpoints = append(checkpoints, &cp)
-		}
-	}
-
-	// Legacy: also check old checkpoint location (.agents/tmp/.checkpoint).
-	// TODO: Remove this after all active projects have migrated to .agents/checkpoints/ (v2.4+).
-	if data, err := os.ReadFile(".agents/tmp/.checkpoint"); err == nil {
-		var cp Checkpoint
-		if err := json.Unmarshal(data, &cp); err == nil {
 			checkpoints = append(checkpoints, &cp)
 		}
 	}
