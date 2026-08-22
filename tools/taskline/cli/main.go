@@ -76,7 +76,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	client := NewClient(cfg.ServerURL, resolveProject(projectFlag))
+	client := NewClient(cfg.ServerURL, resolveProject(projectFlag), cfg.Token)
 	return Execute(rest[0], rest[1:], client, stdout, stderr)
 }
 

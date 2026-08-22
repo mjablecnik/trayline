@@ -15,11 +15,52 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *C
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return srv, NewClient(srv.URL, "proj")
+	return srv, NewClient(srv.URL, "proj", "")
+}
+
+func TestClient_SendsBearerTokenWhenConfigured(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode([]TaskListItem{})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := NewClient(srv.URL, "proj", "secret-token")
+	if _, err := c.ListTasks(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotAuth != "Bearer secret-token" {
+		t.Fatalf("expected Authorization: Bearer secret-token, got %q", gotAuth)
+	}
+}
+
+func TestClient_OmitsAuthHeaderWhenNoTokenConfigured(t *testing.T) {
+	var gotAuth string
+	sawRequest := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawRequest = true
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode([]TaskListItem{})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := NewClient(srv.URL, "proj", "")
+	if _, err := c.ListTasks(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sawRequest {
+		t.Fatalf("expected request to reach server")
+	}
+	if gotAuth != "" {
+		t.Fatalf("expected no Authorization header, got %q", gotAuth)
+	}
 }
 
 func TestNewClient_TrimsTrailingSlash(t *testing.T) {
-	c := NewClient("http://example.com/", "proj")
+	c := NewClient("http://example.com/", "proj", "")
 	if c.baseURL != "http://example.com" {
 		t.Fatalf("expected trailing slash trimmed, got %q", c.baseURL)
 	}
@@ -100,7 +141,7 @@ func TestClient_ProjectNameIsEscapedInPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, "my project/x")
+	c := NewClient(srv.URL, "my project/x", "")
 	if _, err := c.ListTasks(); err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
@@ -408,7 +449,7 @@ func TestClient_Do_EmptySuccessBodySkipsDecode(t *testing.T) {
 
 func TestClient_Do_ConnectionErrorIsWrapped(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	c := NewClient(srv.URL, "proj")
+	c := NewClient(srv.URL, "proj", "")
 	srv.Close() // ensure nothing is listening on this address anymore
 
 	_, err := c.Retry()

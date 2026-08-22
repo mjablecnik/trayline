@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 
@@ -12,12 +13,15 @@ const (
 	defaultPort     = 9090
 	defaultStateDir = "./state/"
 	defaultLogDir   = "./logs/"
+	defaultBindAddr = "127.0.0.1"
 )
 
 // Config holds the server's runtime configuration, loaded from environment
 // variables (optionally populated from a .env file).
 type Config struct {
 	Port         int
+	BindAddr     string
+	Token        string
 	StateDir     string
 	LogDir       string
 	NotifyEmail  string
@@ -40,6 +44,24 @@ func LoadConfig() (Config, error) {
 	port, err := loadPort()
 	if err != nil {
 		return Config{}, err
+	}
+
+	bindAddr := os.Getenv("BIND_ADDR")
+	if bindAddr == "" {
+		bindAddr = defaultBindAddr
+	}
+
+	token := os.Getenv("APP_TOKEN")
+
+	// Every command submitted to this server runs as an arbitrary shell
+	// command with no allowlist (that's the tool's job) — this is only safe
+	// when either the server is unreachable off-host (loopback bind) or every
+	// caller must present a bearer token. Reject any other combination
+	// instead of silently starting exposed and unauthenticated.
+	if !isLoopbackAddr(bindAddr) && token == "" {
+		return Config{}, fmt.Errorf(
+			"BIND_ADDR=%q binds to a non-loopback address but APP_TOKEN is not set: "+
+				"set APP_TOKEN to require a bearer token on every request, or unset BIND_ADDR to bind to 127.0.0.1", bindAddr)
 	}
 
 	stateDir := os.Getenv("STATE_DIR")
@@ -67,6 +89,8 @@ func LoadConfig() (Config, error) {
 
 	return Config{
 		Port:                 port,
+		BindAddr:             bindAddr,
+		Token:                token,
 		StateDir:             stateDir,
 		LogDir:               logDir,
 		NotifyEmail:          notifyEmail,
@@ -77,6 +101,17 @@ func LoadConfig() (Config, error) {
 		SMTPFrom:             smtpFrom,
 		NotificationsEnabled: notificationsEnabled,
 	}, nil
+}
+
+// isLoopbackAddr reports whether addr (a BIND_ADDR value, not a host:port
+// pair) resolves to a loopback-only interface, i.e. unreachable from any
+// other host on the network.
+func isLoopbackAddr(addr string) bool {
+	if addr == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(addr)
+	return ip != nil && ip.IsLoopback()
 }
 
 func loadPort() (int, error) {

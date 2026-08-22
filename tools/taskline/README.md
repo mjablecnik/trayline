@@ -25,8 +25,8 @@ go test ./...
 
 Configuration is via environment variables (optionally loaded from a `.env`
 file in `server/`); see `server/.env.example` for the full list (`APP_PORT`,
-`STATE_DIR`, `LOG_DIR`, and optional SMTP settings for failure notifications).
-Copy it to get started:
+`BIND_ADDR`, `APP_TOKEN`, `STATE_DIR`, `LOG_DIR`, and optional SMTP settings
+for failure notifications). Copy it to get started:
 
 ```bash
 cp .env.example .env
@@ -40,11 +40,20 @@ go run .
 ./bin/taskline-server
 ```
 
-It listens on `APP_PORT` (default `9090`). Every project queue is created
-on-demand — the first task added to (or request for) a project name spins up
-its own `Queue` + `Worker` + log file + state file, and different projects'
-tasks run in parallel while tasks within one project still run sequentially.
-Routes:
+**Security note:** every task submitted to this server runs as an
+unrestricted shell command (`sh -c <command>`) — that's the tool's entire
+job, there is no sandboxing or command allowlist. It listens on `BIND_ADDR`
+(default `127.0.0.1` — loopback-only, unreachable from other hosts) and
+`APP_PORT` (default `9090`). If you set `BIND_ADDR` to anything other than a
+loopback address, you **must** also set `APP_TOKEN`, or the server refuses to
+start — every request except `GET /health` then requires
+`Authorization: Bearer <APP_TOKEN>`. Set `TASKLINE_TOKEN` to the same value
+in the CLI's environment (see below) so it can authenticate.
+
+Every project queue is created on-demand — the first task added to (or
+request for) a project name spins up its own `Queue` + `Worker` + log file +
+state file, and different projects' tasks run in parallel while tasks within
+one project still run sequentially. Routes:
 
 - `GET /health`
 - `GET /projects` — list all known projects with queue state and pending count
@@ -75,7 +84,9 @@ go test ./...
 ```
 
 The CLI talks to the server via `TASKLINE_URL` (default
-`http://localhost:9090`). Every subcommand accepts `--project P`; if omitted,
+`http://localhost:9090`) and, if the server requires one, `TASKLINE_TOKEN`
+(sent as `Authorization: Bearer <token>` on every request — must match the
+server's `APP_TOKEN`). Every subcommand accepts `--project P`; if omitted,
 the project defaults to the basename of the current working directory:
 
 ```bash

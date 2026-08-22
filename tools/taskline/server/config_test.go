@@ -9,7 +9,7 @@ import (
 )
 
 var appEnvVars = []string{
-	"APP_PORT", "STATE_DIR", "LOG_DIR", "NOTIFY_EMAIL",
+	"APP_PORT", "BIND_ADDR", "APP_TOKEN", "STATE_DIR", "LOG_DIR", "NOTIFY_EMAIL",
 	"SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM",
 }
 
@@ -45,6 +45,71 @@ func TestLoadConfig_DefaultPort(t *testing.T) {
 	}
 	if cfg.Port != defaultPort {
 		t.Errorf("expected default port %d, got %d", defaultPort, cfg.Port)
+	}
+}
+
+// Security regression tests for the BIND_ADDR/APP_TOKEN gate: this server
+// executes any submitted command as an unrestricted shell command, so it
+// must never be allowed to start reachable from a non-loopback address
+// without a bearer token configured.
+
+func TestLoadConfig_DefaultBindAddrIsLoopback(t *testing.T) {
+	clearAppEnv(t)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BindAddr != "127.0.0.1" {
+		t.Errorf("expected default bind addr 127.0.0.1, got %q", cfg.BindAddr)
+	}
+	if cfg.Token != "" {
+		t.Errorf("expected no token by default, got %q", cfg.Token)
+	}
+}
+
+func TestLoadConfig_RejectsNonLoopbackBindWithoutToken(t *testing.T) {
+	clearAppEnv(t)
+	withEnv(t, "BIND_ADDR", "0.0.0.0")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("expected error when binding to a non-loopback address without APP_TOKEN")
+	}
+}
+
+func TestLoadConfig_AllowsNonLoopbackBindWithToken(t *testing.T) {
+	clearAppEnv(t)
+	withEnv(t, "BIND_ADDR", "0.0.0.0")
+	withEnv(t, "APP_TOKEN", "secret")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BindAddr != "0.0.0.0" {
+		t.Errorf("expected bind addr 0.0.0.0, got %q", cfg.BindAddr)
+	}
+	if cfg.Token != "secret" {
+		t.Errorf("expected token %q, got %q", "secret", cfg.Token)
+	}
+}
+
+func TestLoadConfig_LocalhostBindAllowedWithoutToken(t *testing.T) {
+	clearAppEnv(t)
+	withEnv(t, "BIND_ADDR", "localhost")
+
+	if _, err := LoadConfig(); err != nil {
+		t.Fatalf("expected \"localhost\" to be treated as loopback, got error: %v", err)
+	}
+}
+
+func TestLoadConfig_IPv6LoopbackAllowedWithoutToken(t *testing.T) {
+	clearAppEnv(t)
+	withEnv(t, "BIND_ADDR", "::1")
+
+	if _, err := LoadConfig(); err != nil {
+		t.Fatalf("expected ::1 to be treated as loopback, got error: %v", err)
 	}
 }
 

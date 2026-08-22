@@ -14,6 +14,7 @@ const defaultServerURL = "http://localhost:9090"
 // variables (optionally populated from a .env file).
 type Config struct {
 	ServerURL string
+	Token     string
 }
 
 // LoadConfig loads and validates the CLI configuration from the process
@@ -30,5 +31,5 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("invalid TASKLINE_URL %q: must start with http:// or https://", url)
 	}
 
-	return Config{ServerURL: url}, nil
+	return Config{ServerURL: url, Token: os.Getenv("TASKLINE_TOKEN")}, nil
 }

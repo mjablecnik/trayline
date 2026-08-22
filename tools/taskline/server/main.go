@@ -44,13 +44,17 @@ func main() {
 	mux := http.NewServeMux()
 	handler.Register(mux)
 
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: mux,
+	if cfg.Token == "" {
+		logWarn("APP_TOKEN not set: every request runs as an arbitrary shell command with no authentication — safe only because BIND_ADDR=%s is loopback-only", cfg.BindAddr)
 	}
 
-	logInfo("server started: port=%d state_dir=%s log_dir=%s notifications=%s projects_restored=%d",
-		cfg.Port, cfg.StateDir, cfg.LogDir, enabledLabel(cfg.NotificationsEnabled), projectsRestored)
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", cfg.BindAddr, cfg.Port),
+		Handler: authMiddleware(cfg.Token, mux),
+	}
+
+	logInfo("server started: bind=%s port=%d state_dir=%s log_dir=%s notifications=%s auth=%s projects_restored=%d",
+		cfg.BindAddr, cfg.Port, cfg.StateDir, cfg.LogDir, enabledLabel(cfg.NotificationsEnabled), enabledLabel(cfg.Token != ""), projectsRestored)
 
 	serveErr := make(chan error, 1)
 	go func() {

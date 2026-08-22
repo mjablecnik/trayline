@@ -110,6 +110,7 @@ type ProjectListItem struct {
 type Client struct {
 	baseURL string
 	project string
+	token   string
 	http    *http.Client
 	// streamHTTP has no timeout, since GetLogs streaming reads run for as
 	// long as the caller keeps the connection open.
@@ -117,11 +118,14 @@ type Client struct {
 }
 
 // NewClient returns a Client targeting baseURL, scoped to project, with a
-// 10-second timeout on non-streaming requests.
-func NewClient(baseURL, project string) *Client {
+// 10-second timeout on non-streaming requests. token is sent as a Bearer
+// Authorization header on every request; pass "" if the server has no
+// APP_TOKEN configured (e.g. default loopback-only deployments).
+func NewClient(baseURL, project, token string) *Client {
 	return &Client{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		project:    project,
+		token:      token,
 		http:       &http.Client{Timeout: requestTimeout},
 		streamHTTP: &http.Client{},
 	}
@@ -131,6 +135,13 @@ func NewClient(baseURL, project string) *Client {
 // escaped for use in a URL path.
 func (c *Client) projectPath(suffix string) string {
 	return "/projects/" + url.PathEscape(c.project) + suffix
+}
+
+// setAuthHeader attaches the Bearer token to req, if one is configured.
+func (c *Client) setAuthHeader(req *http.Request) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 }
 
 // CreateTask sends POST /projects/{project}/tasks.
@@ -276,6 +287,7 @@ func (c *Client) rawRequest(method string, httpClient *http.Client, path string)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
+	c.setAuthHeader(req)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -316,6 +328,7 @@ func (c *Client) do(method, path string, body interface{}, out interface{}) erro
 	if reqBody != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	c.setAuthHeader(req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
