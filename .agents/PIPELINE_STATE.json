@@ -1,9 +1,9 @@
 {
-  "run_id": "2026-08-22-0616",
+  "run_id": "2026-08-22-1337",
   "spec": null,
-  "note": "No PIPELINE_STATE.json existed before this run. This was not a formal spec-pipeline run; it was a direct, explicit documentation-review request following an earlier ad-hoc repo-hygiene cleanup session (4 local commits on top of ee6c401, not pushed). impl/build/cases/verify below are marked 'skipped' rather than 'done' because no such phases actually ran against a tracked spec in this repo's .agents/ — only docs ran. See .agents/runs/2026-08-22-0616/05-docs.md for full reasoning.",
-  "target": "trayline (repository root)",
-  "started_at": "2026-08-22T06:16:00Z",
+  "note": "Ad-hoc security-fix verification pass, not a formal spec pipeline run. A security review earlier this session found and fixed 5 vulnerabilities across remote/, orchestrator/, tools/taskline/ and dashboard/ (commits 2d985f4, 9d0e0dd, f005e14, d9f32d0, ad75f95, 7743953, 80d5e19). No dev-cases catalogue exists for this work, so impl/build/cases below are marked 'skipped' (as the prior 2026-08-22-0616 run also did for its own out-of-band phases) and the launching agent's concrete verification steps were used directly as the use-case catalogue for verify. The previous run's own PIPELINE_STATE.json content (docs phase done, report pending, unrelated repo-hygiene work) has been superseded by this entry; its run report remains at .agents/runs/2026-08-22-0616/05-docs.md untouched.",
+  "target": "remote/, orchestrator/, tools/taskline/, dashboard/ (trayline monorepo, explicit multi-target per the 5 fixes listed)",
+  "started_at": "2026-08-22T13:37:09Z",
   "phases": {
     "impl":   { "status": "skipped", "start_sha": null, "end_sha": null,
                 "issues_opened": 0, "finished_at": null },
@@ -11,10 +11,10 @@
                 "issues_opened": 0, "finished_at": null },
     "cases":  { "status": "skipped", "start_sha": null, "end_sha": null,
                 "issues_opened": 0, "finished_at": null },
-    "verify": { "status": "skipped", "start_sha": null, "end_sha": null,
+    "verify": { "status": "done", "start_sha": "80d5e1974ba35611eeae6cb3123c56e2409bed44", "end_sha": "46d2197b27f91b82bb21579c24ad2719a95c80d0",
+                "issues_opened": 0, "finished_at": "2026-08-22T13:55:00Z" },
+    "docs":   { "status": "pending", "start_sha": null, "end_sha": null,
                 "issues_opened": 0, "finished_at": null },
-    "docs":   { "status": "done", "start_sha": "b1d71670af9996433be99b31de81bc3fcbac9e2c", "end_sha": "9c27506c4d6e4f301b36d1ae16364003cdf9f21a",
-                "issues_opened": 2, "finished_at": "2026-08-22T06:45:00Z" },
     "report": { "status": "pending", "start_sha": null, "end_sha": null,
                 "issues_opened": 0, "finished_at": null }
   }
