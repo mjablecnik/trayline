@@ -13,8 +13,12 @@ func CORSMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			// X-CSRF-Token: required since the dashboard attaches it on every
+			// cookie-authenticated mutating request (see auth.go) — without it
+			// listed here, the browser blocks the preflight and the actual
+			// request never reaches the server at all.
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-CSRF-Token")
 			// Required for the dashboard's session cookie (see auth.go) to be
 			// sent/received on cross-origin requests. Safe here because
 			// allowedOrigin is always a single, explicitly configured origin

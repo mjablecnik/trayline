@@ -41,10 +41,10 @@ func TestCORSMiddleware_AddsHeaders(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
 		t.Errorf("expected Access-Control-Allow-Origin header, got %q", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "GET, POST, PUT, DELETE, OPTIONS" {
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "GET, POST, PUT, PATCH, DELETE, OPTIONS" {
 		t.Errorf("expected Access-Control-Allow-Methods header, got %q", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type" {
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type, X-CSRF-Token" {
 		t.Errorf("expected Access-Control-Allow-Headers header, got %q", got)
 	}
 	if got := rec.Header().Get("Access-Control-Max-Age"); got != "3600" {
