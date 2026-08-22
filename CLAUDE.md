@@ -18,12 +18,14 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 ## Installation
 
 ```bash
-./setup/install.sh              # Full install (Docker + binaries + env + pipelines)
-./setup/install.sh --skip-docker # Skip Docker image builds
+./setup/install.sh              # Full install (Docker images + binaries + env + pipelines + zsh completions)
+./setup/install.sh --skip-docker # Skip building the trayline-sandbox/trayline-server Docker images
 ./setup/install-pipelines.sh    # Pipelines + orchestrator + runtime tools only
-./setup/reinstall.sh            # Clean reinstall (uninstall + install --force)
-./setup/uninstall.sh            # Remove everything
+./setup/reinstall.sh            # Backs up ~/.trayline/env/, runs uninstall.sh then install.sh, restores the backup
+./setup/uninstall.sh            # Removes installed binaries, ~/.trayline/, and completions — does NOT remove the Docker images (rmi manually if needed)
 ```
+
+`install.sh` has no `--force` flag; `reinstall.sh` only forwards its own arguments (e.g. `--skip-docker`) to `install.sh`.
 
 ## Runtime Configuration
 
@@ -63,6 +65,7 @@ cd dashboard && npm run build && npm run check && npm run lint && npm run test
 - `.agents/` — AI agent working files: `MEMORY.md`, `AI_LOG.md`, `tmp/`, `checkpoints/`
 - `setup/config.example` — config template installed to `~/.trayline/config`
 - `~/.trayline/env/` — centralized environment configs for all services (installed by setup/install.sh)
+- Install layout: `install.sh` puts the `trayline` wrapper in `~/bin/`; `trayline-run`, `trayline-agent`, and `sync.sh` in `~/.trayline/`; and `trayline-client`, `taskline`, `taskline-server` in `~/.local/bin/` — not all binaries land under `~/.trayline/`
 - `.gitignore` — build artifact and secret patterns for the current directory layout
 
 ## Agent Providers

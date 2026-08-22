@@ -26,7 +26,7 @@ cline auth clinepass
 ./setup/install.sh
 ```
 
-Builds the Docker image and installs `trayline` to `~/bin` with all internal tools in `~/.trayline/`.
+Builds the `trayline-sandbox` and `trayline-server` Docker images, installs the `trayline` wrapper to `~/bin/`, its supporting tools (`trayline-run`, `trayline-agent`, `sync.sh`) to `~/.trayline/`, and `trayline-client`/`taskline`/`taskline-server` to `~/.local/bin/`.
 
 ## Usage
 
@@ -41,6 +41,7 @@ trayline <command> [options]
 | `agent` | Run an AI agent in a Docker sandbox |
 | `run`   | Run a YAML pipeline (orchestrator) |
 | `flow`  | Run multiple pipelines sequentially (ad-hoc) |
+| `schedule` | Queue a pipeline (or manage the queue) via the local taskline server |
 | `sync`  | Sync project with a remote server via rsync |
 | `install` | Re-run installation |
 | `version` | Print version info |
@@ -58,6 +59,8 @@ trayline agent claude -p ~/my-project -i
 trayline agent claude -p ~/my-project "Fix the tests"
 trayline agent cline -t high "Refactor auth module"
 trayline agent cline -p ~/my-project -i
+trayline agent claude remote                    # remote-control mode (foreground)
+trayline agent claude remote -p ~/my-project -n "My Project"
 ```
 
 Options:
@@ -65,6 +68,9 @@ Options:
 - `-m MODEL` — model to use (overrides agent's default)
 - `-t LEVEL` — thinking/effort level: low, medium, high, xhigh, max (optional)
 - `-i` — interactive mode (opens a chat session)
+- `-n NAME` — session name for remote-control mode (default: project directory basename)
+
+`claude remote` is a separate mode (Claude only): it registers the session with Anthropic's own remote-control service instead of running one-shot or waiting for local input, so it's reachable from claude.ai/code or the Claude mobile app. This is unrelated to trayline's own `remote/` server module below.
 
 ### run
 
@@ -120,6 +126,23 @@ trayline flow processes/8-code-review --var path=. \
 Global flags (`--verbose`, `--dry-run`, `--no-lifecycle`, `--restart`, `--log-llm`) apply to all pipelines in the flow. Lifecycle (sync-pull/push) wraps the entire flow, not each individual pipeline.
 
 Use `flow` for ad-hoc sequences. Use workflows for repeatable sequences with skip flags.
+
+### schedule
+
+Queue a pipeline to run through the local [taskline](tools/taskline/) server instead of running it in the foreground, or manage that queue. Tasks are project-scoped (by the current directory's basename, overridable with `--project`) and run one at a time per project.
+
+```bash
+trayline schedule workflows/feature-impl --var specs-name=010
+trayline schedule list
+trayline schedule status
+trayline schedule logs
+trayline schedule retry
+trayline schedule stop
+trayline schedule cancel <id>
+trayline schedule delete <id>
+```
+
+Requires `taskline-server` running (installed to `~/.local/bin/taskline-server` by `setup/install.sh`, but not started automatically — run it yourself, e.g. `taskline-server &`). Sub-actions (`list`, `status`, `logs`, `retry`, `stop`, `cancel`, `delete`) delegate to the `taskline` CLI; anything else is treated as a pipeline name and queued as `trayline run <pipeline> [--var ...]`.
 
 ### sync
 
