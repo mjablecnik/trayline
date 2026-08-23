@@ -160,6 +160,19 @@ else
   echo "Repos directory not found ($REPOS_DIR), skipping mount."
 fi
 
+# Resolve Fly CLI (flyctl) login token/config directory (only if it exists —
+# same convention as REPOS_DIR above). Passed through as an env var, not a
+# volume: it isn't read by trayline-server itself, only forwarded as the mount
+# source when trayline-server spins up sandbox containers (see
+# remote/docker/container.go).
+FLY_HOST_DIR="${FLY_HOST_DIR:-${HOME}/.fly}"
+if [ -d "$FLY_HOST_DIR" ]; then
+  echo "Fly directory: $FLY_HOST_DIR"
+else
+  echo "Fly directory not found ($FLY_HOST_DIR), skipping mount."
+  FLY_HOST_DIR=""
+fi
+
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
@@ -167,6 +180,7 @@ docker run -d \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   -e TRAYLINE_HOME_DIR="${TRAYLINE_HOME_DIR}" \
   -e REPOS_DIR="${REPOS_DIR}" \
+  -e FLY_HOST_DIR="${FLY_HOST_DIR}" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
   -v "${ASSISTANT_DATA_DIR}:${ASSISTANT_DATA_DIR}" \

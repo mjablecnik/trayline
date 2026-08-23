@@ -37,6 +37,10 @@ type Config struct {
 	ClaudeHostDir string
 	// ClaudeConfigHostFile is the host path to ~/.claude.json (global config/token).
 	ClaudeConfigHostFile string
+	// FlyHostDir is the host path to ~/.fly (flyctl login token/config), mounted
+	// into every agent container regardless of coding agent — flyctl is a deploy
+	// tool available to all of them, not an agent credential.
+	FlyHostDir string
 
 	// ProjectsDir is the host directory scanned for dashboard projects (git repos).
 	ProjectsDir string
@@ -216,6 +220,26 @@ func LoadConfig() (*Config, error) {
 	cfg.KiroCredsHostDir = os.Getenv("KIRO_CREDS_HOST_DIR")
 	cfg.ClaudeHostDir = os.Getenv("CLAUDE_HOST_DIR")
 	cfg.ClaudeConfigHostFile = os.Getenv("CLAUDE_CONFIG_HOST_FILE")
+
+	// FLY_HOST_DIR (optional; host path to ~/.fly, flyctl login token/config).
+	// Unlike Kiro/Claude above, this defaults to ~/.fly (auto-detected if it
+	// exists) rather than requiring an explicit setting — same convention as
+	// REPOS_DIR below. Note: when the server itself runs inside the
+	// trayline-server container (the normal deployment via start-docker.sh),
+	// os.UserHomeDir() here resolves to *that* container's home, not the real
+	// host's — start-docker.sh resolves the true host default and passes it in
+	// explicitly via FLY_HOST_DIR, so this fallback only matters when running
+	// the server binary directly on the host (e.g. local dev).
+	cfg.FlyHostDir = os.Getenv("FLY_HOST_DIR")
+	if cfg.FlyHostDir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidate := filepath.Join(home, ".fly")
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				cfg.FlyHostDir = candidate
+			}
+		}
+	}
+	cfg.FlyHostDir = os.Getenv("FLY_HOST_DIR")
 
 	// PROJECTS_DIR (required)
 	cfg.ProjectsDir = os.Getenv("PROJECTS_DIR")

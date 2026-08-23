@@ -18,6 +18,10 @@ claude login
 # Cline (uses ClinePass provider — $9.99/month subscription for open coding models)
 npm install -g cline
 cline auth clinepass
+
+# Fly CLI (flyctl) — lets agents inside the sandbox deploy/manage apps on fly.io
+curl -L https://fly.io/install.sh | sh
+fly auth login
 ```
 
 ### 2. Run the installer

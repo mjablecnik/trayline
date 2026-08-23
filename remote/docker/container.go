@@ -615,10 +615,22 @@ func (m *ContainerManager) buildContainerEnv() []string {
 	}
 }
 
+// flyBind returns the bind mount for the flyctl login token/config (~/.fly),
+// or nil if FLY_HOST_DIR is not configured. Fly is a deploy tool available to
+// every agent container regardless of which coding agent (kiro/claude) is
+// running, so callers append this independently of the agent switch below.
+func (m *ContainerManager) flyBind(agentHome string) []string {
+	if m.config.FlyHostDir == "" {
+		return nil
+	}
+	return []string{m.config.FlyHostDir + ":" + agentHome + "/.fly"}
+}
+
 // buildContainerBinds constructs the volume bind list for agent containers.
 func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	const agentHome = "/home/agent"
 	binds := []string{m.config.WorkspaceHostDir + ":" + workspaceMount}
+	binds = append(binds, m.flyBind(agentHome)...)
 
 	switch agent {
 	case "kiro":
@@ -649,6 +661,7 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 	const agentHome = "/home/agent"
 	projectHostPath := filepath.Join(m.config.ProjectsDir, projectName)
 	binds := []string{projectHostPath + ":" + workspaceMount}
+	binds = append(binds, m.flyBind(agentHome)...)
 
 	switch agent {
 	case "kiro":
@@ -685,6 +698,7 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 		m.config.AssistantDataDir + ":" + workspaceMount,
 		m.config.ProjectsDir + ":" + "/projects",
 	}
+	binds = append(binds, m.flyBind(agentHome)...)
 
 	switch agent {
 	case "kiro":
@@ -799,6 +813,9 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 	if m.config.KiroCredsHostDir != "" {
 		binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
 	}
+	// Fly CLI login token/config — available regardless of coding agent, so a
+	// pipeline step can run `fly deploy` after the agent step finishes.
+	binds = append(binds, m.flyBind(agentHome)...)
 	return binds
 }
 

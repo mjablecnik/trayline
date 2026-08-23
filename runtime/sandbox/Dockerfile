@@ -71,6 +71,17 @@ RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
     && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
+# Fly CLI (flyctl) — deploy and manage apps on fly.io.
+# Installed system-wide to /usr/local/share/fly (not $HOME/.fly) so both root and the
+# agent user can run it, and so it never collides with the agent's ~/.fly, which holds
+# only the login token/config mounted in from the host (see runtime/trayline-agent and
+# remote/docker/container.go) — the agent never needs to `fly auth login` in-container.
+ENV FLYCTL_INSTALL=/usr/local/share/fly
+RUN curl -L https://fly.io/install.sh | sh -s -- --non-interactive \
+    && ln -sf /usr/local/share/fly/bin/flyctl /usr/local/bin/flyctl \
+    && ln -sf /usr/local/share/fly/bin/fly /usr/local/bin/fly \
+    && chmod -R a+rX /usr/local/share/fly
+
 # Playwright system dependencies (Chromium headless shell)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnspr4 libnss3 libnss3-tools libatk1.0-0t64 libatk-bridge2.0-0t64 \
@@ -97,7 +108,7 @@ RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
 # Allow agent to install packages via sudo (apt-get only)
 RUN echo "agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg" > /etc/sudoers.d/agent \
     && chmod 0440 /etc/sudoers.d/agent
-RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/go   
+RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.fly /home/agent/go
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
     && chmod -R a+w /opt/flutter/bin/cache \

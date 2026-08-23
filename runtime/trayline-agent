@@ -127,6 +127,13 @@ VOLUMES=(
 
 AGENT_HOME="/home/agent"
 
+# Fly CLI (flyctl) is available to every agent, not just one — mount the host's
+# ~/.fly (login token/config) unconditionally so `fly` works without logging in
+# inside the container.
+VOLUMES+=(
+  -v "${HOME}/.fly":"${AGENT_HOME}/.fly"
+)
+
 if [[ "$AGENT" == "kiro" ]]; then
   VOLUMES+=(
     -v "${HOME}/.kiro":"${AGENT_HOME}/.kiro"
