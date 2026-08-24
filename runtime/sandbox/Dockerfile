@@ -61,6 +61,7 @@ RUN curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_
 ENV PATH="/opt/kotlinc/bin:${PATH}"
 # Quarkus CLI (via JBang)
 RUN curl -Ls https://sh.jbang.dev | bash -s - app setup \
+    && /root/.jbang/bin/jbang trust add https://repo1.maven.org/maven2/io/quarkus/quarkus-cli/ \
     && /root/.jbang/bin/jbang app install --fresh --force quarkus@quarkusio \
     && ln -sf /root/.jbang/bin/quarkus /usr/local/bin/quarkus
 # Gradle (Quarkus build tool)
