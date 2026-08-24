@@ -633,11 +633,31 @@ func (m *ContainerManager) flyBind(agentHome string) []string {
 	return []string{m.config.FlyHostDir + ":" + agentHome + "/.fly"}
 }
 
+// sshBind returns the bind mount for SSH keys/config (~/.ssh), read-only,
+// or nil if SSH_HOST_DIR is not configured.
+func (m *ContainerManager) sshBind(agentHome string) []string {
+	if m.config.SSHHostDir == "" {
+		return nil
+	}
+	return []string{m.config.SSHHostDir + ":" + agentHome + "/.ssh:ro"}
+}
+
+// ghBind returns the bind mount for GitHub CLI auth config (~/.config/gh),
+// read-only, or nil if GH_HOST_DIR is not configured.
+func (m *ContainerManager) ghBind(agentHome string) []string {
+	if m.config.GHHostDir == "" {
+		return nil
+	}
+	return []string{m.config.GHHostDir + ":" + agentHome + "/.config/gh:ro"}
+}
+
 // buildContainerBinds constructs the volume bind list for agent containers.
 func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	const agentHome = "/home/agent"
 	binds := []string{m.config.WorkspaceHostDir + ":" + workspaceMount}
 	binds = append(binds, m.flyBind(agentHome)...)
+	binds = append(binds, m.sshBind(agentHome)...)
+	binds = append(binds, m.ghBind(agentHome)...)
 	if m.config.TraylineHomeDir != "" {
 		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
 	}
@@ -672,6 +692,8 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 	projectHostPath := filepath.Join(m.config.ProjectsDir, projectName)
 	binds := []string{projectHostPath + ":" + workspaceMount}
 	binds = append(binds, m.flyBind(agentHome)...)
+	binds = append(binds, m.sshBind(agentHome)...)
+	binds = append(binds, m.ghBind(agentHome)...)
 	if m.config.TraylineHomeDir != "" {
 		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
 	}
@@ -712,6 +734,8 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 		m.config.ProjectsDir + ":" + "/projects",
 	}
 	binds = append(binds, m.flyBind(agentHome)...)
+	binds = append(binds, m.sshBind(agentHome)...)
+	binds = append(binds, m.ghBind(agentHome)...)
 	if m.config.TraylineHomeDir != "" {
 		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
 	}
@@ -833,6 +857,10 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 	// Fly CLI login token/config — available regardless of coding agent, so a
 	// pipeline step can run `fly deploy` after the agent step finishes.
 	binds = append(binds, m.flyBind(agentHome)...)
+	// SSH keys/config and GitHub CLI — available to all containers for git push
+	// and gh commands.
+	binds = append(binds, m.sshBind(agentHome)...)
+	binds = append(binds, m.ghBind(agentHome)...)
 	return binds
 }
 

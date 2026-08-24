@@ -41,6 +41,12 @@ type Config struct {
 	// into every agent container regardless of coding agent — flyctl is a deploy
 	// tool available to all of them, not an agent credential.
 	FlyHostDir string
+	// SSHHostDir is the host path to ~/.ssh (SSH keys and config), mounted
+	// read-only into every agent container so git push over SSH works.
+	SSHHostDir string
+	// GHHostDir is the host path to ~/.config/gh (GitHub CLI auth token/config),
+	// mounted read-only into every agent container so `gh` commands work.
+	GHHostDir string
 
 	// ProjectsDir is the host directory scanned for dashboard projects (git repos).
 	ProjectsDir string
@@ -248,6 +254,30 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 	cfg.FlyHostDir = os.Getenv("FLY_HOST_DIR")
+
+	// SSH_HOST_DIR (optional; host path to ~/.ssh, SSH keys and config).
+	// Auto-detected from ~/.ssh if it exists and env var is not set.
+	cfg.SSHHostDir = os.Getenv("SSH_HOST_DIR")
+	if cfg.SSHHostDir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidate := filepath.Join(home, ".ssh")
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				cfg.SSHHostDir = candidate
+			}
+		}
+	}
+
+	// GH_HOST_DIR (optional; host path to ~/.config/gh, GitHub CLI auth config).
+	// Auto-detected from ~/.config/gh if it exists and env var is not set.
+	cfg.GHHostDir = os.Getenv("GH_HOST_DIR")
+	if cfg.GHHostDir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidate := filepath.Join(home, ".config", "gh")
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				cfg.GHHostDir = candidate
+			}
+		}
+	}
 
 	// PROJECTS_DIR (required)
 	cfg.ProjectsDir = os.Getenv("PROJECTS_DIR")

@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Base tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl wget unzip git ca-certificates gnupg xz-utils \
+    curl wget unzip git ca-certificates gnupg xz-utils openssh-client \
     clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev \
     ffmpeg libimage-exiftool-perl jq \
     lld libsqlite3-dev sqlite3 xdg-user-dirs tmux sudo \
@@ -71,6 +71,14 @@ RUN rm -rf /var/lib/apt/lists/* /etc/apt/keyrings/docker.asc \
     && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
+# GitHub CLI (gh)
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Fly CLI (flyctl) — deploy and manage apps on fly.io.
 # Installed system-wide to /usr/local/share/fly (not $HOME/.fly) so both root and the
 # agent user can run it, and so it never collides with the agent's ~/.fly, which holds
@@ -108,7 +116,7 @@ RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
 # Allow agent to install packages via sudo (apt-get only)
 RUN echo "agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg" > /etc/sudoers.d/agent \
     && chmod 0440 /etc/sudoers.d/agent
-RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.fly /home/agent/go
+RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.fly /home/agent/.ssh /home/agent/.config/gh /home/agent/go
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
     && chmod -R a+w /opt/flutter/bin/cache \
