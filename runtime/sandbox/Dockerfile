@@ -1,4 +1,4 @@
-# Sandboxed dev container with Go, Node, Bun, Flutter, Kiro CLI, Claude Code & Cline CLI
+# Sandboxed dev container with Go, Node, Bun, Flutter, Kotlin/Quarkus, Kiro CLI, Claude Code & Cline CLI
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -43,6 +43,33 @@ ARG FLUTTER_VERSION=3.47.1
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 RUN flutter precache && flutter config --no-analytics && dart --disable-analytics
+
+# Kotlin + Quarkus (requires JDK)
+ARG JAVA_VERSION=21
+ARG KOTLIN_VERSION=2.1.10
+ARG QUARKUS_VERSION=3.21.3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-${JAVA_VERSION}-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+ENV JAVA_HOME="/usr/lib/jvm/java-${JAVA_VERSION}-openjdk-amd64"
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+# Kotlin compiler
+RUN curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" \
+    -o /tmp/kotlin.zip \
+    && unzip -q /tmp/kotlin.zip -d /opt \
+    && rm /tmp/kotlin.zip
+ENV PATH="/opt/kotlinc/bin:${PATH}"
+# Quarkus CLI (via JBang)
+RUN curl -Ls https://sh.jbang.dev | bash -s - app setup \
+    && /root/.jbang/bin/jbang app install --fresh --force quarkus@quarkusio \
+    && ln -sf /root/.jbang/bin/quarkus /usr/local/bin/quarkus
+# Gradle (Quarkus build tool)
+ARG GRADLE_VERSION=8.14.2
+RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+    -o /tmp/gradle.zip \
+    && unzip -q /tmp/gradle.zip -d /opt \
+    && rm /tmp/gradle.zip
+ENV PATH="/opt/gradle-${GRADLE_VERSION}/bin:${PATH}"
 
 # Kiro CLI (manual install – install.sh refuses root)
 RUN curl --proto '=https' --tlsv1.2 -sSf \
@@ -126,6 +153,7 @@ RUN chmod -R a+rX /opt/flutter \
     && mkdir -p /home/agent/.pub-cache \
     && cp -r /root/.cargo /home/agent/.cargo \
     && cp -r /root/.rustup /home/agent/.rustup \
+    && cp -r /root/.jbang /home/agent/.jbang \
     && chown -R agent:agent /home/agent
 
 # Ensure lld and llvm-ar are available where Dart/Flutter native assets expect them
@@ -135,10 +163,11 @@ RUN LLVM_DIR=$(ls -d /usr/lib/llvm-* 2>/dev/null | head -1) \
          ln -sf /usr/bin/llvm-ar "$LLVM_DIR/bin/llvm-ar" 2>/dev/null || true; \
        fi
 
-ENV PATH="/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
+ENV PATH="/home/agent/.jbang/bin:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/kotlinc/bin:/opt/gradle-8.14.2/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 ENV GOPATH="/home/agent/go"
 ENV CARGO_HOME="/home/agent/.cargo"
 ENV RUSTUP_HOME="/home/agent/.rustup"
+ENV JBANG_DIR="/home/agent/.jbang"
 ENV PUB_CACHE="/home/agent/.pub-cache"
 ENV HOME="/home/agent"
 
