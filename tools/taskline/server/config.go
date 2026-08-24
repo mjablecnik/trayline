@@ -12,7 +12,7 @@ import (
 const (
 	defaultPort     = 9090
 	defaultStateDir = "./state/"
-	defaultLogDir   = "./logs/"
+	defaultLogDir   = "./taskline-logs/"
 	defaultBindAddr = "127.0.0.1"
 )
 
