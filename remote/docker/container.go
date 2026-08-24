@@ -607,12 +607,19 @@ func (m *ContainerManager) CaptureContainerOutput(ctx context.Context, container
 
 // buildContainerEnv constructs the environment variable list for agent containers.
 func (m *ContainerManager) buildContainerEnv() []string {
-	return []string{
+	env := []string{
 		dockerHostEnv,
 		"NO_COLOR=1",
 		"TRAYLINE_DIRECT_AGENT=1",
-		"PATH=/home/agent/.trayline:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"PATH=/home/agent/.trayline/bin:/home/agent/.trayline:/home/agent/.cargo/bin:/home/agent/go/bin:/usr/local/go/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 	}
+	if m.config.TasklineURL != "" {
+		env = append(env, "TASKLINE_URL="+m.config.TasklineURL)
+	}
+	if m.config.TasklineToken != "" {
+		env = append(env, "TASKLINE_TOKEN="+m.config.TasklineToken)
+	}
+	return env
 }
 
 // flyBind returns the bind mount for the flyctl login token/config (~/.fly),
@@ -631,6 +638,9 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 	const agentHome = "/home/agent"
 	binds := []string{m.config.WorkspaceHostDir + ":" + workspaceMount}
 	binds = append(binds, m.flyBind(agentHome)...)
+	if m.config.TraylineHomeDir != "" {
+		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
+	}
 
 	switch agent {
 	case "kiro":
@@ -662,6 +672,9 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 	projectHostPath := filepath.Join(m.config.ProjectsDir, projectName)
 	binds := []string{projectHostPath + ":" + workspaceMount}
 	binds = append(binds, m.flyBind(agentHome)...)
+	if m.config.TraylineHomeDir != "" {
+		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
+	}
 
 	switch agent {
 	case "kiro":
@@ -699,6 +712,9 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 		m.config.ProjectsDir + ":" + "/projects",
 	}
 	binds = append(binds, m.flyBind(agentHome)...)
+	if m.config.TraylineHomeDir != "" {
+		binds = append(binds, m.config.TraylineHomeDir+":"+agentHome+"/.trayline:ro")
+	}
 
 	switch agent {
 	case "kiro":
@@ -749,6 +765,7 @@ func (m *ContainerManager) StartAssistantChatContainer(ctx context.Context, agen
 	hostCfg := &container.HostConfig{
 		Binds:      m.BuildAssistantContainerBinds(agent),
 		AutoRemove: false,
+		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 	}
 
 	netCfg := &network.NetworkingConfig{
@@ -839,6 +856,7 @@ func (m *ContainerManager) StartWorkflowContainer(ctx context.Context, projectNa
 	hostCfg := &container.HostConfig{
 		Binds:      m.buildWorkflowContainerBinds(projectName),
 		AutoRemove: false,
+		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 	}
 
 	netCfg := &network.NetworkingConfig{
@@ -889,6 +907,7 @@ func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent,
 	hostCfg := &container.HostConfig{
 		Binds:      m.BuildProjectContainerBinds(agent, projectName),
 		AutoRemove: false,
+		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 	}
 
 	netCfg := &network.NetworkingConfig{
@@ -987,6 +1006,7 @@ func (m *ContainerManager) createContainer(ctx context.Context, agent string, cm
 	hostCfg := &container.HostConfig{
 		Binds:      m.buildContainerBinds(agent),
 		AutoRemove: false,
+		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 	}
 
 	netCfg := &network.NetworkingConfig{

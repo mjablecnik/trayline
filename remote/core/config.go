@@ -55,6 +55,14 @@ type Config struct {
 	// pipeline discovery endpoints and workflow execution.
 	PipelinesDir string
 
+	// TasklineURL is the URL the sandbox agents use to reach the taskline
+	// server running on the host (e.g. http://host.docker.internal:9090).
+	// Injected as TASKLINE_URL into every container. Empty disables.
+	TasklineURL string
+	// TasklineToken is the bearer token agents use to authenticate against
+	// the taskline server. Injected as TASKLINE_TOKEN into every container.
+	TasklineToken string
+
 	// AssistantDataDir is the host directory mounted as /workspace in personal
 	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
 	AssistantDataDir string
@@ -298,6 +306,11 @@ func LoadConfig() (*Config, error) {
 	if cfg.PipelinesDir == "" {
 		cfg.PipelinesDir = filepath.Join(cfg.TraylineHomeDir, "pipelines")
 	}
+
+	// TASKLINE_URL (optional; URL the sandbox agents use to reach taskline server on host)
+	cfg.TasklineURL = os.Getenv("TASKLINE_URL")
+	// TASKLINE_TOKEN (optional; bearer token for taskline server auth)
+	cfg.TasklineToken = os.Getenv("TASKLINE_TOKEN")
 
 	return cfg, nil
 }
