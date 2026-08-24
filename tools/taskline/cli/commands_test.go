@@ -477,11 +477,21 @@ func TestCmdLogs_TailWithoutFollowPrintsContentAndExitsWithoutStreaming(t *testi
 }
 
 func TestCmdLogs_NoFlagsFollowsStreamByDefault(t *testing.T) {
+	var hitTail, hitStream bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/projects/proj/logs/stream" {
-			t.Errorf("expected the stream endpoint to be hit, got %s", r.URL.Path)
+		switch r.URL.Path {
+		case "/projects/proj/logs":
+			hitTail = true
+			if r.URL.Query().Get("tail") != "300" {
+				t.Errorf("expected tail=300, got %q", r.URL.Query().Get("tail"))
+			}
+			fmt.Fprint(w, "history line\n")
+		case "/projects/proj/logs/stream":
+			hitStream = true
+			fmt.Fprint(w, "data: hello world\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		fmt.Fprint(w, "data: hello world\n\n")
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient(srv.URL, "proj", "")
@@ -490,6 +500,15 @@ func TestCmdLogs_NoFlagsFollowsStreamByDefault(t *testing.T) {
 	code := cmdLogs(c, nil, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr=%q)", code, stderr.String())
+	}
+	if !hitTail {
+		t.Error("expected tail endpoint to be hit for history")
+	}
+	if !hitStream {
+		t.Error("expected stream endpoint to be hit")
+	}
+	if !strings.Contains(stdout.String(), "history line") {
+		t.Errorf("expected history content, got %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "hello world") {
 		t.Errorf("expected streamed line, got %q", stdout.String())

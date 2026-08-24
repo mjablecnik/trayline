@@ -275,6 +275,8 @@ func cmdProjects(client *Client, args []string, stdout, stderr io.Writer) int {
 // it follows the log in real time. --tail N (without --follow) prints the
 // last N lines and exits. --follow --tail N prints the last N lines then
 // continues streaming (design.md "taskline logs Command").
+// Default behavior (no flags): prints the last 50 lines of history, then
+// follows the log in real time.
 func cmdLogs(client *Client, args []string, stdout, stderr io.Writer) int {
 	var follow, tailSet bool
 	var tail int
@@ -303,7 +305,12 @@ func cmdLogs(client *Client, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if !tailSet && !follow {
+		// Default: show last 300 lines of history then follow.
 		follow = true
+		tail, tailSet = 300, true
+	} else if follow && !tailSet {
+		// Explicit --follow without --tail: also show recent history.
+		tail, tailSet = 300, true
 	}
 
 	if tailSet {
