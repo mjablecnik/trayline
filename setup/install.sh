@@ -193,6 +193,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Systemd user services
+# ---------------------------------------------------------------------------
+if command -v systemctl &>/dev/null && systemctl --user status &>/dev/null 2>&1; then
+  echo "==> Installing systemd user services..."
+  SYSTEMD_DIR="${HOME}/.config/systemd/user"
+  mkdir -p "$SYSTEMD_DIR"
+
+  sed 's/\r$//' "$SCRIPT_DIR/systemd/taskline-server.service" > "$SYSTEMD_DIR/taskline-server.service"
+
+  systemctl --user daemon-reload
+  systemctl --user enable taskline-server.service
+  echo "    Enabled taskline-server.service (starts on login)"
+  echo "    Start now with: systemctl --user start taskline-server"
+else
+  echo "==> Skipping systemd setup (systemd user session not available)"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

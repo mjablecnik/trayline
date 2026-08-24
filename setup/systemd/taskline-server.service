@@ -1,0 +1,14 @@
+[Unit]
+Description=Taskline Server — task queue for trayline pipelines
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/taskline-server
+EnvironmentFile=%h/.trayline/env/taskline.env
+WorkingDirectory=%h/.trayline
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
