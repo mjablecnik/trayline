@@ -49,8 +49,8 @@ func NewRegistry(stateDir, logDir string, names *NameGenerator, notifier Notifie
 	}
 }
 
-// ValidateProjectName checks a project name against FR-1.5: lowercase
-// alphanumeric characters, hyphens, and underscores, 1-64 characters long.
+// ValidateProjectName checks a project name: letters (any case), digits,
+// hyphens, underscores, and dots are allowed, 1-64 characters long.
 func ValidateProjectName(name string) error {
 	if len(name) == 0 {
 		return fmt.Errorf("project name must not be empty")
@@ -59,11 +59,11 @@ func ValidateProjectName(name string) error {
 		return fmt.Errorf("project name must not exceed 64 characters")
 	}
 	if strings.IndexFunc(name, func(r rune) bool {
-		isLower := r >= 'a' && r <= 'z'
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 		isDigit := r >= '0' && r <= '9'
-		return !isLower && !isDigit && r != '-' && r != '_'
+		return !isLetter && !isDigit && r != '-' && r != '_' && r != '.'
 	}) != -1 {
-		return fmt.Errorf("project name may only contain lowercase letters, digits, hyphens, and underscores")
+		return fmt.Errorf("project name may only contain letters, digits, hyphens, underscores, and dots")
 	}
 	return nil
 }

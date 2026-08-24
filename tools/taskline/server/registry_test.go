@@ -14,7 +14,7 @@ func newTestRegistry(t *testing.T) *Registry {
 }
 
 func TestValidateProjectName_AcceptsWellFormedNames(t *testing.T) {
-	for _, name := range []string{"a", "dashboard", "back-end_2", "123", "a1_2-3"} {
+	for _, name := range []string{"a", "dashboard", "back-end_2", "123", "a1_2-3", "Sinalo", "my.project"} {
 		if err := ValidateProjectName(name); err != nil {
 			t.Errorf("expected %q to be valid, got error: %v", name, err)
 		}
@@ -37,8 +37,16 @@ func TestValidateProjectName_RejectsTooLong(t *testing.T) {
 	}
 }
 
-func TestValidateProjectName_RejectsUppercaseAndSymbols(t *testing.T) {
-	for _, name := range []string{"Dashboard", "back end", "back.end", "back/end"} {
+func TestValidateProjectName_AcceptsUppercaseAndDots(t *testing.T) {
+	for _, name := range []string{"Dashboard", "back.end", "My-Project_1"} {
+		if err := ValidateProjectName(name); err != nil {
+			t.Errorf("expected %q to be valid, got error: %v", name, err)
+		}
+	}
+}
+
+func TestValidateProjectName_RejectsSpacesAndSlashes(t *testing.T) {
+	for _, name := range []string{"back end", "back/end", "back\\end", "hello world"} {
 		if err := ValidateProjectName(name); err == nil {
 			t.Errorf("expected %q to be rejected", name)
 		}
