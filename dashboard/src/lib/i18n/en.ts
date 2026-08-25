@@ -7,6 +7,7 @@ export default {
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Assistant',
 	'nav.workflows': 'Workflows',
+	'nav.worklog': 'Worklog',
 
 	'auth.title': 'Trayline Dashboard',
 	'auth.subtitle': 'Enter your API token to connect.',

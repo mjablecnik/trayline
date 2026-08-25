@@ -9,6 +9,7 @@ const cs: Record<keyof typeof en, string> = {
 	'nav.menu': 'Menu',
 	'nav.assistant': 'Asistent',
 	'nav.workflows': 'Workflows',
+	'nav.worklog': 'Worklog',
 
 	'auth.title': 'Trayline Dashboard',
 	'auth.subtitle': 'Pro připojení zadejte API token.',

@@ -39,6 +39,11 @@
 				<a href={resolve('/assistant')} class={navLinkClass(isAssistantActive)}
 					>{$t('nav.assistant')}</a
 				>
+				<a
+					href="https://worklog.fly.dev/"
+					class="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+					>{$t('nav.worklog')}</a
+				>
 			</nav>
 		</div>
 
@@ -89,6 +94,11 @@
 				href={resolve('/assistant')}
 				class={navLinkClass(isAssistantActive)}
 				onclick={() => (mobileMenuOpen = false)}>{$t('nav.assistant')}</a
+			>
+			<a
+				href="https://worklog.fly.dev/"
+				class="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+				onclick={() => (mobileMenuOpen = false)}>{$t('nav.worklog')}</a
 			>
 			<LanguageSwitcher />
 			{#if $isAuthenticated}
