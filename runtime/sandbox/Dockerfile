@@ -1,4 +1,4 @@
-# Sandboxed dev container with Go, Node, Bun, Flutter, Kotlin/Quarkus, Kiro CLI, Claude Code & Cline CLI
+# Sandboxed dev container with Go, Node, Bun, Flutter, Kotlin/Quarkus, Godot, Kiro CLI, Claude Code & Cline CLI
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -71,6 +71,30 @@ RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSIO
     && unzip -q /tmp/gradle.zip -d /opt \
     && rm /tmp/gradle.zip
 ENV PATH="/opt/gradle-${GRADLE_VERSION}/bin:${PATH}"
+
+# Godot Engine (headless-capable editor + export templates)
+# The standard Linux binary supports `--headless`, so a single build serves both
+# interactive editing (via Xvfb) and CI-style project/export commands. Export
+# templates are needed for `godot --headless --export-release`.
+# Runtime graphics libraries Godot needs even for offscreen/headless rendering.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglu1-mesa libglx-mesa0 libx11-6 libxcursor1 libxinerama1 \
+    libxi6 libxrandr2 libxext6 libudev1 libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+ARG GODOT_VERSION=4.7.1
+RUN curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+      -o /tmp/godot.zip \
+    && unzip -q /tmp/godot.zip -d /tmp/godot \
+    && install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot \
+    && rm -rf /tmp/godot /tmp/godot.zip
+# Export templates (installed into the shared location the agent user reads at runtime)
+RUN curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" \
+      -o /tmp/templates.tpz \
+    && unzip -q /tmp/templates.tpz -d /tmp/templates \
+    && mkdir -p "/opt/godot/export_templates/${GODOT_VERSION}.stable" \
+    && cp -r /tmp/templates/templates/. "/opt/godot/export_templates/${GODOT_VERSION}.stable/" \
+    && chmod -R a+rX /opt/godot \
+    && rm -rf /tmp/templates /tmp/templates.tpz
 
 # Kiro CLI (manual install – install.sh refuses root)
 RUN curl --proto '=https' --tlsv1.2 -sSf \
@@ -145,6 +169,9 @@ RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
 RUN echo "agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg" > /etc/sudoers.d/agent \
     && chmod 0440 /etc/sudoers.d/agent
 RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.fly /home/agent/.ssh /home/agent/.config/gh /home/agent/go
+# Point Godot at the pre-installed export templates (it looks in ~/.local/share/godot)
+RUN mkdir -p /home/agent/.local/share/godot \
+    && ln -sf /opt/godot/export_templates /home/agent/.local/share/godot/export_templates
 # Flutter SDK stays root-owned (read-only for agent); only pub-cache needs write access
 RUN chmod -R a+rX /opt/flutter \
     && chmod -R a+w /opt/flutter/bin/cache \
