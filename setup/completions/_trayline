@@ -161,6 +161,7 @@ _trayline_agent() {
     'kiro:Run Kiro CLI agent'
     'claude:Run Claude Code agent'
     'cline:Run Cline CLI agent'
+    'codex:Run OpenAI Codex CLI agent'
   )
 
   case $CURRENT in
