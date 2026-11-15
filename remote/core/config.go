@@ -79,11 +79,6 @@ type Config struct {
 	// as KiroHostDir / ClaudeHostDir. Auto-detected from ~/.codex if it exists.
 	CodexHostDir string
 
-	// OpenAIAPIKey is the OpenAI API key injected as OPENAI_API_KEY into every
-	// Codex agent container. Used as a fallback when CodexHostDir is not set or
-	// the user authenticates via API key rather than via codex login.
-	OpenAIAPIKey string
-
 	// ReposDir is the host directory containing bare git repositories used as
 	// remotes by project working copies. Mounted into workflow containers at
 	// the same path so `git pull agent main` works. Empty disables the mount.
@@ -364,10 +359,6 @@ func LoadConfig() (*Config, error) {
 			}
 		}
 	}
-
-	// OPENAI_API_KEY (optional; injected as OPENAI_API_KEY into Codex agent containers).
-	// Fallback for users who authenticate via API key rather than codex login.
-	cfg.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
 
 	return cfg, nil
 }

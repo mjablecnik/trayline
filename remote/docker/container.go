@@ -633,9 +633,6 @@ func (m *ContainerManager) buildContainerEnv() []string {
 	if m.config.TasklineToken != "" {
 		env = append(env, "TASKLINE_TOKEN="+m.config.TasklineToken)
 	}
-	if m.config.OpenAIAPIKey != "" {
-		env = append(env, "OPENAI_API_KEY="+m.config.OpenAIAPIKey)
-	}
 	return env
 }
 
