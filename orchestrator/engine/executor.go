@@ -128,7 +128,7 @@ func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model stri
 		args = append(args, prompt)
 	case "codex":
 		bin = "codex"
-		args = []string{"--approval-mode", "full-auto", "-q"}
+		args = []string{"--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox"}
 		if model != "" {
 			args = append(args, "--model", model)
 		}

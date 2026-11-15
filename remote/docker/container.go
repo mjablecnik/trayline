@@ -276,7 +276,7 @@ func buildOneShotCmd(agent, prompt, model, system string) []string {
 		}
 		return wrapWithClaudeCredentialSeed(cmd)
 	case "codex":
-		cmd := []string{"codex", "--approval-mode", "full-auto", "-q", prompt}
+		cmd := []string{"codex", "--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox", prompt}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
 		}
@@ -312,8 +312,9 @@ func buildChatCmd(agent, model, system string) []string {
 		return wrapWithClaudeCredentialSeed(cmd)
 	case "codex":
 		// Codex does not have a persistent interactive mode equivalent to claude's
-		// stream-json protocol; run in full-auto one-shot mode reading prompt from stdin.
-		cmd := []string{"codex", "--approval-mode", "full-auto"}
+		// stream-json protocol; run non-interactively reading the prompt from stdin.
+		// The surrounding Docker container provides the sandbox.
+		cmd := []string{"codex", "--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox"}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
 		}

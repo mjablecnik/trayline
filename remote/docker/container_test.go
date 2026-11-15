@@ -44,6 +44,30 @@ func newOneShotManager(t *testing.T, mock *MockContainerClient, maxSlots int) *C
 
 // --- Property 5: Agent command construction ---
 
+func TestCodexContainerCommands(t *testing.T) {
+	for _, model := range []string{"", "test-model"} {
+		for name, cmd := range map[string][]string{
+			"one-shot": buildOneShotCmd("codex", "Fix tests", model, ""),
+			"chat":     buildChatCmd("codex", model, ""),
+		} {
+			t.Run(name+"/"+model, func(t *testing.T) {
+				if len(cmd) < 4 || cmd[0] != "codex" || cmd[1] != "--no-daemon" || cmd[2] != "exec" {
+					t.Fatalf("expected non-interactive Codex command, got %v", cmd)
+				}
+				if !containsStr(cmd, "--dangerously-bypass-approvals-and-sandbox") {
+					t.Fatalf("container command must bypass inner approvals and sandbox: %v", cmd)
+				}
+				if model != "" && (indexStr(cmd, "--model") < 0 || cmd[indexStr(cmd, "--model")+1] != model) {
+					t.Fatalf("model not forwarded: %v", cmd)
+				}
+				if name == "one-shot" && !containsStr(cmd, "Fix tests") {
+					t.Fatalf("prompt not forwarded: %v", cmd)
+				}
+			})
+		}
+	}
+}
+
 func TestPropertyAgentCommandConstruction(t *testing.T) {
 	t.Run("one-shot kiro", func(t *testing.T) {
 		rapid.Check(t, func(t *rapid.T) {

@@ -209,7 +209,7 @@ elif [[ "$AGENT" == "codex" ]]; then
     )
   fi
   if $INTERACTIVE; then
-    CMD=(codex --no-daemon)
+    CMD=(codex --no-daemon --dangerously-bypass-approvals-and-sandbox)
     if [[ -n "$MODEL" ]]; then
       CMD+=(-m "$MODEL")
     fi
