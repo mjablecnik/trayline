@@ -4,6 +4,8 @@ A Go CLI that reads a YAML pipeline definition and sequentially executes `trayli
 
 Compiles into a single static binary with no runtime dependencies beyond the Go standard library and the `trayline-agent` script on PATH.
 
+For adding an agent, follow the repository-wide [integration guide](../docs/ADDING_AN_AGENT.md), including both YAML validation and wrapper/direct execution.
+
 ## Build
 
 ```bash

@@ -2,6 +2,8 @@
 
 HTTP server exposing REST and WebSocket APIs for programmatic interaction with AI agents (Kiro CLI, Claude Code, and Codex CLI). Manages agent containers via the Docker API, supports one-shot task execution with long polling, and WebSocket-based chat sessions with streaming output. Also exposes an OpenAI-compatible `/v1/chat/completions` + `/v1/models` surface so existing OpenAI SDKs can talk to the same agents — see [API.md](API.md#openai-compatible-api).
 
+For adding an agent, follow the repository-wide [integration guide](../docs/ADDING_AN_AGENT.md), including native/OpenAI API protocols, all chat handlers, credential mounts, and workflow execution.
+
 ## Codex
 
 Codex is available in one-shot tasks, global/project/assistant chat, scheduled YAML workflows, the dashboard, and the OpenAI-compatible API. Use `agent: "codex"` for native endpoints or `model: "codex"` for `/v1/chat/completions`; custom model variants can be configured via `OPENAI_MODELS`. For an existing explicit model list, append `codex:codex:`; installed environment files are preserved during upgrades.

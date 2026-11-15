@@ -2,6 +2,10 @@
 
 Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cline CLI](https://docs.cline.bot), and OpenAI Codex CLI agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
 
+## Developer guides
+
+- [Adding an AI agent](docs/ADDING_AN_AGENT.md): integration map, protocol/authentication decisions, tests, deployment, and completion checklist.
+
 ## Installation
 
 ### 1. Log in on the host (one-time)

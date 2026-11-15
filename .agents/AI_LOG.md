@@ -1,5 +1,10 @@
 # AI Log
 
+## 2026-11-15 — Agent integration guide
+- Added `docs/ADDING_AN_AGENT.md` with the integration contract, file/function map, separate YAML/wrapper/direct execution paths, all credential mounts, native/chat/OpenAI protocols, frontend/client surfaces, test coverage, live smoke checks, deployment and a reusable completion checklist.
+- Added root `AGENTS.md` guidance and linked the maintained guide from README, CLAUDE, orchestrator and remote documentation. Keep the map updated when integration points change.
+- Verified referenced repository paths, local Markdown links, code fences and diff whitespace. Documentation-only change; no runtime tests required.
+
 ## 2026-11-15 — Complete Codex integration
 - Enabled Codex YAML steps, model/effort forwarding (`max` → `xhigh`), native task/chat endpoints, project/assistant chat and dashboard agent selectors. Provider changes clear stale model IDs.
 - Added a sandbox Python adapter for persistent chat using exact-thread `exec resume`, per-message output, interruption, error recovery and structured protocol compatibility. Added native Codex JSONL handling for OpenAI SSE and a default `codex` registry entry.

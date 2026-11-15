@@ -2,6 +2,10 @@
 
 Agent-facing reference for the trayline monorepo. See `README.md` for user-facing docs.
 
+## Adding or extending agents
+
+Follow [docs/ADDING_AN_AGENT.md](docs/ADDING_AN_AGENT.md) and its completion checklist for every new agent or expanded integration. It maps CLI, YAML validation, direct execution, all credential mounts, native/OpenAI API protocols, chat, dashboard, tests and deployment. Update that map when integration points change.
+
 ## Service Directories
 
 | Directory | Purpose |
