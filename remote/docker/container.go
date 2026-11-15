@@ -697,6 +697,10 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 		if m.config.ClaudeConfigHostFile != "" {
 			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
 		}
+	case "codex":
+		if m.config.CodexHostDir != "" {
+			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
+		}
 	}
 
 	return binds
@@ -732,6 +736,10 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 		}
 		if m.config.ClaudeConfigHostFile != "" {
 			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
+		}
+	case "codex":
+		if m.config.CodexHostDir != "" {
+			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
 		}
 	}
 
@@ -774,6 +782,10 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 		}
 		if m.config.ClaudeConfigHostFile != "" {
 			binds = append(binds, m.config.ClaudeConfigHostFile+":"+agentHome+"/.claude.json-src:ro")
+		}
+	case "codex":
+		if m.config.CodexHostDir != "" {
+			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
 		}
 	}
 

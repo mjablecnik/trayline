@@ -73,9 +73,15 @@ type Config struct {
 	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
 	AssistantDataDir string
 
-	// OpenAIAPIKey is the API key injected as OPENAI_API_KEY into every agent
-	// container that uses a Codex agent. Unlike Kiro/Claude, Codex authenticates
-	// via an environment variable rather than credential files on disk.
+	// CodexHostDir is the host path to ~/.codex (auth token + config).
+	// Mounted read-write into every Codex agent container so the CLI can
+	// authenticate without requiring a separate API key env var — same pattern
+	// as KiroHostDir / ClaudeHostDir. Auto-detected from ~/.codex if it exists.
+	CodexHostDir string
+
+	// OpenAIAPIKey is the OpenAI API key injected as OPENAI_API_KEY into every
+	// Codex agent container. Used as a fallback when CodexHostDir is not set or
+	// the user authenticates via API key rather than via codex login.
 	OpenAIAPIKey string
 
 	// ReposDir is the host directory containing bare git repositories used as
@@ -347,7 +353,20 @@ func LoadConfig() (*Config, error) {
 	// TASKLINE_TOKEN (optional; bearer token for taskline server auth)
 	cfg.TasklineToken = os.Getenv("TASKLINE_TOKEN")
 
-	// OPENAI_API_KEY (optional; injected as env var into codex agent containers)
+	// CODEX_HOST_DIR (optional; host path to ~/.codex, auth token + config).
+	// Auto-detected from ~/.codex if it exists and env var is not set.
+	cfg.CodexHostDir = os.Getenv("CODEX_HOST_DIR")
+	if cfg.CodexHostDir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidate := filepath.Join(home, ".codex")
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				cfg.CodexHostDir = candidate
+			}
+		}
+	}
+
+	// OPENAI_API_KEY (optional; injected as OPENAI_API_KEY into Codex agent containers).
+	// Fallback for users who authenticate via API key rather than codex login.
 	cfg.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
 
 	return cfg, nil
