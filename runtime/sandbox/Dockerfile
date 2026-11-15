@@ -22,7 +22,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 # Bun (installed globally so both root and agent can use it)
-RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash
+ARG BUN_VERSION=1.4.4
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local BUN_VERSION=${BUN_VERSION} bash
 ENV PATH="/usr/local/bin:${PATH}"
 
 # Python + uv
@@ -30,7 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/bin/python
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+ARG UV_VERSION=0.12.14
+RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
     && cp /root/.local/bin/uv /usr/local/bin/ \
     && cp /root/.local/bin/uvx /usr/local/bin/
 
@@ -143,11 +145,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # agent user can run it, and so it never collides with the agent's ~/.fly, which holds
 # only the login token/config mounted in from the host (see runtime/trayline-agent and
 # remote/docker/container.go) — the agent never needs to `fly auth login` in-container.
-ENV FLYCTL_INSTALL=/usr/local/share/fly
-RUN curl -L https://fly.io/install.sh | sh -s -- --non-interactive \
-    && ln -sf /usr/local/share/fly/bin/flyctl /usr/local/bin/flyctl \
-    && ln -sf /usr/local/share/fly/bin/fly /usr/local/bin/fly \
-    && chmod -R a+rX /usr/local/share/fly
+ARG FLYCTL_VERSION=0.5.5
+RUN curl -fsSL "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_x86_64.tar.gz" \
+    | tar -xz -C /usr/local/bin flyctl \
+    && ln -sf /usr/local/bin/flyctl /usr/local/bin/fly
 
 # Playwright system dependencies (Chromium headless shell)
 RUN apt-get update && apt-get install -y --no-install-recommends \
