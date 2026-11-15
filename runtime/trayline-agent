@@ -6,7 +6,7 @@ PROXY_NAME="trayline-proxy"
 NETWORK_NAME="trayline-net"
 usage() {
   cat <<EOF
-Usage: trayline-agent <kiro|claude|cline> [remote] [-p project-dir] [-m model] [-t thinking] [-i] [prompt]
+Usage: trayline-agent <kiro|claude|cline|codex> [remote] [-p project-dir] [-m model] [-t thinking] [-i] [prompt]
 
 Run an AI coding agent in a sandboxed Docker container with access to host Docker.
 
@@ -14,6 +14,7 @@ Commands:
   kiro     Run Kiro CLI agent
   claude   Run Claude Code agent
   cline    Run Cline CLI agent
+  codex    Run OpenAI Codex CLI agent
 
 Modes:
   remote   Start Claude in remote-control mode (claude only, accessible from claude.ai/code)
@@ -33,7 +34,8 @@ Examples:
   trayline-agent cline -t high "Refactor auth module"    # cline with high thinking
   trayline-agent kiro -i                                  # interactive
   trayline-agent claude -p ~/my-project -i                # claude, interactive
-  trayline-agent cline -i                                 # cline, interactive
+  trayline-agent codex "Fix the failing tests"       # one-shot
+  trayline-agent codex -i                             # interactive
   trayline-agent claude remote                            # remote-control (foreground)
   trayline-agent claude remote -p ~/my-project -n "My Proj"  # remote-control with name
 EOF
@@ -44,8 +46,8 @@ EOF
 
 AGENT="${1}"; shift
 if [[ "$AGENT" == "-h" || "$AGENT" == "--help" ]]; then usage; fi
-if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" && "$AGENT" != "cline" ]]; then
-  echo "Error: first argument must be 'kiro', 'claude', or 'cline'" >&2; exit 1
+if [[ "$AGENT" != "kiro" && "$AGENT" != "claude" && "$AGENT" != "cline" && "$AGENT" != "codex" ]]; then
+  echo "Error: first argument must be 'kiro', 'claude', 'cline', or 'codex'" >&2; exit 1
 fi
 
 INTERACTIVE=false
@@ -196,9 +198,23 @@ elif [[ "$AGENT" == "cline" ]]; then
   else
     CMD+=(--yolo "$PROMPT")
   fi
+elif [[ "$AGENT" == "codex" ]]; then
+  VOLUMES+=(
+    -v "${HOME}/.codex":"${AGENT_HOME}/.codex"
+  )
+  if $INTERACTIVE; then
+    CMD=(codex)
+    if [[ -n "$MODEL" ]]; then
+      CMD+=(-m "$MODEL")
+    fi
+  else
+    CMD=(codex exec)
+    if [[ -n "$MODEL" ]]; then
+      CMD+=(-m "$MODEL")
+    fi
+    CMD+=(--approve-for-me -s workspace-write "$PROMPT")
+  fi
 fi
-
-# Run sandbox connected to proxy
 # Use -it only when stdin is a TTY (interactive terminal);
 # pipelines and other non-interactive callers get no TTY flags.
 DOCKER_FLAGS=(--rm)
