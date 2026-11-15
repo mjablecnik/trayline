@@ -162,7 +162,17 @@ echo "==> Syncing pipelines..."
 # ---------------------------------------------------------------------------
 if command -v zsh &>/dev/null; then
   echo "==> Installing zsh completions..."
-  ZSH_COMP_DIR="${HOME}/.zsh/completions"
+
+  # When oh-my-zsh is present, install into its custom completions directory
+  # so they are picked up before oh-my-zsh calls compinit. Without this,
+  # completions placed only in ~/.zsh/completions/ are silently ignored because
+  # oh-my-zsh has already initialised the completion system.
+  if [[ -d "${HOME}/.oh-my-zsh" ]]; then
+    ZSH_COMP_DIR="${HOME}/.oh-my-zsh/custom/completions"
+    echo "    oh-my-zsh detected — installing to ${ZSH_COMP_DIR}"
+  else
+    ZSH_COMP_DIR="${HOME}/.zsh/completions"
+  fi
   mkdir -p "$ZSH_COMP_DIR"
 
   sed 's/\r$//' "$SCRIPT_DIR/completions/_trayline" > "$ZSH_COMP_DIR/_trayline"
@@ -170,23 +180,21 @@ if command -v zsh &>/dev/null; then
   sed 's/\r$//' "$REPO_ROOT/tools/taskline/cli/completions/_taskline" > "$ZSH_COMP_DIR/_taskline"
 
   ZSHRC="${HOME}/.zshrc"
-  FPATH_LINE='fpath=(~/.zsh/completions $fpath)'
 
-  if ! grep -qF "$FPATH_LINE" "$ZSHRC" 2>/dev/null; then
-    if grep -q 'source.*oh-my-zsh.sh' "$ZSHRC" 2>/dev/null; then
-      sed -i "/source.*oh-my-zsh.sh/i\\
-# Trayline completions\\
-${FPATH_LINE}" "$ZSHRC"
-      echo "    Inserted fpath before oh-my-zsh in ${ZSHRC}"
-    else
+  if [[ -d "${HOME}/.oh-my-zsh" ]]; then
+    # oh-my-zsh automatically scans $ZSH_CUSTOM/completions — no fpath change needed
+    echo "    Completions installed (oh-my-zsh will load them automatically)"
+  else
+    FPATH_LINE='fpath=(~/.zsh/completions $fpath)'
+    if ! grep -qF "$FPATH_LINE" "$ZSHRC" 2>/dev/null; then
       echo "" >> "$ZSHRC"
       echo "# Trayline completions" >> "$ZSHRC"
       echo "$FPATH_LINE" >> "$ZSHRC"
       echo "autoload -Uz compinit && compinit" >> "$ZSHRC"
       echo "    Added completion setup to ${ZSHRC}"
+    else
+      echo "    Completion fpath already configured"
     fi
-  else
-    echo "    Completion fpath already configured"
   fi
 else
   echo "==> Skipping zsh completions (zsh not found)"
