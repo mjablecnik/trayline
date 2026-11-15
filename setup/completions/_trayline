@@ -1,4 +1,4 @@
-#compdef trayline
+﻿#compdef trayline
 
 # Zsh completion for trayline CLI
 
@@ -40,7 +40,7 @@ _trayline_pipeline_vars() {
   for (( i=1; i <= ${#words[@]}; i++ )); do
     case "${words[$i]}" in
       --then)
-        # New segment starts — reset the pipeline reference
+        # New segment starts â€” reset the pipeline reference
         segment_pipeline=""
         ;;
       --var|--pipeline)
@@ -104,7 +104,7 @@ _trayline_pipeline_vars() {
         search_dir="${typed%/*}"
         file_prefix="${typed%/*}/"
       fi
-      # else: partial filename at root — search_dir stays ".", file_prefix stays ""
+      # else: partial filename at root â€” search_dir stays ".", file_prefix stays ""
     fi
 
     local -a files
@@ -334,7 +334,7 @@ _trayline_schedule() {
         '1:task ID:'
       ;;
     *)
-      # Scheduling a pipeline — complete --var and --project flags
+      # Scheduling a pipeline â€” complete --var and --project flags
       if [[ "$prev" == "--var" ]]; then
         _trayline_pipeline_vars
         return
