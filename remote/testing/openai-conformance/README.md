@@ -30,7 +30,7 @@ For a zero-dependency check (production probes, post-deploy hooks) use
 
 | | fake (default) | live (`--base-url`) |
 |---|---|---|
-| Agent | scripted, in-process | real kiro / claude containers |
+| Agent | scripted, in-process | real kiro / claude / codex containers |
 | Speed | ~50 s | minutes |
 | Cost | none | agent credits |
 | Determinism | total | none — assertions are structural |
@@ -40,6 +40,8 @@ For a zero-dependency check (production probes, post-deploy hooks) use
 handler, registry, composer and SSE writer. Only the container execution layer
 is replaced (`internal/faketest`). So a bug anywhere above the agent boundary is
 caught in fake mode; live mode exists to prove the agent boundary itself works.
+
+Codex is included in the default model list. Codex SSE uses JSONL `item.completed` agent messages; `remote/api/codex_test.go` checks filtering and failed/truncated turns. The persistent native-chat adapter has separate protocol tests: `python -B runtime/sandbox/test_codex_chat.py` from the repository root. These fake tests do not verify provider authentication; use live mode after rebuilding the sandbox and running `codex login` on the host.
 
 ## Driving the fake agent
 

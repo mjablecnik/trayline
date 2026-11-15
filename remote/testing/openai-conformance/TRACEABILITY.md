@@ -160,3 +160,11 @@ Resolved since the first review:
 | Real agent execution | Requires Docker, credentials and credits — `test_live.py`, run manually |
 | Sustained load / soak | Needs a dedicated environment; `k6`/`hey` against a real deployment |
 | Third-party client interop (Cline, Continue, Open WebUI) | Manual, one-off — worth doing now that content parts and the `developer` role are supported |
+
+## Codex integration (2026-11-15)
+
+- Native task acceptance: `remote/api/codex_test.go`, `TestCodexTaskAccepted`.
+- SSE text filtering and failed/truncated JSONL turns: `TestCodexSSEFiltersPrivateEventsAndReportsFailures`.
+- Credential isolation for tasks/project/assistant/workflow containers: `remote/docker/container_test.go`, `TestCodexCredentialsMountedAsReadOnlyAuthFile`.
+- YAML validation and direct execution/model/effort: `orchestrator/core/pipeline_test.go`, `TestParsePipelineCodex`; `orchestrator/engine/executor_test.go`, `TestDirectCodexPassesModelEffortAndSafePrompt`.
+- Chat initialization, exact-thread resume, failure recovery and interruption: `runtime/sandbox/test_codex_chat.py`. These protocol tests use a fake executable, not a live provider.

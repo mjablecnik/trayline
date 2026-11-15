@@ -73,10 +73,9 @@ type Config struct {
 	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
 	AssistantDataDir string
 
-	// CodexHostDir is the host path to ~/.codex (auth token + config).
-	// Mounted read-write into every Codex agent container so the CLI can
-	// authenticate without requiring a separate API key env var — same pattern
-	// as KiroHostDir / ClaudeHostDir. Auto-detected from ~/.codex if it exists.
+	// CodexHostDir is the host path to ~/.codex. Only auth.json is mounted
+	// read-only into agent and workflow containers; config and session files
+	// stay private to each container. Auto-detected from ~/.codex if it exists.
 	CodexHostDir string
 
 	// ReposDir is the host directory containing bare git repositories used as

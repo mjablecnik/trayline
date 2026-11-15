@@ -39,10 +39,8 @@ function createAssistantStore() {
 			update((s) => ({
 				...s,
 				agent,
-				// Claude's model field is easy to forget to fill in; default it to
-				// the recommended model rather than leaving it blank. Only kicks in
-				// when the field is still empty so it never clobbers a user edit.
-				model: agent === 'claude' && !s.model ? 'sonnet' : s.model
+				// Clear provider-specific model IDs when switching agents.
+				model: agent === s.agent ? s.model : agent === 'claude' ? 'sonnet' : ''
 			}));
 		},
 		setModel(model: string) {

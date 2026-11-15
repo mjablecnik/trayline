@@ -22,10 +22,10 @@ import (
 // validateAssistantAgent checks that the agent query parameter is one of the
 // supported agent types. Returns an error response if invalid, or nil if valid.
 func (h *AssistantHandler) validateAssistantAgent(agent string) *core.ErrorResponse {
-	if agent != "kiro" && agent != "claude" {
+	if agent != "kiro" && agent != "claude" && agent != "codex" {
 		return &core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
-			Message: `agent query parameter must be "kiro" or "claude"`,
+			Message: `agent query parameter must be "kiro", "claude", or "codex"`,
 		}
 	}
 	return nil
@@ -376,7 +376,7 @@ func (h *AssistantHandler) streamOutput(ctx context.Context, sessionID string, a
 		return
 	}
 
-	if sess.Agent == "claude" {
+	if sess.Agent == "claude" || sess.Agent == "codex" {
 		pr, pw := io.Pipe()
 		go func() {
 			defer pw.Close()
@@ -451,7 +451,7 @@ func (h *AssistantHandler) streamOutputClaude(ctx context.Context, sessionID str
 			case "control_response":
 				if !initialized {
 					initialized = true
-					h.logger.Info(ctx, fmt.Sprintf("assistant session %s: claude CLI initialized", sessionID))
+					h.logger.Info(ctx, fmt.Sprintf("assistant session %s: structured agent initialized", sessionID))
 				}
 
 			case "system":
@@ -478,6 +478,10 @@ func (h *AssistantHandler) streamOutputClaude(ctx context.Context, sessionID str
 						}
 					}
 				}
+
+			case "error":
+				message, _ := msg["message"].(string)
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "error", Message: message})
 
 			case "result":
 				subtype, _ := msg["subtype"].(string)
@@ -670,7 +674,7 @@ func (h *AssistantHandler) readClient(ctx context.Context, sessionID string, con
 					})
 				}
 				var writeErr error
-				if sess.Agent == "claude" {
+				if sess.Agent == "claude" || sess.Agent == "codex" {
 					userMsg := map[string]interface{}{
 						"type":               "user",
 						"session_id":         nil,

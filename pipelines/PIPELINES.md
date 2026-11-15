@@ -2,6 +2,10 @@
 
 Documentation for the trayline pipeline system — tasks, processes, and workflows that orchestrate AI agent actions.
 
+## Supported agents
+
+YAML agent steps accept `kiro`, `claude`, `cline`, and `codex`. Codex accepts `model` and `effort`; `max` effort maps to `xhigh`. It works both via the Docker CLI runner and directly inside scheduled workflow containers. Existing built-in pipelines retain their configured agents; set `agent: codex` in your own pipeline to use Codex. See [the orchestrator format](../orchestrator/README.md#agent-step) and [CLI usage](../README.md#agent).
+
 ## Structure Overview
 
 ```

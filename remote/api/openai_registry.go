@@ -7,12 +7,12 @@ import (
 )
 
 // defaultModelConfig is used when OPENAI_MODELS is empty or unset.
-const defaultModelConfig = "kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet"
+const defaultModelConfig = "kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet,codex:codex:"
 
 // ModelEntry maps a public model name to internal agent + model combination.
 type ModelEntry struct {
 	ID      string // public name (e.g., "kiro", "claude-sonnet")
-	Agent   string // internal agent ("kiro" or "claude")
+	Agent   string // internal agent ("kiro", "claude", or "codex")
 	Model   string // model variant passed to agent (e.g., "sonnet", "" for default)
 	Created int64  // Unix timestamp (fixed at server start)
 }
@@ -26,7 +26,7 @@ type ModelRegistry struct {
 // NewModelRegistry creates a registry from config.
 // Config format (env var OPENAI_MODELS):
 //
-//	"kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet"
+//	"kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet,codex:codex:"
 //
 // Each entry: "public_name:agent:model_variant" (comma-separated). If config
 // is empty, defaultModelConfig is used.

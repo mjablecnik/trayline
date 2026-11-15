@@ -239,12 +239,19 @@ func (h *OpenAIHandler) handleStreamingChatCompletion(w http.ResponseWriter, r *
 	var streamErr error
 	if entry.Agent == "kiro" {
 		streamErr = streamKiroChunks(ctx, stream.Reader, sseWriter)
+	} else if entry.Agent == "codex" {
+		streamErr = streamCodexChunks(ctx, stream.Reader, sseWriter)
 	} else {
 		streamErr = streamClaudeChunks(ctx, stream.Reader, sseWriter)
 	}
 
-	if _, waitErr := stream.Wait(ctx); waitErr != nil {
+	if exitCode, waitErr := stream.Wait(ctx); waitErr != nil {
 		h.logger.Warn(r.Context(), "openai: streamed container wait error: "+waitErr.Error())
+		if streamErr == nil {
+			streamErr = waitErr
+		}
+	} else if exitCode != 0 && streamErr == nil {
+		streamErr = fmt.Errorf("agent exited with code %d", exitCode)
 	}
 
 	if r.Context().Err() != nil {
@@ -388,4 +395,59 @@ func validateOpenAIChatRequest(req OpenAIChatRequest) (msg string, param *string
 		}
 	}
 	return "", nil
+}
+
+// streamCodexChunks forwards only completed agent messages from Codex JSONL.
+// Reasoning, tool output, and lifecycle records never become assistant text.
+func streamCodexChunks(ctx context.Context, r io.Reader, writer *SSEWriter) error {
+	lines, errors := scanLines(r)
+	completed := false
+	var turnErr error
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case line, ok := <-lines:
+			if !ok {
+				if err := <-errors; err != nil {
+					return err
+				}
+				if turnErr != nil {
+					return turnErr
+				}
+				if !completed {
+					return fmt.Errorf("Codex stream ended without a completed turn")
+				}
+				return nil
+			}
+			var event struct {
+				Type string `json:"type"`
+				Item struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"item"`
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+				Message string `json:"message"`
+			}
+			if json.Unmarshal([]byte(line), &event) != nil {
+				continue
+			}
+			switch event.Type {
+			case "item.completed":
+				if event.Item.Type == "agent_message" && event.Item.Text != "" {
+					if err := writer.WriteChunk(event.Item.Text); err != nil {
+						return err
+					}
+				}
+			case "turn.completed":
+				completed = true
+			case "turn.failed":
+				turnErr = fmt.Errorf("Codex turn failed: %s", event.Error.Message)
+			case "error":
+				turnErr = fmt.Errorf("Codex error: %s", event.Message)
+			}
+		}
+	}
 }

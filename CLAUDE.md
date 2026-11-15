@@ -6,7 +6,7 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 
 | Directory | Purpose |
 |-----------|---------|
-| `runtime/` | CLI wrapper, agent runner (kiro/claude/cline), sync script, sandbox Dockerfile |
+| `runtime/` | CLI wrapper, agent runner (kiro/claude/cline/codex), sync script, sandbox Dockerfile |
 | `orchestrator/` | Go module `orchestrator` — pipeline orchestrator (`trayline-run`) |
 | `remote/` | Go module `remote` — merged agent API server + CLI client (`cmd/server`, `cmd/client`) |
 | `tools/taskline/server/` | Go module `server` — task queue server |
@@ -26,6 +26,8 @@ Agent-facing reference for the trayline monorepo. See `README.md` for user-facin
 ```
 
 `install.sh` has no `--force` flag; `reinstall.sh` only forwards its own arguments (e.g. `--skip-docker`) to `install.sh`.
+
+Zsh completion installation uses `~/.oh-my-zsh/custom/completions` when `~/.oh-my-zsh` exists; otherwise it uses `~/.zsh/completions` and configures `fpath`/`compinit` in `~/.zshrc`. The installer strips CRLF line endings. `_trayline` is BOM-free and includes `codex` in agent completion.
 
 ## Runtime Configuration
 
@@ -73,10 +75,23 @@ cd dashboard && npm run build && npm run check && npm run lint && npm run test
 | Agent | Provider | Model format |
 |-------|----------|--------------|
 | Kiro | Kiro (AWS) | `auto` (recommended — intelligent router) or specific models (see below) |
+| Codex CLI | OpenAI (host `codex login`) | Optional `-m` model ID; otherwise container CLI default |
 | Claude Code | Anthropic (direct) | Aliases (`sonnet`, `opus`, `haiku`, `fable`) or full model IDs (see below) |
 | Cline | **ClinePass** ($9.99/mo subscription) | `cline-pass/<model>` (e.g. `cline-pass/deepseek-v4-pro`, `cline-pass/qwen3.7-max`, `cline-pass/kimi-k3`) |
 
 Cline is always authenticated via `cline auth clinepass`. Credentials are stored in `~/.cline/` and mounted into the sandbox container.
+
+### Codex execution
+
+Install `@openai/codex` and run `codex login` on the host. Codex is supported in CLI runs, YAML agent steps, scheduled workflows, remote tasks and global/project/assistant chat, dashboard selectors, and the default OpenAI model registry (`codex:codex:`).
+
+- CLI, server, and workflow containers mount only `~/.codex/auth.json` read-only at `/home/agent/.codex/auth.json`. Never mount host config, `tmp/` symlinks, or shared session databases. `CODEX_HOST_DIR` selects the source directory on the server; `start-docker.sh` resolves it on the host.
+- Execution uses `--no-daemon --dangerously-bypass-approvals-and-sandbox` inside Docker; one-shot tasks use `exec --skip-git-repo-check`. Trayline does not forward `OPENAI_API_KEY`.
+- CLI `-m` / YAML `model` select the model; `-t` / `effort` set `model_reasoning_effort`. `max` maps to `xhigh`; omission preserves the Codex default.
+- Remote chat runs `runtime/sandbox/codex-chat.py`, installed in the sandbox image as `/usr/local/bin/trayline-codex-chat`. It adapts Codex JSONL to the existing structured chat protocol and resumes the exact thread on follow-up turns. SIGINT interrupts the active child without killing the bridge. Reattachment uses the same live container and thread; session files stay private inside that container.
+- System instructions become Codex `developer_instructions` config. OpenAI SSE forwards only completed `agent_message` items, filters reasoning/tool output, and reports failed or truncated turns. Chat likewise streams completed message events rather than token deltas.
+- Rebuild the sandbox image and server/binaries after updating; an old image lacks the bridge. See [sandbox version defaults](README.md#sandbox-tool-versions).
+- Bridge tests: `python -B runtime/sandbox/test_codex_chat.py` (fake Codex executable; no login/network required).
 
 ### Kiro Models
 
@@ -191,3 +206,4 @@ The `effort` field in pipeline YAML (or `-t` flag in `trayline-agent`) controls 
 | Kiro | Uses last saved preference (factory default: `high`) |
 | Claude Code | Adaptive — model decides itself based on complexity |
 | Cline | `medium` |
+| Codex | CLI default when omitted; `max` maps to `xhigh` |

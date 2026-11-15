@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -276,11 +277,15 @@ func buildOneShotCmd(agent, prompt, model, system string) []string {
 		}
 		return wrapWithClaudeCredentialSeed(cmd)
 	case "codex":
-		cmd := []string{"codex", "--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox", prompt}
+		cmd := []string{"codex", "--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
 		}
-		return cmd
+		if system != "" {
+			value, _ := json.Marshal(system)
+			cmd = append(cmd, "-c", "developer_instructions="+string(value))
+		}
+		return append(cmd, "--", prompt)
 	default:
 		return nil
 	}
@@ -311,12 +316,12 @@ func buildChatCmd(agent, model, system string) []string {
 		}
 		return wrapWithClaudeCredentialSeed(cmd)
 	case "codex":
-		// Codex does not have a persistent interactive mode equivalent to claude's
-		// stream-json protocol; run non-interactively reading the prompt from stdin.
-		// The surrounding Docker container provides the sandbox.
-		cmd := []string{"codex", "--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox"}
+		cmd := []string{"python3", "/usr/local/bin/trayline-codex-chat"}
 		if model != "" {
 			cmd = append(cmd, "--model", model)
+		}
+		if system != "" {
+			cmd = append(cmd, "--system", system)
 		}
 		return cmd
 	default:
@@ -406,7 +411,18 @@ func (m *ContainerManager) RunOneShotStreaming(ctx context.Context, agent, promp
 	}
 	// Claude uses NDJSON stream-json mode (no TTY needed, demuxed via stdcopy).
 	// Kiro uses interactive plain-text mode (needs TTY for output flushing, raw reader).
-	useTTY := agent != "claude"
+	if agent == "codex" {
+		// Insert before the explicit prompt separator, including flag-like prompts.
+		for i, arg := range cmd {
+			if arg == "--" {
+				cmd = append(cmd, "")
+				copy(cmd[i+1:], cmd[i:])
+				cmd[i] = "--json"
+				break
+			}
+		}
+	}
+	useTTY := agent != "claude" && agent != "codex"
 	containerID, err := m.createContainer(timeoutCtx, agent, cmd, false, useTTY)
 	if err != nil {
 		m.releaseSlot()
@@ -512,9 +528,9 @@ func (s *OneShotStream) Close(ctx context.Context) {
 // The caller must also call ReleaseChatSlot and StopAndRemoveContainer when the session ends.
 func (m *ContainerManager) StartChatContainer(ctx context.Context, agent, model, system string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
-	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Claude and the Codex adapter use structured NDJSON (no TTY).
 	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
-	useTTY := agent != "claude"
+	useTTY := agent != "claude" && agent != "codex"
 	containerID, err := m.createContainer(ctx, agent, cmd, true, useTTY)
 	if err != nil {
 		return "", err
@@ -639,7 +655,7 @@ func (m *ContainerManager) buildContainerEnv() []string {
 
 // flyBind returns the bind mount for the flyctl login token/config (~/.fly),
 // or nil if FLY_HOST_DIR is not configured. Fly is a deploy tool available to
-// every agent container regardless of which coding agent (kiro/claude) is
+// every agent container regardless of which coding agent is
 // running, so callers append this independently of the agent switch below.
 func (m *ContainerManager) flyBind(agentHome string) []string {
 	if m.config.FlyHostDir == "" {
@@ -697,7 +713,7 @@ func (m *ContainerManager) buildContainerBinds(agent string) []string {
 		}
 	case "codex":
 		if m.config.CodexHostDir != "" {
-			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
+			binds = append(binds, filepath.Join(m.config.CodexHostDir, "auth.json")+":"+agentHome+"/.codex/auth.json:ro")
 		}
 	}
 
@@ -737,7 +753,7 @@ func (m *ContainerManager) BuildProjectContainerBinds(agent, projectName string)
 		}
 	case "codex":
 		if m.config.CodexHostDir != "" {
-			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
+			binds = append(binds, filepath.Join(m.config.CodexHostDir, "auth.json")+":"+agentHome+"/.codex/auth.json:ro")
 		}
 	}
 
@@ -783,7 +799,7 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 		}
 	case "codex":
 		if m.config.CodexHostDir != "" {
-			binds = append(binds, m.config.CodexHostDir+":"+agentHome+"/.codex")
+			binds = append(binds, filepath.Join(m.config.CodexHostDir, "auth.json")+":"+agentHome+"/.codex/auth.json:ro")
 		}
 	}
 
@@ -796,21 +812,21 @@ func (m *ContainerManager) BuildAssistantContainerBinds(agent string) []string {
 // Does NOT start the container — caller must attach then start.
 func (m *ContainerManager) StartAssistantChatContainer(ctx context.Context, agent, model, system, sessionID string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
-	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Claude and the Codex adapter use structured NDJSON (no TTY).
 	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
-	useTTY := agent != "claude"
+	useTTY := agent != "claude" && agent != "codex"
 
 	containerName := m.resolveAssistantContainerName(ctx, sessionID)
 
 	cfg := &container.Config{
 		Image:       SandboxImage,
+		WorkingDir:  workspaceMount,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
 		Tty:         useTTY,
 		AttachStdin: true,
 		OpenStdin:   true,
 		StdinOnce:   false,
-		WorkingDir:  workspaceMount, // /workspace = ASSISTANT_DATA_DIR
 	}
 
 	hostCfg := &container.HostConfig{
@@ -881,6 +897,9 @@ func (m *ContainerManager) buildWorkflowContainerBinds(projectName string) []str
 	if m.config.KiroCredsHostDir != "" {
 		binds = append(binds, m.config.KiroCredsHostDir+":"+agentHome+"/.local/share/kiro-cli")
 	}
+	if m.config.CodexHostDir != "" {
+		binds = append(binds, filepath.Join(m.config.CodexHostDir, "auth.json")+":"+agentHome+"/.codex/auth.json:ro")
+	}
 	// Fly CLI login token/config — available regardless of coding agent, so a
 	// pipeline step can run `fly deploy` after the agent step finishes.
 	binds = append(binds, m.flyBind(agentHome)...)
@@ -944,19 +963,19 @@ func (m *ContainerManager) AttachWorkflowContainer(ctx context.Context, containe
 // and StopAndRemoveContainer when the session ends.
 func (m *ContainerManager) StartProjectChatContainer(ctx context.Context, agent, model, system, projectName string) (string, error) {
 	cmd := buildChatCmd(agent, model, system)
-	// Claude uses NDJSON stream-json mode (no TTY needed).
+	// Claude and the Codex adapter use structured NDJSON (no TTY).
 	// Kiro uses interactive plain-text mode (needs TTY for output flushing).
-	useTTY := agent != "claude"
+	useTTY := agent != "claude" && agent != "codex"
 
 	cfg := &container.Config{
 		Image:       SandboxImage,
+		WorkingDir:  workspaceMount,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
 		Tty:         useTTY,
 		AttachStdin: true,
 		OpenStdin:   true,
 		StdinOnce:   false,
-		WorkingDir:  workspaceMount,
 	}
 
 	hostCfg := &container.HostConfig{
@@ -1050,6 +1069,7 @@ func (m *ContainerManager) createAndStartContainer(ctx context.Context, agent st
 func (m *ContainerManager) createContainer(ctx context.Context, agent string, cmd []string, interactive bool, tty bool) (string, error) {
 	cfg := &container.Config{
 		Image:       SandboxImage,
+		WorkingDir:  workspaceMount,
 		Cmd:         cmd,
 		Env:         m.buildContainerEnv(),
 		Tty:         tty,

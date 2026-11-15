@@ -141,6 +141,10 @@ func (s *scriptedRunner) RunOneShotStreaming(ctx context.Context, agent, prompt,
 		// Agent-appropriate framing: claude speaks NDJSON stream-json, kiro
 		// writes plain lines to a TTY.
 		frame := func(text string) string {
+			if agent == "codex" {
+				b, _ := json.Marshal(map[string]any{"type": "item.completed", "item": map[string]any{"type": "agent_message", "text": text}})
+				return string(b)
+			}
 			if agent != "claude" {
 				return text
 			}
@@ -154,6 +158,9 @@ func (s *scriptedRunner) RunOneShotStreaming(ctx context.Context, agent, prompt,
 		}
 
 		defer pw.Close()
+		if agent == "codex" {
+			defer func() { _, _ = io.WriteString(pw, "{\"type\":\"turn.completed\"}\n") }()
+		}
 
 		switch {
 		case strings.Contains(prompt, markerHang):
@@ -862,8 +869,8 @@ func TestIntegration_ModelsEndpoints(t *testing.T) {
 		if list.Object != "list" {
 			t.Errorf("object = %q, want list", list.Object)
 		}
-		if len(list.Data) != 3 {
-			t.Fatalf("%d models, want the 3 defaults", len(list.Data))
+		if len(list.Data) != 4 {
+			t.Fatalf("%d models, want the 4 defaults", len(list.Data))
 		}
 		for _, m := range list.Data {
 			if m.Object != "model" {
@@ -1029,7 +1036,7 @@ func assertWellFormedStream(t *testing.T, frames []string) string {
 }
 
 func TestIntegration_Streaming_HappyPath(t *testing.T) {
-	for _, model := range []string{"kiro", "claude-sonnet"} {
+	for _, model := range []string{"kiro", "claude-sonnet", "codex"} {
 		t.Run(model, func(t *testing.T) {
 			srv := newOpenAITestServer(t, openaiServerOpts{})
 			resp := chatRequest(t, srv, map[string]any{

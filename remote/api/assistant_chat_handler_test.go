@@ -14,9 +14,9 @@ import (
 	"remote/store"
 )
 
-func TestValidateAssistantAgent_AcceptsKiroAndClaude(t *testing.T) {
+func TestValidateAssistantAgent_AcceptsKiroClaudeAndCodex(t *testing.T) {
 	h := &AssistantHandler{}
-	for _, agent := range []string{"kiro", "claude"} {
+	for _, agent := range []string{"kiro", "claude", "codex"} {
 		if err := h.validateAssistantAgent(agent); err != nil {
 			t.Errorf("expected agent %q to be valid, got %v", agent, err)
 		}
@@ -69,7 +69,7 @@ func TestAssistantDataDirReady(t *testing.T) {
 func TestPropertyValidateAssistantAgentRejectsInvalid(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		agent := rapid.String().
-			Filter(func(s string) bool { return s != "kiro" && s != "claude" }).
+			Filter(func(s string) bool { return s != "kiro" && s != "claude" && s != "codex" }).
 			Draw(t, "agent")
 
 		h := &AssistantHandler{}
@@ -85,7 +85,7 @@ func TestPropertyValidateAssistantAgentRejectsInvalid(t *testing.T) {
 
 func TestPropertyValidateAssistantAgentAcceptsValid(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		agent := rapid.SampledFrom([]string{"kiro", "claude"}).Draw(t, "agent")
+		agent := rapid.SampledFrom([]string{"kiro", "claude", "codex"}).Draw(t, "agent")
 
 		h := &AssistantHandler{}
 		if err := h.validateAssistantAgent(agent); err != nil {

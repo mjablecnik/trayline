@@ -41,6 +41,7 @@
 			<option value="" disabled>{$t('agent.selectAgent')}</option>
 			<option value="kiro">kiro</option>
 			<option value="claude">claude</option>
+			<option value="codex">codex</option>
 		</select>
 	</div>
 

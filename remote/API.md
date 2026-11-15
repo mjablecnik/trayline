@@ -2,7 +2,7 @@
 
 ## Overview
 
-Trayline Server is an HTTP + WebSocket API for programmatic interaction with AI agents (Kiro and Claude Code). It provides two operational modes:
+Trayline Server is an HTTP + WebSocket API for programmatic interaction with AI agents (Kiro, Claude Code, and Codex CLI). It provides two operational modes:
 
 - **One-Shot (REST)** — Submit a prompt, get a result. Stateless, ephemeral container per task.
 - **Chat (WebSocket)** — Open an interactive session, exchange multiple messages with streaming output. Stateful, persistent container per session.
@@ -127,7 +127,7 @@ Content-Type: application/json
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `prompt` | string | Yes | The task prompt. Max 32,000 characters. |
-| `agent` | string | Yes | Agent to use: `"kiro"` or `"claude"` |
+| `agent` | string | Yes | Agent to use: `"kiro"`, `"claude"`, or `"codex"` |
 | `model` | string | No | Model override (agent-specific) |
 | `system` | string | No | Custom system prompt |
 | `output_format` | string | No | Hint for response format: `"json"`, `"text"`, or `"markdown"` |
@@ -141,7 +141,7 @@ Content-Type: multipart/form-data
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `prompt` | form field | Yes | The task prompt |
-| `agent` | form field | Yes | `"kiro"` or `"claude"` |
+| `agent` | form field | Yes | `"kiro"`, `"claude"`, or `"codex"` |
 | `model` | form field | No | Model override |
 | `system` | form field | No | Custom system prompt |
 | `output_format` | form field | No | `"json"`, `"text"`, or `"markdown"` |
@@ -218,7 +218,7 @@ The `status` field transitions through: `queued` → `running` → `completed` |
 |-------|------|---------|-------------|
 | `id` | string | Always | UUID of the task |
 | `status` | string | Always | One of: `queued`, `running`, `completed`, `failed`, `cancelled` |
-| `agent` | string | Always | Agent used: `"kiro"` or `"claude"` |
+| `agent` | string | Always | Agent used: `"kiro"`, `"claude"`, or `"codex"` |
 | `result` | string | On success | Agent output text |
 | `error` | string | On failure | Error description |
 | `valid` | boolean | Optional | Whether the result passed output validation |
@@ -348,7 +348,7 @@ Upgrades to WebSocket. Starts a new interactive chat session with an AI agent.
 
 | Param | Required | Description |
 |-------|----------|-------------|
-| `agent` | Yes | `"kiro"` or `"claude"` |
+| `agent` | Yes | `"kiro"`, `"claude"`, or `"codex"` |
 | `model` | No | Model override |
 | `system` | No | Custom system prompt |
 
@@ -538,6 +538,11 @@ Chat sessions are automatically terminated after 24 hours of inactivity (no mess
 |-------|-------------|
 | `kiro` | Kiro CLI agent |
 | `claude` | Claude Code CLI agent |
+| `codex` | OpenAI Codex CLI agent |
+
+Codex supports the same native task and global/project/assistant chat endpoints as Kiro and Claude. Login credentials come from the host's `codex login`; set `CODEX_HOST_DIR` when the host directory differs from `~/.codex`. Only `auth.json` is mounted read-only into containers, including scheduled workflows.
+
+For chat, the sandbox adapter translates structured messages to Codex JSONL runs, resumes the exact thread for follow-ups, and keeps the bridge alive after interruption. Reconnecting attaches to the same running container. System instructions map to `developer_instructions`; failures emit an `error` followed by `done`. Assistant output arrives per completed message, with reasoning and tool output filtered out. `/v1/chat/completions` also supports Codex with both buffered responses and SSE; truncated or failed SSE turns are reported as errors. Rebuild the sandbox image before using Codex chat.
 
 ### Output Format Hint
 
@@ -694,23 +699,24 @@ documented here — see the corresponding handler in `remote/api/` for the exact
 
 ## OpenAI-Compatible API
 
-Trayline Server also exposes an OpenAI-compatible surface under `/v1/`, so existing OpenAI SDKs and tools (`openai` Python/JS, LangChain, etc.) can talk to Kiro and Claude Code agents by pointing their `base_url` at this server. Each `/v1/` request maps to a one-shot agent run under the hood — there is no persistent conversation state on the server between calls, so the full message history must be sent with every request (standard OpenAI chat semantics).
+Trayline Server also exposes an OpenAI-compatible surface under `/v1/`, so existing OpenAI SDKs and tools (`openai` Python/JS, LangChain, etc.) can talk to Kiro, Claude Code, and Codex agents by pointing their `base_url` at this server. Each `/v1/` request maps to a one-shot agent run under the hood — there is no persistent conversation state on the server between calls, so the full message history must be sent with every request (standard OpenAI chat semantics).
 
 ### Model Name Mapping
 
 The `model` field in requests is resolved against a server-side registry rather than passed straight to an LLM provider. The registry maps a public model name to an internal `agent` + `model variant` pair, configured via the `OPENAI_MODELS` environment variable:
 
 ```
-OPENAI_MODELS=kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet
+OPENAI_MODELS=kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet,codex:codex:
 ```
 
-Format: comma-separated `public_name:agent:model_variant` entries. `agent` is `kiro` or `claude`; `model_variant` is optional and agent-specific (e.g. `sonnet`, `opus`) — omit it to use the agent's default model. Lookups are case-insensitive. If `OPENAI_MODELS` is unset or empty, the default is:
+Format: comma-separated `public_name:agent:model_variant` entries. `agent` is `kiro`, `claude`, or `codex`; `model_variant` is optional and agent-specific (e.g. `sonnet`, `opus`) — omit it to use the agent's default model. Lookups are case-insensitive. If `OPENAI_MODELS` is unset or empty, the default is:
 
 | Public name | Agent | Model variant |
 |-------------|-------|----------------|
 | `kiro` | `kiro` | (default) |
 | `claude` | `claude` | (default) |
 | `claude-sonnet` | `claude` | `sonnet` |
+| `codex` | `codex` | (default) |
 
 Only names present in this registry are accepted by `/v1/chat/completions` and returned by `/v1/models` — arbitrary OpenAI model names (e.g. `gpt-4o`) are not recognized unless added to `OPENAI_MODELS`.
 
@@ -844,7 +850,8 @@ Lists every model configured in `OPENAI_MODELS`.
   "data": [
     {"id": "kiro", "object": "model", "created": 1731000000, "owned_by": "trayline"},
     {"id": "claude", "object": "model", "created": 1731000000, "owned_by": "trayline"},
-    {"id": "claude-sonnet", "object": "model", "created": 1731000000, "owned_by": "trayline"}
+    {"id": "claude-sonnet", "object": "model", "created": 1731000000, "owned_by": "trayline"},
+    {"id": "codex", "object": "model", "created": 1731000000, "owned_by": "trayline"}
   ]
 }
 ```

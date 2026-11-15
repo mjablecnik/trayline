@@ -123,10 +123,10 @@ func (h *SessionHandler) wsAuth(conn *websocket.Conn) bool {
 // HandleChat handles WS /chat.
 func (h *SessionHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	agent := r.URL.Query().Get("agent")
-	if agent != "kiro" && agent != "claude" {
+	if agent != "kiro" && agent != "claude" && agent != "codex" {
 		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
-			Message: `agent query parameter must be "kiro" or "claude"`,
+			Message: `agent query parameter must be "kiro", "claude", or "codex"`,
 		})
 		return
 	}
@@ -489,7 +489,7 @@ func (h *SessionHandler) streamOutput(ctx context.Context, sessionID string, att
 		return
 	}
 
-	if sess.Agent == "claude" {
+	if sess.Agent == "claude" || sess.Agent == "codex" {
 		// Non-TTY: Docker uses multiplexed stream. Demux stdout via stdcopy.
 		pr, pw := io.Pipe()
 		go func() {
@@ -562,7 +562,7 @@ func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID strin
 			case "control_response":
 				if !initialized {
 					initialized = true
-					h.logger.Info(ctx, fmt.Sprintf("session %s: claude CLI initialized", sessionID))
+					h.logger.Info(ctx, fmt.Sprintf("session %s: structured agent initialized", sessionID))
 				}
 
 			case "system":
@@ -590,6 +590,10 @@ func (h *SessionHandler) streamOutputClaude(ctx context.Context, sessionID strin
 						}
 					}
 				}
+
+			case "error":
+				message, _ := msg["message"].(string)
+				h.writeWSToSession(sessionID, WSServerMessage{Type: "error", Message: message})
 
 			case "result":
 				// End of turn — emit "done"
@@ -785,8 +789,8 @@ func (h *SessionHandler) readClient(ctx context.Context, sessionID string, conn 
 				if files := h.getSessionFiles(sessionID); len(files) > 0 {
 					prompt = BuildUploadMetadata(files) + prompt
 				}
-				if sess.Agent == "claude" {
-					// Send NDJSON user message for claude stream-json protocol
+				if sess.Agent == "claude" || sess.Agent == "codex" {
+					// Send a structured user message (Claude or the Codex adapter).
 					userMsg := map[string]interface{}{
 						"type":               "user",
 						"session_id":         nil,

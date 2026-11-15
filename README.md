@@ -1,6 +1,6 @@
 # Trayline
 
-Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and [Cline CLI](https://docs.cline.bot) agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
+Unified CLI for AI agent pipelines. Run [Kiro CLI](https://kiro.dev), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cline CLI](https://docs.cline.bot), and OpenAI Codex CLI agents in sandboxed Docker containers, orchestrate multi-step workflows with YAML pipelines, and sync projects with remote servers.
 
 ## Installation
 
@@ -18,6 +18,10 @@ claude login
 # Cline (uses ClinePass provider — $9.99/month subscription for open coding models)
 npm install -g cline
 cline auth clinepass
+
+# Codex (ChatGPT login; API-key authentication is not wired into Trayline)
+npm install -g @openai/codex@0.169.0
+codex login
 
 # Fly CLI (flyctl) — lets agents inside the sandbox deploy/manage apps on fly.io
 curl -L https://fly.io/install.sh | sh
@@ -51,6 +55,10 @@ trayline <command> [options]
 | `version` | Print version info |
 | `help`  | Show help |
 
+### Zsh completions
+
+When Zsh is available, the installer installs completions for `trayline`, `trayline-client`, and `taskline`. With `~/.oh-my-zsh` present, it uses `~/.oh-my-zsh/custom/completions`; otherwise it uses `~/.zsh/completions` and adds the completion setup to `~/.zshrc`. Installed files have LF line endings; `_trayline` also has no UTF-8 BOM. Restart Zsh after installation. Agent completion includes `codex`.
+
 ### agent
 
 Run an AI coding agent in a sandboxed Docker container with filtered access to the host Docker daemon.
@@ -63,6 +71,8 @@ trayline agent claude -p ~/my-project -i
 trayline agent claude -p ~/my-project "Fix the tests"
 trayline agent cline -t high "Refactor auth module"
 trayline agent cline -p ~/my-project -i
+trayline agent codex -p ~/my-project "Fix the failing tests"
+trayline agent codex -p ~/my-project -i
 trayline agent claude remote                    # remote-control mode (foreground)
 trayline agent claude remote -p ~/my-project -n "My Project"
 ```
@@ -73,6 +83,14 @@ Options:
 - `-t LEVEL` — thinking/effort level: low, medium, high, xhigh, max (optional)
 - `-i` — interactive mode (opens a chat session)
 - `-n NAME` — session name for remote-control mode (default: project directory basename)
+
+For Codex, log in on the host with `codex login` first. The CLI runner mounts only `~/.codex/auth.json` read-only into `/home/agent/.codex/auth.json`; host configuration and `tmp/` symlinks are not copied into the container. Trayline does not forward `OPENAI_API_KEY`. `-m` selects a model; `-t` sets `model_reasoning_effort` (`max` maps to Codex's `xhigh`).
+
+Codex runs with `--no-daemon --dangerously-bypass-approvals-and-sandbox` (and `exec` for one-shot tasks). This disables its inner approval and sandbox mechanisms; the Docker container and Docker socket proxy provide the surrounding execution boundary.
+
+Codex is supported in YAML agent steps, queued workflows, remote one-shot tasks, global/project/assistant chat, the dashboard, and the OpenAI-compatible API (`model: "codex"`). Remote chat uses a persistent adapter that resumes the exact Codex thread between turns and supports interruption and reconnecting. Agent text is delivered as completed message events rather than token-by-token deltas.
+
+After updating, run `./setup/install.sh` to rebuild the sandbox image (including its Codex chat adapter) and binaries. Restart the remote server with `remote/scripts/start-docker.sh`; it resolves `CODEX_HOST_DIR` from the host and forwards it into the server. Agent and workflow containers mount only `auth.json` read-only. If an existing server environment explicitly sets `OPENAI_MODELS`, append `codex:codex:` to that list; installer updates preserve existing environment files.
 
 `claude remote` is a separate mode (Claude only): it registers the session with Anthropic's own remote-control service instead of running one-shot or waiting for local input, so it's reachable from claude.ai/code or the Claude mobile app. This is unrelated to trayline's own `remote/` server module below.
 
@@ -175,7 +193,7 @@ npm run test            # vitest
 ## How it works
 
 ```
-trayline agent  →  Sandbox container (Kiro CLI / Claude Code / Cline CLI + tools)
+trayline agent  →  Sandbox container (Kiro CLI / Claude Code / Cline CLI / Codex CLI + tools)
                       ↓ TCP :2375
                   docker-socket-proxy (filters Docker API)
                       ↓ socket
@@ -184,6 +202,26 @@ trayline agent  →  Sandbox container (Kiro CLI / Claude Code / Cline CLI + too
 
 Proxy allows: `ps`, `logs`, `build`, `start/stop/restart`, `exec`, `images`, `networks`.
 Proxy denies: `volumes`, `secrets`, `swarm`, `auth`, `nodes`, `configs`.
+
+### Sandbox tool versions
+
+The sandbox Dockerfile declares these build-argument defaults:
+
+| Tool | Version |
+|------|---------|
+| Kiro CLI | `3.1.0` |
+| Claude Code | `2.1.325` |
+| Cline CLI | `3.0.74` |
+| Codex CLI | `0.169.0` |
+| Go | `1.27.4` |
+| Bun | `1.4.4` |
+| uv | `0.12.14` |
+| Flutter | `3.47.9` |
+| Kotlin | `2.4.21` |
+| Godot | `4.7.2` |
+| Fly CLI | `0.5.5` |
+
+These are repository build defaults, not a list of latest upstream releases. Override them with Docker `--build-arg NAME=value` when building `runtime/sandbox/Dockerfile`. Node.js tracks the 24.x apt channel, and some other tools remain unpinned, so the whole image is not fully reproducible. Rebuild the sandbox image to pick up these changes.
 
 ## Project Structure
 

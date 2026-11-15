@@ -208,18 +208,15 @@ elif [[ "$AGENT" == "codex" ]]; then
       -v "${HOME}/.codex/auth.json":"${AGENT_HOME}/.codex/auth.json":ro
     )
   fi
-  if $INTERACTIVE; then
-    CMD=(codex --no-daemon --dangerously-bypass-approvals-and-sandbox)
-    if [[ -n "$MODEL" ]]; then
-      CMD+=(-m "$MODEL")
-    fi
-  else
-    CMD=(codex --no-daemon exec --dangerously-bypass-approvals-and-sandbox)
-    if [[ -n "$MODEL" ]]; then
-      CMD+=(-m "$MODEL")
-    fi
-    CMD+=("$PROMPT")
+  CMD=(codex --no-daemon)
+  if ! $INTERACTIVE; then CMD+=(exec --skip-git-repo-check); fi
+  CMD+=(--dangerously-bypass-approvals-and-sandbox)
+  if [[ -n "$MODEL" ]]; then CMD+=(-m "$MODEL"); fi
+  if [[ -n "$THINKING" ]]; then
+    [[ "$THINKING" == "max" ]] && THINKING="xhigh"
+    CMD+=(-c "model_reasoning_effort=\"${THINKING}\"")
   fi
+  if ! $INTERACTIVE; then CMD+=(-- "$PROMPT"); fi
 fi
 # Use -it only when stdin is a TTY (interactive terminal);
 # pipelines and other non-interactive callers get no TTY flags.

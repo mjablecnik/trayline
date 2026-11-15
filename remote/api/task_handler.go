@@ -106,10 +106,10 @@ func (h *TaskHandler) HandlePostRun(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.Agent != "kiro" && req.Agent != "claude" {
+	if req.Agent != "kiro" && req.Agent != "claude" && req.Agent != "codex" {
 		writeJSON(w, http.StatusBadRequest, core.ErrorResponse{
 			Error:   "VALIDATION_ERROR",
-			Message: `agent must be "kiro" or "claude"`,
+			Message: `agent must be "kiro", "claude", or "codex"`,
 		})
 		return
 	}

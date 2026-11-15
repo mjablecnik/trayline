@@ -96,7 +96,7 @@ Runs `trayline-agent` with the specified agent type and prompt:
 ```yaml
 steps:
   - name: "create-code"
-    agent: "claude"          # "claude", "kiro", or "cline"
+    agent: "claude"          # "claude", "kiro", "cline", or "codex"
     model: "sonnet"          # optional, overrides default model
     effort: "high"           # optional, thinking/effort level (low, medium, high, xhigh, max)
     prompt: "Read the spec and create the code"
@@ -107,8 +107,21 @@ The `effort` field controls how much reasoning the model applies. Maps to:
 - Kiro CLI: `--effort <level>`
 - Claude Code: `--effort <level>`
 - Cline CLI: `--thinking <level>`
+- Codex CLI: `-c model_reasoning_effort="<level>"` (`max` → `xhigh`)
 
 If omitted, each agent uses its own default (Kiro: persistent preference, Claude: adaptive, Cline: medium).
+
+Codex steps support `model` and `effort`. Effort is passed as `-c model_reasoning_effort="..."`; `max` maps to `xhigh`, and omitted effort uses the Codex default. Both the standalone Docker runner and the direct executor inside workflow containers support Codex. Log in with `codex login` on the host first; workflow containers mount only the host `auth.json` read-only.
+
+```yaml
+steps:
+  - name: fix-tests
+    agent: codex
+    effort: high
+    prompt: Fix the failing tests and verify the build.
+```
+
+Codex runs with `--no-daemon`, bypasses its internal approvals/sandbox inside the Docker boundary, and uses `--skip-git-repo-check` for workspaces that are not Git repositories.
 
 ### Command Step
 
@@ -247,7 +260,7 @@ The orchestrator validates the pipeline at parse time and fails fast on:
 - Missing or invalid YAML
 - Steps missing `name`
 - Steps with both `agent` and `command`, or neither
-- Invalid agent type (must be `kiro`, `claude`, or `cline`)
+- Invalid agent type (must be `kiro`, `claude`, `cline`, or `codex`)
 - Duplicate step names (across entire pipeline including loops)
 - Condition not specifying exactly one of `prompt`, `contains`, `not_contains`, `matches`, or `not_matches`
 - Invalid regex in `matches`/`not_matches`

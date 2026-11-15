@@ -1,6 +1,16 @@
 # Agent API Server
 
-HTTP server exposing REST and WebSocket APIs for programmatic interaction with AI agents (Kiro CLI and Claude Code). Manages agent containers via the Docker API, supports one-shot task execution with long polling, and WebSocket-based chat sessions with streaming output. Also exposes an OpenAI-compatible `/v1/chat/completions` + `/v1/models` surface so existing OpenAI SDKs can talk to the same agents — see [API.md](API.md#openai-compatible-api).
+HTTP server exposing REST and WebSocket APIs for programmatic interaction with AI agents (Kiro CLI, Claude Code, and Codex CLI). Manages agent containers via the Docker API, supports one-shot task execution with long polling, and WebSocket-based chat sessions with streaming output. Also exposes an OpenAI-compatible `/v1/chat/completions` + `/v1/models` surface so existing OpenAI SDKs can talk to the same agents — see [API.md](API.md#openai-compatible-api).
+
+## Codex
+
+Codex is available in one-shot tasks, global/project/assistant chat, scheduled YAML workflows, the dashboard, and the OpenAI-compatible API. Use `agent: "codex"` for native endpoints or `model: "codex"` for `/v1/chat/completions`; custom model variants can be configured via `OPENAI_MODELS`. For an existing explicit model list, append `codex:codex:`; installed environment files are preserved during upgrades.
+
+Log in on the host with `codex login`. `CODEX_HOST_DIR` defaults to the server user's `~/.codex` if present; `scripts/start-docker.sh` instead resolves the host directory and forwards it explicitly. The path must be visible to the Docker daemon. All Codex and workflow containers mount only `auth.json` read-only at `/home/agent/.codex/auth.json`, keeping config, temporary symlinks and thread databases private to each container. API-key authentication is not wired into Trayline.
+
+Remote chat uses the sandbox's `trayline-codex-chat` adapter. It consumes structured user messages, invokes `codex --no-daemon exec --json`, and resumes the exact thread ID on subsequent turns. Interruption stops the active child; the adapter remains available for further messages and WebSocket reconnection. System instructions use `developer_instructions`. Completed assistant messages are forwarded without exposing reasoning or tool output; token-level deltas are not emitted.
+
+Rebuild the sandbox image and server binaries, then restart the server to deploy this integration. Codex's inner approvals and sandbox are disabled inside the Docker execution boundary.
 
 ## Prerequisites
 
@@ -33,9 +43,10 @@ HTTP server exposing REST and WebSocket APIs for programmatic interaction with A
 | `DOCKER_HOST` | — | No | Docker proxy endpoint; set automatically by `start-docker.sh` |
 | `KIRO_HOST_DIR` | — | No | Host path to `~/.kiro` (workspace config, steering files) |
 | `KIRO_CREDS_HOST_DIR` | — | No | Host path to `~/.local/share/kiro-cli` (auth token) |
+| `CODEX_HOST_DIR` | Server user's `~/.codex`, if present | No | Host Codex directory; only `auth.json` is mounted read-only into agent/workflow containers |
 | `CLAUDE_HOST_DIR` | — | No | Host path to `~/.claude` (session data) |
 | `CLAUDE_CONFIG_HOST_FILE` | — | No | Host path to `~/.claude.json` (global config / token) |
-| `OPENAI_MODELS` | `kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet` | No | Comma-separated `public_name:agent:model_variant` entries exposed via the OpenAI-compatible `/v1/models` and `/v1/chat/completions` endpoints |
+| `OPENAI_MODELS` | `kiro:kiro:,claude:claude:,claude-sonnet:claude:sonnet,codex:codex:` | No | Comma-separated `public_name:agent:model_variant` entries exposed via the OpenAI-compatible `/v1/models` and `/v1/chat/completions` endpoints |
 
 Copy `.env.example` to `.env` and fill in the required values before running.
 
@@ -143,7 +154,7 @@ Cancels a queued or running task. Returns HTTP 409 if already in a terminal stat
 WS /chat?agent=claude&model=claude-opus-4-5&system=You+are+helpful
 ```
 
-`agent` is required (`kiro` or `claude`). `model` and `system` are optional.
+`agent` is required (`kiro`, `claude`, or `codex`). `model` and `system` are optional.
 
 Upon connection, the server sends:
 ```json

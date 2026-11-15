@@ -1,5 +1,13 @@
 # Memory
 
+## Codex integration and credential isolation (2026-11-15)
+- Project: trayline (runtime, orchestrator, remote, dashboard)
+- Problem: Mounting the entire host `~/.codex` imports host npm symlinks and shares config/session databases. A plain `codex exec` process also cannot implement persistent stdin chat.
+- Solution: Mount only `auth.json` read-only in CLI, server and workflow containers. Run with `--no-daemon` and bypass inner approvals inside Docker. The Python sandbox chat adapter resumes the exact thread per turn, maps Codex events to structured chat, forwards SIGINT to the active process group, and keeps the bridge alive. OpenAI SSE parses native Codex JSONL and suppresses tool/reasoning output.
+- Support: YAML validation and direct execution, native task/chat endpoints, assistant/project chat, dashboard selectors and default OpenAI registry include Codex. Effort maps through `model_reasoning_effort`, with `max` → `xhigh`. Rebuild the sandbox image to install the adapter; restart the server with host-resolved `CODEX_HOST_DIR`.
+- Verification: bridge protocol tests use a fake executable, not paid model calls. These verify thread reuse, error recovery, interruption, argument safety and output filtering; real provider access requires a separate authenticated Docker smoke test.
+- Source: 2026-11-15 integration following review of commits `79b1746` through `dbd79cb`.
+
 ## RingBuffer.Wrapped() was implemented but never wired through any API response or WebSocket message
 - Project: trayline (remote + dashboard, 010-dashboard-workflow-runner spec, task 11.1 — WorkflowLogViewer.svelte)
 - Problem: Requirement 13.6 requires the log viewer to show a "truncated" notice when a workflow's 1MB ring buffer wraps. `store.RingBuffer.Wrapped()` (task 1.2/1.3) was fully implemented and property-tested, but `grep -rn "\.Wrapped()"` across `remote/` showed it was called only from `ringbuffer_test.go` — never from `api/workflow_types.go`'s `workflowToResponse` (the REST detail/list JSON) or `api/workflow_handler.go`'s `workflowLogMessage` (the WebSocket protocol). Neither the design doc's `Workflow` TypeScript interface nor its WS message shapes (`{type:"finished",...}`) included a truncation field either — so there was no way for the frontend to ever learn a workflow's log had been truncated, even though the backend tracked it correctly internally. This is the same class of gap as the earlier-documented "no backend endpoint exists to fetch raw file bytes" entry: a downstream frontend task cannot faithfully satisfy its requirement because an upstream task's spec/design silently omitted the plumbing.

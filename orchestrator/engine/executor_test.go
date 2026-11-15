@@ -1067,3 +1067,23 @@ func TestFindResumeStepFromSubCheckpoints_AgentStepSkipped(t *testing.T) {
 		t.Errorf("expected empty string for agent step (no Command), got %q", got)
 	}
 }
+
+func TestDirectCodexPassesModelEffortAndSafePrompt(t *testing.T) {
+	dir := t.TempDir()
+	binary := dir + "/codex"
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	t.Setenv("TRAYLINE_DIRECT_AGENT", "1")
+	runner := &OSCommandRunner{}
+	output, code, err := runner.RunAgent("codex", "--flag-like prompt", "my-model", "max", dir, os.Environ(), false, io.Discard, io.Discard)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v output=%s", code, err, output)
+	}
+	for _, expected := range []string{"--no-daemon\nexec\n", "--model\nmy-model\n", "-c\nmodel_reasoning_effort=\"xhigh\"\n", "--\n--flag-like prompt\n"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("missing %q in %q", expected, output)
+		}
+	}
+}

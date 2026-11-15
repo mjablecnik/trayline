@@ -129,10 +129,17 @@ func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model stri
 	case "codex":
 		bin = "codex"
 		args = []string{"--no-daemon", "exec", "--dangerously-bypass-approvals-and-sandbox"}
+		args = append(args, "--skip-git-repo-check")
+		if effort != "" {
+			if effort == "max" {
+				effort = "xhigh"
+			}
+			args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(effort))
+		}
 		if model != "" {
 			args = append(args, "--model", model)
 		}
-		args = append(args, prompt)
+		args = append(args, "--", prompt)
 	default:
 		return "", 1, fmt.Errorf("unknown agent: %s", agent)
 	}

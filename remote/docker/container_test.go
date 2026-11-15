@@ -46,24 +46,45 @@ func newOneShotManager(t *testing.T, mock *MockContainerClient, maxSlots int) *C
 
 func TestCodexContainerCommands(t *testing.T) {
 	for _, model := range []string{"", "test-model"} {
-		for name, cmd := range map[string][]string{
-			"one-shot": buildOneShotCmd("codex", "Fix tests", model, ""),
-			"chat":     buildChatCmd("codex", model, ""),
-		} {
-			t.Run(name+"/"+model, func(t *testing.T) {
-				if len(cmd) < 4 || cmd[0] != "codex" || cmd[1] != "--no-daemon" || cmd[2] != "exec" {
-					t.Fatalf("expected non-interactive Codex command, got %v", cmd)
-				}
-				if !containsStr(cmd, "--dangerously-bypass-approvals-and-sandbox") {
-					t.Fatalf("container command must bypass inner approvals and sandbox: %v", cmd)
-				}
-				if model != "" && (indexStr(cmd, "--model") < 0 || cmd[indexStr(cmd, "--model")+1] != model) {
-					t.Fatalf("model not forwarded: %v", cmd)
-				}
-				if name == "one-shot" && !containsStr(cmd, "Fix tests") {
-					t.Fatalf("prompt not forwarded: %v", cmd)
-				}
-			})
+		cmd := buildOneShotCmd("codex", "--flag-like prompt", model, "Keep \"quoted\" instructions\nnext line")
+		if cmd[0] != "codex" || !containsStr(cmd, "--no-daemon") || !containsStr(cmd, "--dangerously-bypass-approvals-and-sandbox") {
+			t.Fatalf("invalid command: %v", cmd)
+		}
+		if cmd[len(cmd)-2] != "--" || cmd[len(cmd)-1] != "--flag-like prompt" {
+			t.Fatalf("unsafe prompt arguments: %v", cmd)
+		}
+		if !containsStr(cmd, "-c") {
+			t.Fatal("system instructions missing")
+		}
+		chat := buildChatCmd("codex", model, "system instructions")
+		if len(chat) < 2 || chat[0] != "python3" || chat[1] != "/usr/local/bin/trayline-codex-chat" {
+			t.Fatalf("chat must run persistent bridge: %v", chat)
+		}
+		if !containsStr(chat, "system instructions") {
+			t.Fatal("chat system instructions missing")
+		}
+		for _, args := range [][]string{cmd, chat} {
+			if model != "" && (indexStr(args, "--model") < 0 || args[indexStr(args, "--model")+1] != model) {
+				t.Fatalf("model missing: %v", args)
+			}
+		}
+	}
+}
+
+func TestCodexCredentialsMountedAsReadOnlyAuthFile(t *testing.T) {
+	cfg := &core.Config{CodexHostDir: "/host/codex", ProjectsDir: "/projects"}
+	m := NewContainerManager(nil, cfg, nil)
+	for name, binds := range map[string][]string{
+		"task":      m.buildContainerBinds("codex"),
+		"project":   m.BuildProjectContainerBinds("codex", "demo"),
+		"assistant": m.BuildAssistantContainerBinds("codex"),
+		"workflow":  m.buildWorkflowContainerBinds("demo"),
+	} {
+		if !containsStr(binds, "/host/codex/auth.json:/home/agent/.codex/auth.json:ro") {
+			t.Errorf("%s credentials not mounted: %v", name, binds)
+		}
+		if containsStr(binds, "/host/codex:/home/agent/.codex") {
+			t.Errorf("%s exposes host config and state", name)
 		}
 	}
 }

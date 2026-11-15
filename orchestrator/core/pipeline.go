@@ -197,8 +197,8 @@ func validateStep(s *Step, topLevelNames []string) error {
 	}
 
 	if isAgentStep {
-		if s.Agent != "kiro" && s.Agent != "claude" && s.Agent != "cline" {
-			return fmt.Errorf("step %q: invalid agent type %q, must be \"kiro\", \"claude\", or \"cline\"", s.Name, s.Agent)
+		if s.Agent != "kiro" && s.Agent != "claude" && s.Agent != "codex" && s.Agent != "cline" {
+			return fmt.Errorf("step %q: invalid agent type %q, must be \"kiro\", \"claude\", \"cline\", or \"codex\"", s.Name, s.Agent)
 		}
 		if s.Prompt == "" {
 			return fmt.Errorf("step %q: missing required field \"prompt\"", s.Name)

@@ -173,6 +173,12 @@ else
   FLY_HOST_DIR=""
 fi
 
+CODEX_HOST_DIR="${CODEX_HOST_DIR:-${HOME}/.codex}"
+if [ ! -f "$CODEX_HOST_DIR/auth.json" ]; then
+  echo "Codex auth.json not found ($CODEX_HOST_DIR); run codex login to enable Codex."
+  CODEX_HOST_DIR=""
+fi
+
 docker run -d \
   --name trayline-server \
   --network "$NETWORK_NAME" \
@@ -181,6 +187,7 @@ docker run -d \
   -e TRAYLINE_HOME_DIR="${TRAYLINE_HOME_DIR}" \
   -e REPOS_DIR="${REPOS_DIR}" \
   -e FLY_HOST_DIR="${FLY_HOST_DIR}" \
+  -e CODEX_HOST_DIR="${CODEX_HOST_DIR}" \
   -v "${WORKSPACE_HOST_DIR}:${WORKSPACE_DIR}" \
   -v "${PROJECTS_DIR}:${PROJECTS_DIR}" \
   -v "${ASSISTANT_DATA_DIR}:${ASSISTANT_DATA_DIR}" \

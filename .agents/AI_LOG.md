@@ -1,5 +1,20 @@
 # AI Log
 
+## 2026-11-15 — Complete Codex integration
+- Enabled Codex YAML steps, model/effort forwarding (`max` → `xhigh`), native task/chat endpoints, project/assistant chat and dashboard agent selectors. Provider changes clear stale model IDs.
+- Added a sandbox Python adapter for persistent chat using exact-thread `exec resume`, per-message output, interruption, error recovery and structured protocol compatibility. Added native Codex JSONL handling for OpenAI SSE and a default `codex` registry entry.
+- Unified CLI/server/workflow credentials as read-only auth.json-only mounts and resolved server host credentials in start-docker.sh. Rebuild the sandbox and restart services after updating.
+- Added regression tests for YAML parsing/execution, task acceptance, SSE filtering/failure handling, credential mounts and adapter multi-turn/error/interrupt behavior.
+- Validation: full orchestrator and remote Go suites passed; dashboard check/build and 32 existing plus 2 new frontend tests passed; 4 adapter protocol tests and mocked CLI Docker-argument checks passed. Formatting/lint checked for changed frontend files. Live Docker/provider smoke test was unavailable because `trayline-proxy:2375` could not be resolved in this environment.
+- Supersedes the incomplete-support findings recorded in the documentation review below.
+
+## 2026-11-15 — Codex, sandbox versions, and Zsh completions
+- Reviewed today's 16 commits (`79b1746` through `dbd79cb`) and synchronized related documentation with the final implementation.
+- Added Codex CLI usage and host-login authentication: CLI mounts only `~/.codex/auth.json` read-only, disables the daemon and inner approvals/sandbox, forwards model selection, and does not forward effort or API-key authentication.
+- Recorded the incomplete integration boundary: YAML validation and public remote task/chat validation still excludes Codex and the default model registry omits it, despite new executor/container-builder branches. Server builders still mount the full `CODEX_HOST_DIR` read-write.
+- Documented sandbox build-argument version defaults and their limits, plus Oh My Zsh completion installation, LF normalization, BOM removal, and Codex completion.
+- Documentation update only; no runtime code changes.
+
 ## 2026-07-01 07:53 — manual
 - Project: server + orchestrator (agent-api-server, Go)
 - Added a full suite of unit/integration/edge-case tests across both Go modules, derived from `TEST_SPEC.md` and tracked in `TASKS.md` (Phases 0–3).

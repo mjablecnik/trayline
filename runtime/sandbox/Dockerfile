@@ -213,3 +213,6 @@ RUN chown -R agent:agent /workspace /tmp/uploads
 WORKDIR /workspace
 
 USER agent
+
+# Persistent NDJSON adapter for Codex chat; Python is installed above.
+COPY codex-chat.py /usr/local/bin/trayline-codex-chat

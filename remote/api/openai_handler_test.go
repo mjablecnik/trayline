@@ -87,8 +87,8 @@ func TestModelRegistry_ResolveNotFound(t *testing.T) {
 func TestModelRegistry_EmptyConfig(t *testing.T) {
 	r := NewModelRegistry("")
 	entries := r.List()
-	if len(entries) != 3 {
-		t.Fatalf("expected 3 default entries, got %d", len(entries))
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 default entries, got %d", len(entries))
 	}
 	if _, ok := r.Resolve("kiro"); !ok {
 		t.Error("expected default 'kiro' entry")

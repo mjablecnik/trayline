@@ -159,6 +159,10 @@ func (r *Runner) RunOneShotStreaming(ctx context.Context, agent, prompt, model, 
 	pr, pw := io.Pipe()
 
 	frame := func(text string) string {
+		if agent == "codex" {
+			b, _ := json.Marshal(map[string]any{"type": "item.completed", "item": map[string]any{"type": "agent_message", "text": text}})
+			return string(b)
+		}
 		if agent != "claude" {
 			return text
 		}
@@ -173,6 +177,9 @@ func (r *Runner) RunOneShotStreaming(ctx context.Context, agent, prompt, model, 
 
 	go func() {
 		defer pw.Close()
+		if agent == "codex" {
+			defer func() { _, _ = io.WriteString(pw, "{\"type\":\"turn.completed\"}\n") }()
+		}
 
 		write := func(line string) bool {
 			select {
@@ -222,7 +229,7 @@ func (r *Runner) RunOneShotStreaming(ctx context.Context, agent, prompt, model, 
 			// non-streaming path returns, so clients can rely on the two modes
 			// agreeing. kiro's reader is line-based (the handler appends a
 			// newline per line), so its default answer is emitted as one line.
-			if agent != "claude" {
+			if agent == "kiro" {
 				write(DefaultOutput)
 				return
 			}

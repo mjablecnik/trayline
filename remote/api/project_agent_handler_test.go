@@ -66,7 +66,7 @@ func TestValidateAgent_RejectsInvalidStrings(t *testing.T) {
 
 	rapid.Check(t, func(t *rapid.T) {
 		agent := rapid.String().
-			Filter(func(s string) bool { return s != "kiro" && s != "claude" }).
+			Filter(func(s string) bool { return s != "kiro" && s != "claude" && s != "codex" }).
 			Draw(t, "agent")
 
 		err := h.validateAgent(agent)
@@ -79,8 +79,11 @@ func TestValidateAgent_RejectsInvalidStrings(t *testing.T) {
 	})
 }
 
-func TestValidateAgent_AcceptsKiroAndClaude(t *testing.T) {
+func TestValidateAgent_AcceptsKiroClaudeAndCodex(t *testing.T) {
 	h := &ProjectAgentHandler{}
+	if err := h.validateAgent("codex"); err != nil {
+		t.Fatalf("Codex rejected: %v", err)
+	}
 
 	if err := h.validateAgent("kiro"); err != nil {
 		t.Errorf("expected no error for \"kiro\", got %v", err)

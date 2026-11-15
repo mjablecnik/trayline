@@ -36,7 +36,7 @@ _trayline_client() {
             case "${words[1]}" in
                 chat)
                     _arguments \
-                        '--agent[Agent to use (kiro or claude)]:AGENT:(kiro claude)' \
+                        '--agent[Agent to use (kiro, claude, or codex)]:AGENT:(kiro claude codex)' \
                         '--model[Model override]:MODEL:' \
                         '--system[System prompt override]:PROMPT:' \
                         '--session[Reconnect to an existing session ID]:ID:' \
@@ -45,7 +45,7 @@ _trayline_client() {
                     ;;
                 run)
                     _arguments \
-                        '--agent[Agent to use (kiro or claude)]:AGENT:(kiro claude)' \
+                        '--agent[Agent to use (kiro, claude, or codex)]:AGENT:(kiro claude codex)' \
                         '--prompt[Prompt text to send]:TEXT:' \
                         '--model[Model override]:MODEL:' \
                         '--system[System prompt override]:PROMPT:' \

@@ -19,7 +19,7 @@ export interface AgentSessionState {
 	// route and back destroys/recreates the agent page component, but not
 	// this store).
 	project: string | null;
-	agent: string; // "kiro" | "claude" | ""
+	agent: string; // "kiro" | "claude" | "codex" | ""
 	model: string;
 	connectionState: ConnectionState;
 	messages: ChatMessage[];
@@ -45,10 +45,8 @@ function createAgentStore() {
 			update((s) => ({
 				...s,
 				agent,
-				// Claude's model field is easy to forget to fill in; default it to
-				// the recommended model rather than leaving it blank. Only kicks in
-				// when the field is still empty so it never clobbers a user edit.
-				model: agent === 'claude' && !s.model ? 'sonnet' : s.model
+				// Clear provider-specific model IDs when switching agents.
+				model: agent === s.agent ? s.model : agent === 'claude' ? 'sonnet' : ''
 			}));
 		},
 		setModel(model: string) {

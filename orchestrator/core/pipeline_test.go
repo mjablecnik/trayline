@@ -716,3 +716,16 @@ steps:
 	}
 	return `steps: []`
 }
+
+func TestParsePipelineCodex(t *testing.T) {
+	path := writeTempPipeline(t, `steps:
+  - name: implement
+    agent: codex
+    model: test-model
+    effort: max
+    prompt: Fix failing tests
+`)
+	if _, err := ParsePipeline(path); err != nil {
+		t.Fatalf("Codex pipeline rejected: %v", err)
+	}
+}

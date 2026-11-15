@@ -141,6 +141,7 @@ func TestModelRegistry_DefaultsMatchSpec(t *testing.T) {
 	for _, config := range []string{"", "   ", "\t\n"} {
 		r := NewModelRegistry(config)
 		want := map[string]ModelEntry{
+			"codex":         {ID: "codex", Agent: "codex", Model: ""},
 			"kiro":          {ID: "kiro", Agent: "kiro", Model: ""},
 			"claude":        {ID: "claude", Agent: "claude", Model: ""},
 			"claude-sonnet": {ID: "claude-sonnet", Agent: "claude", Model: "sonnet"},

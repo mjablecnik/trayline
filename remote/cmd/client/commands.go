@@ -62,7 +62,7 @@ Start an interactive WebSocket chat session with an AI agent.
 Type /quit to end the session. Press Ctrl+C to interrupt the agent.
 
 Flags:
-  --agent AGENT       Agent to use: "kiro" or "claude" (required)
+  --agent AGENT       Agent to use: "kiro", "claude", or "codex" (required)
   --model MODEL       Model override (optional)
   --system PROMPT     System prompt override (optional)
   --session ID        Reconnect to an existing session ID (optional)
@@ -78,7 +78,7 @@ Examples:
 Execute a one-shot task and display the result.
 
 Flags:
-  --agent AGENT       Agent to use: "kiro" or "claude" (required)
+  --agent AGENT       Agent to use: "kiro", "claude", or "codex" (required)
   --prompt TEXT       Prompt text to send (required)
   --model MODEL       Model override (optional)
   --system PROMPT     System prompt override (optional)
