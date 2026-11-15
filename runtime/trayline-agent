@@ -203,16 +203,16 @@ elif [[ "$AGENT" == "codex" ]]; then
     -v "${HOME}/.codex":"${AGENT_HOME}/.codex"
   )
   if $INTERACTIVE; then
-    CMD=(codex)
+    CMD=(codex --no-daemon)
     if [[ -n "$MODEL" ]]; then
       CMD+=(-m "$MODEL")
     fi
   else
-    CMD=(codex exec)
+    CMD=(codex exec --no-daemon --dangerously-bypass-approvals-and-sandbox)
     if [[ -n "$MODEL" ]]; then
       CMD+=(-m "$MODEL")
     fi
-    CMD+=(--approve-for-me -s workspace-write "$PROMPT")
+    CMD+=("$PROMPT")
   fi
 fi
 # Use -it only when stdin is a TTY (interactive terminal);
