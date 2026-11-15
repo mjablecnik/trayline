@@ -126,6 +126,13 @@ func (r *OSCommandRunner) runDirectAgent(agent string, prompt string, model stri
 			args = append(args, "--thinking", effort)
 		}
 		args = append(args, prompt)
+	case "codex":
+		bin = "codex"
+		args = []string{"--approval-mode", "full-auto", "-q"}
+		if model != "" {
+			args = append(args, "--model", model)
+		}
+		args = append(args, prompt)
 	default:
 		return "", 1, fmt.Errorf("unknown agent: %s", agent)
 	}

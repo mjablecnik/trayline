@@ -275,6 +275,12 @@ func buildOneShotCmd(agent, prompt, model, system string) []string {
 			cmd = append(cmd, "--system-prompt", system)
 		}
 		return wrapWithClaudeCredentialSeed(cmd)
+	case "codex":
+		cmd := []string{"codex", "--approval-mode", "full-auto", "-q", prompt}
+		if model != "" {
+			cmd = append(cmd, "--model", model)
+		}
+		return cmd
 	default:
 		return nil
 	}
@@ -304,6 +310,14 @@ func buildChatCmd(agent, model, system string) []string {
 			cmd = append(cmd, "--append-system-prompt", system)
 		}
 		return wrapWithClaudeCredentialSeed(cmd)
+	case "codex":
+		// Codex does not have a persistent interactive mode equivalent to claude's
+		// stream-json protocol; run in full-auto one-shot mode reading prompt from stdin.
+		cmd := []string{"codex", "--approval-mode", "full-auto"}
+		if model != "" {
+			cmd = append(cmd, "--model", model)
+		}
+		return cmd
 	default:
 		return nil
 	}
@@ -618,6 +632,9 @@ func (m *ContainerManager) buildContainerEnv() []string {
 	}
 	if m.config.TasklineToken != "" {
 		env = append(env, "TASKLINE_TOKEN="+m.config.TasklineToken)
+	}
+	if m.config.OpenAIAPIKey != "" {
+		env = append(env, "OPENAI_API_KEY="+m.config.OpenAIAPIKey)
 	}
 	return env
 }

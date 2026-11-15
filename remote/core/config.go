@@ -73,6 +73,11 @@ type Config struct {
 	// assistant containers. Defaults to {parent of ProjectsDir}/.assistant.
 	AssistantDataDir string
 
+	// OpenAIAPIKey is the API key injected as OPENAI_API_KEY into every agent
+	// container that uses a Codex agent. Unlike Kiro/Claude, Codex authenticates
+	// via an environment variable rather than credential files on disk.
+	OpenAIAPIKey string
+
 	// ReposDir is the host directory containing bare git repositories used as
 	// remotes by project working copies. Mounted into workflow containers at
 	// the same path so `git pull agent main` works. Empty disables the mount.
@@ -341,6 +346,9 @@ func LoadConfig() (*Config, error) {
 	cfg.TasklineURL = os.Getenv("TASKLINE_URL")
 	// TASKLINE_TOKEN (optional; bearer token for taskline server auth)
 	cfg.TasklineToken = os.Getenv("TASKLINE_TOKEN")
+
+	// OPENAI_API_KEY (optional; injected as env var into codex agent containers)
+	cfg.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
 
 	return cfg, nil
 }
