@@ -136,8 +136,6 @@ VOLUMES+=(
   -v "${HOME}/.fly":"${AGENT_HOME}/.fly"
 )
 
-CODEX_ENV=()
-
 if [[ "$AGENT" == "kiro" ]]; then
   VOLUMES+=(
     -v "${HOME}/.kiro":"${AGENT_HOME}/.kiro"
@@ -201,11 +199,14 @@ elif [[ "$AGENT" == "cline" ]]; then
     CMD+=(--yolo "$PROMPT")
   fi
 elif [[ "$AGENT" == "codex" ]]; then
-  # Codex auth: pass OPENAI_API_KEY from host env directly — do NOT mount
-  # ~/.codex from the host because it contains symlinks pointing to the host's
-  # npm install paths, which are broken inside the container.
-  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-    CODEX_ENV+=(-e OPENAI_API_KEY="$OPENAI_API_KEY")
+  # Codex auth is stored in ~/.codex/auth.json (OAuth token from `codex login`).
+  # Mount only that file — not the whole ~/.codex directory, which contains a
+  # tmp/ subdir with symlinks pointing to the host's npm paths that are broken
+  # inside the container.
+  if [[ -f "${HOME}/.codex/auth.json" ]]; then
+    VOLUMES+=(
+      -v "${HOME}/.codex/auth.json":"${AGENT_HOME}/.codex/auth.json":ro
+    )
   fi
   if $INTERACTIVE; then
     CMD=(codex --no-daemon)
@@ -231,6 +232,5 @@ docker run "${DOCKER_FLAGS[@]}" \
   --network "$NETWORK_NAME" \
   -e DOCKER_HOST="tcp://${PROXY_NAME}:2375" \
   "${VOLUMES[@]}" \
-  "${CODEX_ENV[@]}" \
   "$IMAGE_NAME" \
   "${CMD[@]}"
