@@ -97,18 +97,21 @@ RUN curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_V
     && rm -rf /tmp/templates /tmp/templates.tpz
 
 # Kiro CLI (manual install – install.sh refuses root)
+ARG KIRO_CLI_VERSION=3.1.0
 RUN curl --proto '=https' --tlsv1.2 -sSf \
-    'https://desktop-release.q.us-east-1.amazonaws.com/latest/kirocli-x86_64-linux.zip' \
+    "https://desktop-release.q.us-east-1.amazonaws.com/${KIRO_CLI_VERSION}/kirocli-x86_64-linux.zip" \
     -o /tmp/kirocli.zip \
     && unzip /tmp/kirocli.zip -d /tmp/kirocli \
     && install -m 755 /tmp/kirocli/kirocli/bin/* /usr/local/bin/ \
     && rm -rf /tmp/kirocli /tmp/kirocli.zip
 
 # Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+ARG CLAUDE_CODE_VERSION=2.1.325
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # Cline CLI
-RUN npm install -g cline
+ARG CLINE_VERSION=3.0.74
+RUN npm install -g cline@${CLINE_VERSION}
 
 # Playwright npm package (browser binary already installed above)
 RUN npm install -g playwright
