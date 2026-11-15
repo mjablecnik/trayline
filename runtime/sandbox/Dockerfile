@@ -1,4 +1,4 @@
-# Sandboxed dev container with Go, Node, Bun, Flutter, Kotlin/Quarkus, Godot, Kiro CLI, Claude Code & Cline CLI
+# Sandboxed dev container with Go, Node, Bun, Flutter, Kotlin/Quarkus, Godot, Kiro CLI, Claude Code, Cline CLI & Codex CLI
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Go
-ARG GO_VERSION=1.25.13
+ARG GO_VERSION=1.27.4
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
 
@@ -39,14 +39,14 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Flutter
-ARG FLUTTER_VERSION=3.47.1
+ARG FLUTTER_VERSION=3.47.9
 RUN git clone --depth 1 --branch ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 RUN flutter precache && flutter config --no-analytics && dart --disable-analytics
 
 # Kotlin + Quarkus (requires JDK)
 ARG JAVA_VERSION=21
-ARG KOTLIN_VERSION=2.1.10
+ARG KOTLIN_VERSION=2.4.21
 ARG QUARKUS_VERSION=3.21.3
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-${JAVA_VERSION}-jdk-headless \
@@ -81,7 +81,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglu1-mesa libglx-mesa0 libx11-6 libxcursor1 libxinerama1 \
     libxi6 libxrandr2 libxext6 libudev1 libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
-ARG GODOT_VERSION=4.7.1
+ARG GODOT_VERSION=4.7.2
 RUN curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
       -o /tmp/godot.zip \
     && unzip -q /tmp/godot.zip -d /tmp/godot \
@@ -175,7 +175,7 @@ RUN userdel -r ubuntu 2>/dev/null; useradd -m -s /bin/bash -u 1000 agent
 # Allow agent to install packages via sudo (apt-get only)
 RUN echo "agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg" > /etc/sudoers.d/agent \
     && chmod 0440 /etc/sudoers.d/agent
-RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.fly /home/agent/.ssh /home/agent/.config/gh /home/agent/go
+RUN mkdir -p /home/agent/.kiro /home/agent/.local/share/kiro-cli /home/agent/.claude /home/agent/.cline /home/agent/.codex /home/agent/.fly /home/agent/.ssh /home/agent/.config/gh /home/agent/go
 # Point Godot at the pre-installed export templates (it looks in ~/.local/share/godot)
 RUN mkdir -p /home/agent/.local/share/godot \
     && ln -sf /opt/godot/export_templates /home/agent/.local/share/godot/export_templates
