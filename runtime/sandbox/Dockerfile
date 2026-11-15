@@ -113,6 +113,10 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 ARG CLINE_VERSION=3.0.74
 RUN npm install -g cline@${CLINE_VERSION}
 
+# Codex CLI (OpenAI)
+ARG CODEX_VERSION=0.169.0
+RUN npm install -g @openai/codex@${CODEX_VERSION}
+
 # Playwright npm package (browser binary already installed above)
 RUN npm install -g playwright
 
